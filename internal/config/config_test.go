@@ -16,6 +16,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "from-zero-to-hero", cfg.Roadmap)
 	assert.Contains(t, cfg.Workspace, "leetgo-workspace")
 	assert.False(t, cfg.OnboardingComplete)
+	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
 	assert.False(t, cfg.GitExportEnabled)
@@ -31,6 +32,7 @@ func TestLoad_NoFile(t *testing.T) {
 	assert.Equal(t, "go", cfg.Language)
 	assert.Equal(t, "from-zero-to-hero", cfg.Roadmap)
 	assert.False(t, cfg.OnboardingComplete)
+	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
 }
 
@@ -260,8 +262,30 @@ roadmap = "from-zero-to-hero"
 	assert.Equal(t, "go", cfg.Language)
 	assert.Equal(t, "from-zero-to-hero", cfg.Roadmap)
 	assert.False(t, cfg.OnboardingComplete)
+	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
 	assert.False(t, cfg.GitExportEnabled)
 	assert.Empty(t, cfg.GitExportRepo)
+}
+
+func TestReadyForDashboard(t *testing.T) {
+	cfg := &Config{
+		OnboardingComplete: true,
+		OnboardingVersion:  CurrentOnboardingVersion,
+		DisplayName:        "Grace",
+		Workspace:          "/tmp/leetgo",
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	assert.True(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}))
+
+	cfg.OnboardingVersion = 0
+	assert.False(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}), "stale configs must rerun Onboarding")
+
+	cfg.OnboardingVersion = CurrentOnboardingVersion
+	cfg.DisplayName = ""
+	assert.False(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}), "incomplete Profile must rerun Onboarding")
 }

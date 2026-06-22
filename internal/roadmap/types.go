@@ -14,6 +14,7 @@ const (
 	StatusLocked     Status = "locked"
 	StatusAvailable  Status = "available"
 	StatusInProgress Status = "in_progress"
+	StatusVerified   Status = "verified"
 	StatusSolved     Status = "solved"
 )
 

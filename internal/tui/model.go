@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -93,6 +92,8 @@ func renderStatus(s roadmap.Status) string {
 		return activeStyle.Render("[ACTIVE]")
 	case roadmap.StatusSolved:
 		return solvedStyle.Render("[SOLVED]")
+	case roadmap.StatusVerified:
+		return availStyle.Render("[VERIFIED]")
 	default:
 		return statusStyle.Render("[???]")
 	}
@@ -126,6 +127,14 @@ type submitResultMsg struct {
 	language  string
 	result    *leetcode.SubmissionResult
 	err       error
+}
+
+type testRunResultMsg struct {
+	problemID  int
+	difficulty roadmap.Difficulty
+	output     string
+	passed     bool
+	alreadyRun bool
 }
 
 type Model struct {
@@ -165,7 +174,7 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 
 	solved := make(map[int]bool)
 	for id, status := range progress {
-		if status == roadmap.StatusSolved {
+		if status == roadmap.StatusSolved || status == roadmap.StatusVerified {
 			solved[id] = true
 		}
 	}
@@ -546,6 +555,11 @@ func (m *Model) handleSelect() (tea.Model, tea.Cmd) {
 
 	ctx := context.Background()
 
+	if err := workspace.EnsureManifestWritable(m.workspace.ProblemDir(item.problem), item.problem.ID); err != nil {
+		m.notifications.Add(fmt.Sprintf("Failed to write manifest: %v", err))
+		return m, nil
+	}
+
 	if item.status == roadmap.StatusAvailable {
 		if err := m.store.SetProgress(ctx, item.problem.ID, roadmap.StatusInProgress); err != nil {
 			m.notifications.Add(fmt.Sprintf("Failed to update progress: %v", err))
@@ -559,10 +573,33 @@ func (m *Model) handleSelect() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if err := m.writeManifest(item.problem, stubPath, testPath); err != nil {
+		m.notifications.Add(fmt.Sprintf("Failed to write manifest: %v", err))
+		return m, nil
+	}
+
 	m.notifications.Add(fmt.Sprintf("Started %s — files generated", item.problem.Title))
 	m.openEditor(stubPath, testPath)
 
 	return m, nil
+}
+
+func (m *Model) writeManifest(problem *roadmap.Problem, stubPath, testPath string) error {
+	dir := m.workspace.ProblemDir(problem)
+	stage := problem.Stage
+	if stage == "" {
+		stage = string(problem.Category)
+	}
+	manifest := &workspace.Manifest{
+		ProblemID:     problem.ID,
+		Slug:          problem.Slug,
+		Roadmap:       m.roadmap.ID,
+		Stage:         stage,
+		Language:      m.config.Language,
+		StubPath:      filepath.Base(stubPath),
+		TestsuitePath: filepath.Base(testPath),
+	}
+	return workspace.WriteManifest(dir, manifest)
 }
 
 func (m *Model) handleMarkSolved() (tea.Model, tea.Cmd) {
@@ -588,18 +625,12 @@ func (m *Model) handleMarkSolved() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	xp := store.XPForDifficulty(item.problem.Difficulty)
-	if err := m.store.AddXP(ctx, xp); err != nil {
-		m.notifications.Add(fmt.Sprintf("Failed to add XP: %v", err))
-		return m, nil
-	}
-
 	if err := m.store.UpdateStreak(ctx); err != nil {
 		m.notifications.Add(fmt.Sprintf("Failed to update streak: %v", err))
 		return m, nil
 	}
 
-	m.notifications.Add(fmt.Sprintf("+%d XP for %s", xp, item.problem.Title))
+	m.notifications.Add(fmt.Sprintf("Marked %s solved — manual solve awards no XP", item.problem.Title))
 
 	unlocked, err := m.gamification.OnProblemSolved(ctx, item.problem.ID)
 	if err == nil {
@@ -638,7 +669,7 @@ func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if item.status != roadmap.StatusInProgress && item.status != roadmap.StatusSolved {
+	if item.status != roadmap.StatusInProgress && item.status != roadmap.StatusVerified && item.status != roadmap.StatusSolved {
 		m.notifications.Add("Start the problem first (press Enter).")
 		return m, nil
 	}
@@ -689,22 +720,38 @@ func (m *Model) recordSolveLog(msg submitResultMsg) {
 
 func (m *Model) markAcceptedSubmission(problemID int) {
 	ctx := context.Background()
-	progress, err := m.store.GetProgress(ctx, problemID)
+	alreadyClaimed, err := m.store.HasRewardEvent(ctx, problemID, "submit")
 	if err != nil {
-		m.notifications.Add(fmt.Sprintf("Failed to read progress: %v", err))
+		m.notifications.Add(fmt.Sprintf("Failed to check submit reward: %v", err))
 		return
 	}
-	if progress != nil && progress.Status == roadmap.StatusSolved {
-		return
-	}
+
 	if err := m.store.SetProgress(ctx, problemID, roadmap.StatusSolved); err != nil {
 		m.notifications.Add(fmt.Sprintf("Failed to mark solved: %v", err))
 		return
 	}
-	if problem, ok := m.graph.Problems[problemID]; ok {
-		xp := store.XPForDifficulty(problem.Difficulty)
+
+	if alreadyClaimed {
+		m.notifications.Add("Submit XP already claimed for this problem.")
+		m.refreshStats()
+		return
+	}
+
+	problem, ok := m.graph.Problems[problemID]
+	if ok {
+		xp := store.XPForDifficulty(problem.Difficulty) * 30 / 100
 		if err := m.store.AddXP(ctx, xp); err != nil {
 			m.notifications.Add(fmt.Sprintf("Failed to add XP: %v", err))
+			return
+		}
+		event := &store.RewardEvent{
+			ProblemID: problemID,
+			Kind:      "submit",
+			XP:        xp,
+		}
+		if err := m.store.RecordRewardEvent(ctx, event); err != nil {
+			m.notifications.Add(fmt.Sprintf("Failed to record submit event: %v", err))
+			return
 		}
 	}
 	if err := m.store.UpdateStreak(ctx); err != nil {
@@ -767,17 +814,7 @@ func (m *Model) openEditor(stubPath, testPath string) {
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
 	}
-	if editor == "" {
-		m.notifications.Add("No editor configured. Set $EDITOR or run `leetgo init`.")
-		return
-	}
-
-	parts := strings.Fields(editor)
-	args := append(parts[1:], stubPath, testPath)
-	cmd := exec.Command(parts[0], args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := editorCommand(editor, []string{stubPath, testPath}, filepath.Dir(stubPath))
 	if err := cmd.Start(); err != nil {
 		m.notifications.Add(fmt.Sprintf("Failed to open editor: %v", err))
 	}

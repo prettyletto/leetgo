@@ -145,6 +145,8 @@ func (v *GraphView) renderMarker(status roadmap.Status) string {
 	switch status {
 	case roadmap.StatusSolved:
 		return solvedNode.Render("SOLVED")
+	case roadmap.StatusVerified:
+		return availableNode.Render("VERIFIED")
 	case roadmap.StatusInProgress:
 		return activeNode.Render("ACTIVE")
 	case roadmap.StatusAvailable:
@@ -159,7 +161,7 @@ func (v *GraphView) statusFor(p *roadmap.Problem) roadmap.Status {
 		return status
 	}
 	for _, prereq := range p.Prerequisites {
-		if v.progress[prereq] != roadmap.StatusSolved {
+		if v.progress[prereq] != roadmap.StatusSolved && v.progress[prereq] != roadmap.StatusVerified {
 			return roadmap.StatusLocked
 		}
 	}
@@ -169,7 +171,7 @@ func (v *GraphView) statusFor(p *roadmap.Problem) roadmap.Status {
 func (v *GraphView) missingPrerequisites(p *roadmap.Problem) []string {
 	var missing []string
 	for _, id := range p.Prerequisites {
-		if v.progress[id] == roadmap.StatusSolved {
+		if v.progress[id] == roadmap.StatusSolved || v.progress[id] == roadmap.StatusVerified {
 			continue
 		}
 		if prereq, ok := v.graph.Problems[id]; ok {

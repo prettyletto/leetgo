@@ -36,6 +36,9 @@ type ProblemDetailScreen struct {
 	submitting   bool
 	spinnerFrame int
 
+	manualSolveMode  bool
+	manualSolveInput string
+
 	width  int
 	height int
 }
@@ -105,7 +108,7 @@ func (s *ProblemDetailScreen) effectiveStatus() {
 	}
 
 	for _, prereq := range s.problem.Prerequisites {
-		if progress[prereq] != roadmap.StatusSolved {
+		if progress[prereq] != roadmap.StatusSolved && progress[prereq] != roadmap.StatusVerified {
 			s.status = roadmap.StatusLocked
 			return
 		}
@@ -125,6 +128,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	case submitResultMsg:
 		return s.handleSubmitResult(msg)
 
+	case testRunResultMsg:
+		return s.handleTestRunResult(msg)
+
 	case spinnerTickMsg:
 		if s.submitting {
 			s.spinnerFrame = (s.spinnerFrame + 1) % len(spinnerFrames)
@@ -138,6 +144,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		if s.manualSolveMode {
+			return s.handleManualSolveKey(msg)
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return s, tea.Quit
@@ -180,6 +189,8 @@ func (s *ProblemDetailScreen) handlePrimaryAction() (Screen, tea.Cmd) {
 		return s, nil
 	case roadmap.StatusAvailable:
 		return s.handleStart()
+	case roadmap.StatusVerified:
+		return s.handleSubmit()
 	default:
 		return s.handleOpenEditor()
 	}
@@ -187,6 +198,11 @@ func (s *ProblemDetailScreen) handlePrimaryAction() (Screen, tea.Cmd) {
 
 func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 	ctx := context.Background()
+
+	if err := workspace.EnsureManifestWritable(s.problemDir(), s.problem.ID); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to write manifest: %v", err)
+		return s, nil
+	}
 
 	if err := s.db.SetProgress(ctx, s.problem.ID, roadmap.StatusInProgress); err != nil {
 		s.errorMsg = fmt.Sprintf("Failed to update progress: %v", err)
@@ -199,8 +215,13 @@ func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 		return s, nil
 	}
 
+	if err := s.writeManifest(stubPath, testPath); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to write manifest: %v", err)
+		return s, nil
+	}
+
 	s.status = roadmap.StatusInProgress
-	s.errorMsg = fmt.Sprintf("Started — files generated at %s", s.problemDir())
+	s.errorMsg = "Started. Files opened in editor."
 
 	return s, tea.Batch(
 		func() tea.Msg {
@@ -208,6 +229,24 @@ func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 		},
 		s.openEditorCmd(stubPath, testPath),
 	)
+}
+
+func (s *ProblemDetailScreen) writeManifest(stubPath, testPath string) error {
+	dir := s.problemDir()
+	stage := s.problem.Stage
+	if stage == "" {
+		stage = string(s.problem.Category)
+	}
+	m := &workspace.Manifest{
+		ProblemID:     s.problem.ID,
+		Slug:          s.problem.Slug,
+		Roadmap:       s.roadmap.ID,
+		Stage:         stage,
+		Language:      s.cfg.Language,
+		StubPath:      filepath.Base(stubPath),
+		TestsuitePath: filepath.Base(testPath),
+	}
+	return workspace.WriteManifest(dir, m)
 }
 
 func (s *ProblemDetailScreen) handleOpenEditor() (Screen, tea.Cmd) {
@@ -230,20 +269,8 @@ func (s *ProblemDetailScreen) openEditorCmd(stubPath, testPath string) tea.Cmd {
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
 	}
-	if editor == "" {
-		return func() tea.Msg {
-			return GlobalNotificationMsg{Message: "No editor configured. Set $EDITOR or run `leetgo init`."}
-		}
-	}
-
-	parts := strings.Fields(editor)
-	args := append(parts[1:], stubPath, testPath)
-
 	return func() tea.Msg {
-		cmd := exec.Command(parts[0], args...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd := editorCommand(editor, []string{stubPath, testPath}, s.problemDir())
 		if err := cmd.Start(); err != nil {
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open editor: %v", err)}
 		}
@@ -263,25 +290,33 @@ func (s *ProblemDetailScreen) handleRunTests() (Screen, tea.Cmd) {
 		return s, nil
 	}
 
+	difficulty := s.problem.Difficulty
+	problemID := s.problem.ID
 	cmd := s.testCommand()
 	return s, func() tea.Msg {
 		output, err := cmd.CombinedOutput()
 		result := strings.TrimSpace(string(output))
+		passed := err == nil
 		if err != nil {
 			result += fmt.Sprintf("\nTestSuite error: %v", err)
 		}
-		return GlobalNotificationMsg{Message: result}
+		return testRunResultMsg{
+			problemID:  problemID,
+			difficulty: difficulty,
+			output:     result,
+			passed:     passed,
+		}
 	}
 }
 
 func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
-	if s.status != roadmap.StatusInProgress && s.status != roadmap.StatusSolved {
+	if s.status != roadmap.StatusInProgress && s.status != roadmap.StatusVerified && s.status != roadmap.StatusSolved {
 		s.errorMsg = "Start the problem first."
 		return s, nil
 	}
 
 	if s.leetcode == nil || !s.leetcode.IsAuthenticated() {
-		s.errorMsg = "Not authenticated. Run `leetgo auth` first."
+		s.errorMsg = "Session expired. Run `leetgo auth` and try again."
 		return s, nil
 	}
 
@@ -320,12 +355,80 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 
 	if msg.result.StatusCode == 10 {
 		s.markAcceptedSubmission(msg.problemID)
-		s.errorMsg = fmt.Sprintf("Accepted! Runtime: %s, Memory: %s", msg.result.Runtime, msg.result.Memory)
+		if s.errorMsg == "" {
+			s.errorMsg = fmt.Sprintf("Accepted! Runtime: %s, Memory: %s", msg.result.Runtime, msg.result.Memory)
+		}
 	} else {
 		s.errorMsg = fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests)
 	}
 
 	return s, nil
+}
+
+func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen, tea.Cmd) {
+	if !msg.passed {
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: msg.output}
+		}
+	}
+
+	if s.status == roadmap.StatusVerified || s.status == roadmap.StatusSolved {
+		return s, func() tea.Msg {
+			result := msg.output + "\n\nTests passed. Reward already claimed."
+			return GlobalNotificationMsg{Message: result}
+		}
+	}
+
+	ctx := context.Background()
+	alreadyClaimed, err := s.db.HasRewardEvent(ctx, msg.problemID, "verify")
+	if err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to check verify reward: %v", err)
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: msg.output}
+		}
+	}
+
+	if alreadyClaimed {
+		return s, func() tea.Msg {
+			result := msg.output + "\n\nVerify XP already claimed for this problem."
+			return GlobalNotificationMsg{Message: result}
+		}
+	}
+
+	xp := store.XPForDifficulty(msg.difficulty) * 70 / 100
+	if xp > 0 {
+		if err := s.db.AddXP(ctx, xp); err != nil {
+			s.errorMsg = fmt.Sprintf("Failed to add verify XP: %v", err)
+			return s, func() tea.Msg {
+				return GlobalNotificationMsg{Message: msg.output}
+			}
+		}
+	}
+
+	event := &store.RewardEvent{
+		ProblemID: msg.problemID,
+		Kind:      "verify",
+		XP:        xp,
+	}
+	if err := s.db.RecordRewardEvent(ctx, event); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to record verify event: %v", err)
+		return s, nil
+	}
+
+	if err := s.db.SetProgress(ctx, msg.problemID, roadmap.StatusVerified); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to update status: %v", err)
+		return s, nil
+	}
+
+	if err := s.db.UpdateStreak(ctx); err != nil {
+		s.errorMsg += fmt.Sprintf(" | Failed to update streak: %v", err)
+	}
+
+	s.status = roadmap.StatusVerified
+	return s, func() tea.Msg {
+		result := fmt.Sprintf("%s\n\n+%d XP (verify: %d%%) Tests passed — Problem Verified", msg.output, xp, 70)
+		return GlobalNotificationMsg{Message: result}
+	}
 }
 
 func (s *ProblemDetailScreen) recordSolveLog(msg submitResultMsg) {
@@ -352,30 +455,71 @@ func (s *ProblemDetailScreen) recordSolveLog(msg submitResultMsg) {
 
 func (s *ProblemDetailScreen) markAcceptedSubmission(problemID int) {
 	ctx := context.Background()
-	progress, err := s.db.GetProgress(ctx, problemID)
+
+	alreadyClaimed, err := s.db.HasRewardEvent(ctx, problemID, "submit")
 	if err != nil {
 		return
 	}
-	if progress != nil && progress.Status == roadmap.StatusSolved {
-		return
-	}
+
 	if err := s.db.SetProgress(ctx, problemID, roadmap.StatusSolved); err != nil {
 		return
 	}
+	s.status = roadmap.StatusSolved
 
-	xp := store.XPForDifficulty(s.problem.Difficulty)
-	if err := s.db.AddXP(ctx, xp); err != nil {
+	if alreadyClaimed {
+		s.errorMsg = "Accepted by LeetCode. Reward already claimed."
 		return
 	}
+
+	totalXP := 0
+	xp := store.XPForDifficulty(s.problem.Difficulty) * 30 / 100
+	if xp > 0 {
+		if err := s.db.AddXP(ctx, xp); err != nil {
+			return
+		}
+		totalXP += xp
+	}
+
+	event := &store.RewardEvent{
+		ProblemID: problemID,
+		Kind:      "submit",
+		XP:        xp,
+	}
+	if err := s.db.RecordRewardEvent(ctx, event); err != nil {
+		return
+	}
+
+	hasVerify, err := s.db.HasRewardEvent(ctx, problemID, "verify")
+	if err != nil {
+		return
+	}
+	if !hasVerify {
+		verifyXP := store.XPForDifficulty(s.problem.Difficulty) * 70 / 100
+		if verifyXP > 0 {
+			if err := s.db.AddXP(ctx, verifyXP); err != nil {
+				return
+			}
+			totalXP += verifyXP
+		}
+		verifyEvent := &store.RewardEvent{
+			ProblemID: problemID,
+			Kind:      "verify",
+			XP:        verifyXP,
+		}
+		if err := s.db.RecordRewardEvent(ctx, verifyEvent); err != nil {
+			return
+		}
+	}
+
 	if err := s.db.UpdateStreak(ctx); err != nil {
 		return
 	}
-	s.status = roadmap.StatusSolved
+	s.errorMsg = fmt.Sprintf("Accepted by LeetCode. +%d XP.", totalXP)
 }
 
 func (s *ProblemDetailScreen) handleMarkSolved() (Screen, tea.Cmd) {
 	if s.status == roadmap.StatusSolved {
-		s.errorMsg = "Already solved!"
+		s.errorMsg = "Already Solved."
 		return s, nil
 	}
 	if s.status == roadmap.StatusLocked {
@@ -383,29 +527,58 @@ func (s *ProblemDetailScreen) handleMarkSolved() (Screen, tea.Cmd) {
 		return s, nil
 	}
 
+	s.manualSolveMode = true
+	s.manualSolveInput = ""
+	s.errorMsg = ""
+
+	return s, nil
+}
+
+func (s *ProblemDetailScreen) handleManualSolveKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		s.manualSolveMode = false
+		s.manualSolveInput = ""
+		return s, nil
+
+	case tea.KeyEnter:
+		if s.manualSolveInput == "SOLVE" {
+			s.confirmManualSolve()
+		}
+		return s, nil
+
+	case tea.KeyBackspace:
+		if len(s.manualSolveInput) > 0 {
+			s.manualSolveInput = s.manualSolveInput[:len(s.manualSolveInput)-1]
+		}
+		return s, nil
+
+	case tea.KeyRunes:
+		s.manualSolveInput += string(msg.Runes)
+		return s, nil
+
+	default:
+		return s, nil
+	}
+}
+
+func (s *ProblemDetailScreen) confirmManualSolve() {
 	ctx := context.Background()
 
 	if err := s.db.SetProgress(ctx, s.problem.ID, roadmap.StatusSolved); err != nil {
 		s.errorMsg = fmt.Sprintf("Failed to update progress: %v", err)
-		return s, nil
-	}
-
-	xp := store.XPForDifficulty(s.problem.Difficulty)
-	if err := s.db.AddXP(ctx, xp); err != nil {
-		s.errorMsg = fmt.Sprintf("Failed to add XP: %v", err)
-		return s, nil
+		s.manualSolveMode = false
+		return
 	}
 
 	if err := s.db.UpdateStreak(ctx); err != nil {
 		s.errorMsg += fmt.Sprintf(" | Failed to update streak: %v", err)
-	} else {
-		_ = "streak updated"
 	}
 
 	s.status = roadmap.StatusSolved
-	s.errorMsg = fmt.Sprintf("+%d XP for %s", xp, s.problem.Title)
-
-	return s, nil
+	s.manualSolveMode = false
+	s.manualSolveInput = ""
+	s.errorMsg = "Manually marked Solved. No XP awarded."
 }
 
 func (s *ProblemDetailScreen) stubPaths() (string, string) {
@@ -447,6 +620,10 @@ func (s *ProblemDetailScreen) testCommand() *exec.Cmd {
 }
 
 func (s *ProblemDetailScreen) View() string {
+	if s.manualSolveMode {
+		return s.renderManualSolveConfirmation()
+	}
+
 	var lines []string
 
 	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title)))
@@ -524,6 +701,8 @@ func (s *ProblemDetailScreen) renderStatus() string {
 	switch s.status {
 	case roadmap.StatusSolved:
 		return lipgloss.NewStyle().Foreground(s.theme.Success).Bold(true).Render("[SOLVED]")
+	case roadmap.StatusVerified:
+		return lipgloss.NewStyle().Foreground(s.theme.PrimaryAccent).Bold(true).Render("[VERIFIED]")
 	case roadmap.StatusInProgress:
 		return lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true).Render("[ACTIVE]")
 	case roadmap.StatusAvailable:
@@ -568,7 +747,7 @@ func (s *ProblemDetailScreen) missingPrerequisites() []string {
 	progress, _ := s.db.GetAllProgress(context.Background())
 	var missing []string
 	for _, id := range s.problem.Prerequisites {
-		if progress[id] == roadmap.StatusSolved {
+		if progress[id] == roadmap.StatusSolved || progress[id] == roadmap.StatusVerified {
 			continue
 		}
 		if prereq, ok := s.roadmap.Graph.Problems[id]; ok {
@@ -581,10 +760,16 @@ func (s *ProblemDetailScreen) missingPrerequisites() []string {
 }
 
 func (s *ProblemDetailScreen) renderFooter() string {
+	if s.manualSolveMode {
+		return s.renderManualSolveFooter()
+	}
+
 	primaryLabel := "start"
 	switch s.status {
 	case roadmap.StatusAvailable:
 		primaryLabel = "start"
+	case roadmap.StatusVerified:
+		primaryLabel = "submit"
 	case roadmap.StatusLocked:
 		primaryLabel = "locked"
 	default:
@@ -600,6 +785,48 @@ func (s *ProblemDetailScreen) renderFooter() string {
 		s.theme.Key.Render("t") + " theme",
 		s.theme.Key.Render("esc") + " back",
 		s.theme.Key.Render("q") + " quit",
+	}
+
+	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+}
+
+func (s *ProblemDetailScreen) renderManualSolveConfirmation() string {
+	var lines []string
+
+	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title)))
+	lines = append(lines, "")
+
+	warning := lipgloss.NewStyle().
+		Foreground(s.theme.Warning).
+		Bold(true).
+		Render("Manual Solve bypasses verification and awards no XP.")
+	lines = append(lines, warning)
+	lines = append(lines, "")
+
+	prompt := lipgloss.NewStyle().
+		Foreground(s.theme.Muted).
+		Render("Type SOLVE to confirm:")
+	lines = append(lines, prompt)
+	lines = append(lines, "")
+
+	inputDisplay := s.manualSolveInput
+	if inputDisplay == "" {
+		inputDisplay = "_"
+	}
+	inputStyle := lipgloss.NewStyle().
+		Foreground(s.theme.PrimaryAccent).
+		Bold(true)
+	lines = append(lines, inputStyle.Render(inputDisplay))
+
+	content := strings.Join(lines, "\n")
+	footer := s.renderManualSolveFooter()
+	return content + "\n" + footer
+}
+
+func (s *ProblemDetailScreen) renderManualSolveFooter() string {
+	items := []string{
+		s.theme.Key.Render("type SOLVE") + " to confirm",
+		s.theme.Key.Render("esc") + " to cancel",
 	}
 
 	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))

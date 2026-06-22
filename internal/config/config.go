@@ -11,6 +11,7 @@ import (
 )
 
 const MaxDisplayNameLength = 40
+const CurrentOnboardingVersion = 1
 
 var ValidThemes = []string{
 	"rpg-skill-tree",
@@ -20,6 +21,7 @@ var ValidThemes = []string{
 
 type Config struct {
 	OnboardingComplete bool   `toml:"onboarding_complete"`
+	OnboardingVersion  int    `toml:"onboarding_version"`
 	DisplayName        string `toml:"display_name"`
 	Workspace          string `toml:"workspace"`
 	Editor             string `toml:"editor"`
@@ -31,14 +33,15 @@ type Config struct {
 }
 
 func DefaultConfig() (*Config, error) {
-	home, err := os.UserHomeDir()
+	workspace, err := DefaultWorkspace()
 	if err != nil {
-		return nil, fmt.Errorf("get home dir: %w", err)
+		return nil, err
 	}
 	return &Config{
 		OnboardingComplete: false,
+		OnboardingVersion:  0,
 		DisplayName:        "",
-		Workspace:          filepath.Join(home, "leetgo-workspace"),
+		Workspace:          workspace,
 		Editor:             "",
 		Language:           "go",
 		Roadmap:            "from-zero-to-hero",
@@ -46,6 +49,21 @@ func DefaultConfig() (*Config, error) {
 		GitExportEnabled:   false,
 		GitExportRepo:      "",
 	}, nil
+}
+
+func DefaultWorkspace() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home dir: %w", err)
+	}
+	return filepath.Join(home, "leetgo-workspace"), nil
+}
+
+func (c *Config) ReadyForDashboard(languages, roadmaps []string) bool {
+	if !c.OnboardingComplete || c.OnboardingVersion < CurrentOnboardingVersion {
+		return false
+	}
+	return c.Validate(languages, roadmaps) == nil
 }
 
 func DataDir() (string, error) {

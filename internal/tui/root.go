@@ -43,7 +43,7 @@ func NewRootModel(cfg *config.Config, legacyModel *Model, db store.Store, langua
 	}
 
 	var scr Screen
-	if cfg.OnboardingComplete {
+	if cfg.ReadyForDashboard(languages, roadmapIDsFromRoadmaps(roadmaps)) {
 		scr = NewDashboardScreen(cfg, theme, db, activeRoadmap)
 	} else {
 		scr = NewOnboardingScreen(cfg, languages, roadmaps, theme)
@@ -60,6 +60,16 @@ func NewRootModel(cfg *config.Config, legacyModel *Model, db store.Store, langua
 		theme:         theme,
 		notifications: views.NewNotificationManager(),
 	}, nil
+}
+
+func roadmapIDsFromRoadmaps(roadmaps []*roadmap.Roadmap) []string {
+	ids := make([]string, 0, len(roadmaps))
+	for _, rm := range roadmaps {
+		if rm != nil {
+			ids = append(ids, rm.ID)
+		}
+	}
+	return ids
 }
 
 func (m *RootModel) Config() *config.Config {
@@ -161,34 +171,51 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 	case ScreenOnboarding:
 		m.refreshTheme()
 		m.screen = NewOnboardingScreen(m.cfg, m.languages, m.roadmaps, m.theme)
+		m.applyCurrentSize()
 		return m, nil
 	case ScreenLegacyList:
 		if _, ok := m.screen.(*LegacyProblemListScreen); !ok {
 			m.screen = NewLegacyProblemListScreen(m.legacyModel)
+			m.applyCurrentSize()
 		}
 		return m, nil
 	case ScreenDashboard:
 		m.refreshTheme()
 		m.screen = NewDashboardScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
+		m.applyCurrentSize()
 		return m, nil
 	case ScreenRoadmapDetail:
 		m.refreshTheme()
 		m.screen = NewRoadmapDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
+		m.applyCurrentSize()
 		return m, nil
 	case ScreenStageDetail:
 		m.refreshTheme()
 		m.screen = NewStageDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, msg.Stage)
+		m.applyCurrentSize()
 		return m, nil
 	case ScreenProblemDetail:
 		m.refreshTheme()
 		m.screen = NewProblemDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, msg.ProblemID)
+		m.applyCurrentSize()
 		return m, nil
 	case ScreenSolveLog:
 		m.refreshTheme()
 		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)
+		m.applyCurrentSize()
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m *RootModel) applyCurrentSize() {
+	if m.screen == nil || m.width <= 0 || m.height <= 0 {
+		return
+	}
+	newScreen, _ := m.screen.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+	if newScreen != nil {
+		m.screen = newScreen
+	}
 }
 
 func (m *RootModel) handleThemeChange(msg ThemeChangedMsg) (tea.Model, tea.Cmd) {
@@ -214,7 +241,10 @@ func (m *RootModel) handleThemeChange(msg ThemeChangedMsg) (tea.Model, tea.Cmd) 
 		m.screen = NewStageDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, sd.stageID)
 	} else if pd, ok := m.screen.(*ProblemDetailScreen); ok {
 		m.screen = NewProblemDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, pd.problem.ID)
+	} else if _, ok := m.screen.(*SolveLogScreen); ok {
+		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)
 	}
+	m.applyCurrentSize()
 
 	return m, nil
 }

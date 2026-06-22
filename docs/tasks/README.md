@@ -4,11 +4,12 @@ These tasks are PR-sized slices for the Dashboard-first TUI rebuild. Each task s
 
 Read first:
 
+- `CONTEXT.md`
+- `docs/adr/0010-local-first-verification-and-reward-events.md`
 - `docs/product/onboarding-dashboard.md`
 - `docs/product/tui-screen-spec.md`
 - `docs/product/config-schema.md`
 - `docs/product/tui-rebuild-plan.md`
-- `CONTEXT.md`
 
 ## Recommended Order
 
@@ -29,6 +30,16 @@ Read first:
 15. [Dashboard Action State Fixes](./015-dashboard-action-state-fixes.md)
 16. [Solve Log Dashboard Flow](./016-solve-log-dashboard-flow.md)
 17. [Onboarding Defaults and Rerun](./017-onboarding-defaults-and-rerun.md)
+18. [Verified Status Domain Model](./018-verified-status.md)
+19. [Reward Events Persistence and XP Idempotency](./019-reward-events.md)
+20. [Problem Manifest Generation and CLI Resolution](./020-problem-manifest.md)
+21. [Dashboard Action Model Fix](./021-dashboard-action-model.md)
+22. [Problem Detail Action Model](./022-problem-detail-action-model.md)
+23. [Manual Solve Typed Confirmation](./023-manual-solve-confirmation.md)
+24. [Dashboard Stats Verified/Solved Split](./024-dashboard-stats-split.md)
+25. [CLI Test and Submit Output](./025-cli-output.md)
+26. [Migration for Existing Solved Problems](./026-migration-legacy-solved.md)
+27. [Dashboard Next Action Ranking for Verified](./027-dashboard-verified-ranking.md)
 
 ## Task Rules
 

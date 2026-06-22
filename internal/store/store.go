@@ -38,11 +38,19 @@ type SolveLogRecord struct {
 	SubmittedAt time.Time
 }
 
+type RewardEvent struct {
+	ProblemID int
+	Kind      string
+	XP        int
+	CreatedAt time.Time
+}
+
 type Stats struct {
 	TotalXP       int
 	Level         int
 	Streak        int
 	LongestStreak int
+	Verified      int
 	Solved        int
 	Total         int
 }
@@ -67,4 +75,8 @@ type Store interface {
 
 	UnlockAchievement(ctx context.Context, id string) error
 	GetAchievements(ctx context.Context) ([]string, error)
+
+	RecordRewardEvent(ctx context.Context, event *RewardEvent) error
+	HasRewardEvent(ctx context.Context, problemID int, kind string) (bool, error)
+	GetRewardEvents(ctx context.Context, problemID int) ([]*RewardEvent, error)
 }

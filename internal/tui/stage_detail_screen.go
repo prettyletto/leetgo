@@ -254,7 +254,7 @@ func (s *StageDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status {
 	}
 
 	for _, prereq := range p.Prerequisites {
-		if s.progress[prereq] != roadmap.StatusSolved {
+		if s.progress[prereq] != roadmap.StatusSolved && s.progress[prereq] != roadmap.StatusVerified {
 			return roadmap.StatusLocked
 		}
 	}
@@ -269,6 +269,12 @@ func (s *StageDetailScreen) renderStatusMarker(status roadmap.Status) string {
 			Foreground(s.theme.Success).
 			Width(width).
 			Render("[SOLVED]")
+	case roadmap.StatusVerified:
+		return lipgloss.NewStyle().
+			Foreground(s.theme.PrimaryAccent).
+			Bold(true).
+			Width(width).
+			Render("[VERIFIED]")
 	case roadmap.StatusInProgress:
 		return lipgloss.NewStyle().
 			Foreground(s.theme.Warning).
@@ -292,7 +298,7 @@ func (s *StageDetailScreen) renderStatusMarker(status roadmap.Status) string {
 func (s *StageDetailScreen) missingPrerequisites(p *roadmap.Problem) []string {
 	var missing []string
 	for _, id := range p.Prerequisites {
-		if s.progress[id] == roadmap.StatusSolved {
+		if s.progress[id] == roadmap.StatusSolved || s.progress[id] == roadmap.StatusVerified {
 			continue
 		}
 		if prereq, ok := s.roadmap.Graph.Problems[id]; ok {

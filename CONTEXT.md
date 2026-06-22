@@ -96,6 +96,10 @@ _Avoid_: Template, skeleton, boilerplate
 The generated test file for a Problem.
 _Avoid_: Tests, test file, spec
 
+**Problem Manifest**:
+A hidden metadata file generated beside a Problem's Stub and TestSuite so Leetgo can identify the Problem when commands are run from inside that Problem's workspace directory. The Problem Manifest file is `.leetgo-problem.toml`.
+_Avoid_: Metadata blob, slug file, marker file
+
 **Language**:
 A programming language supported for Stub generation, TestSuite generation, and LeetCode Submissions.
 _Avoid_: Runtime, template type
@@ -107,7 +111,7 @@ A recorded instance of a user working on a Problem: timestamp, duration, pass/fa
 _Avoid_: Try, submission, run
 
 **Status**:
-A Problem's practice state for the user: Locked, Available, InProgress, or Solved. Locked and Available depend on the selected Roadmap; Solved carries across Roadmaps.
+A Problem's practice state for the user: Locked, Available, InProgress, Verified, or Solved. Locked and Available depend on the selected Roadmap; Verified and Solved carry across Roadmaps.
 _Avoid_: State, phase
 
 **Start**:
@@ -118,9 +122,17 @@ _Avoid_: Open, generate, launch
 The act of completing a Problem well enough to mark it Solved for the user across all Roadmaps.
 _Avoid_: Finish, complete, close
 
+**Verified**:
+A Problem Status meaning the Problem has passed Leetgo's local TestSuite but has not yet received an Accepted LeetCode Submission. Verified Problems earn the local half of XP once and remain candidates for Submission.
+_Avoid_: Locally solved, passed, completed
+
 **XP**:
 Experience points earned by solving Problems.
 _Avoid_: Points, score
+
+**Reward Event**:
+A persisted record that XP was awarded for a specific reason, such as local Verify or Accepted Submission. Reward Events make XP awards idempotent.
+_Avoid_: XP log, reward grant, points row
 
 **Level**:
 A tier derived from cumulative XP.

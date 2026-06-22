@@ -126,6 +126,26 @@ func TestXPAndLevel(t *testing.T) {
 	assert.Equal(t, 2, stats.Level)
 }
 
+func TestStatsVerifiedAndSolved(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	stats, err := s.GetStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats.Verified)
+	assert.Equal(t, 0, stats.Solved)
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, s.SetProgress(ctx, 2, roadmap.StatusSolved))
+	require.NoError(t, s.SetProgress(ctx, 3, roadmap.StatusVerified))
+	require.NoError(t, s.SetProgress(ctx, 4, roadmap.StatusInProgress))
+
+	stats, err = s.GetStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, stats.Verified)
+	assert.Equal(t, 1, stats.Solved)
+}
+
 func TestXPToLevel(t *testing.T) {
 	tests := []struct {
 		xp    int
@@ -196,4 +216,77 @@ func TestXPForDifficulty(t *testing.T) {
 	assert.Equal(t, 25, XPForDifficulty(roadmap.DifficultyMedium))
 	assert.Equal(t, 50, XPForDifficulty(roadmap.DifficultyHard))
 	assert.Equal(t, 10, XPForDifficulty("unknown"))
+}
+
+func TestRewardEvents(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	events, err := s.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	assert.Empty(t, events)
+
+	has, err := s.HasRewardEvent(ctx, 1, "verify")
+	require.NoError(t, err)
+	assert.False(t, has)
+
+	e := &RewardEvent{ProblemID: 1, Kind: "verify", XP: 7}
+	require.NoError(t, s.RecordRewardEvent(ctx, e))
+	assert.False(t, e.CreatedAt.IsZero())
+
+	has, err = s.HasRewardEvent(ctx, 1, "verify")
+	require.NoError(t, err)
+	assert.True(t, has)
+
+	has, err = s.HasRewardEvent(ctx, 1, "submit")
+	require.NoError(t, err)
+	assert.False(t, has)
+
+	events, err = s.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, "verify", events[0].Kind)
+	assert.Equal(t, 7, events[0].XP)
+}
+
+func TestRewardEventIdempotency(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	e := &RewardEvent{ProblemID: 1, Kind: "verify", XP: 7}
+	require.NoError(t, s.RecordRewardEvent(ctx, e))
+
+	e2 := &RewardEvent{ProblemID: 1, Kind: "verify", XP: 99}
+	require.NoError(t, s.RecordRewardEvent(ctx, e2))
+
+	events, err := s.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, 7, events[0].XP)
+
+	require.NoError(t, s.RecordRewardEvent(ctx, &RewardEvent{ProblemID: 1, Kind: "submit", XP: 3}))
+	events, err = s.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	assert.Len(t, events, 2)
+}
+
+func TestRewardEventMultipleProblems(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.RecordRewardEvent(ctx, &RewardEvent{ProblemID: 1, Kind: "verify", XP: 7}))
+	require.NoError(t, s.RecordRewardEvent(ctx, &RewardEvent{ProblemID: 1, Kind: "submit", XP: 3}))
+	require.NoError(t, s.RecordRewardEvent(ctx, &RewardEvent{ProblemID: 49, Kind: "verify", XP: 17}))
+
+	events, err := s.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	assert.Len(t, events, 2)
+
+	events, err = s.GetRewardEvents(ctx, 49)
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+
+	events, err = s.GetRewardEvents(ctx, 999)
+	require.NoError(t, err)
+	assert.Empty(t, events)
 }

@@ -212,8 +212,12 @@ func (s *SQLiteStore) GetStats(ctx context.Context) (*Stats, error) {
 		return nil, fmt.Errorf("get streak: %w", err)
 	}
 
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM progress WHERE status = 'solved'").Scan(&stats.Solved); err != nil {
-		return nil, fmt.Errorf("get solved count: %w", err)
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT
+			COUNT(CASE WHEN status = 'verified' THEN 1 END) as verified,
+			COUNT(CASE WHEN status = 'solved' THEN 1 END) as solved
+		 FROM progress`).Scan(&stats.Verified, &stats.Solved); err != nil {
+		return nil, fmt.Errorf("get solved/verified count: %w", err)
 	}
 
 	return &stats, nil
@@ -320,6 +324,50 @@ func (s *SQLiteStore) GetAchievements(ctx context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+func (s *SQLiteStore) RecordRewardEvent(ctx context.Context, event *RewardEvent) error {
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now()
+	}
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO reward_events (problem_id, kind, xp, created_at) VALUES (?, ?, ?, ?)",
+		event.ProblemID, event.Kind, event.XP, event.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("record reward event: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) HasRewardEvent(ctx context.Context, problemID int, kind string) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM reward_events WHERE problem_id = ? AND kind = ?",
+		problemID, kind).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check reward event: %w", err)
+	}
+	return count > 0, nil
+}
+
+func (s *SQLiteStore) GetRewardEvents(ctx context.Context, problemID int) ([]*RewardEvent, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT problem_id, kind, xp, created_at FROM reward_events WHERE problem_id = ? ORDER BY created_at",
+		problemID)
+	if err != nil {
+		return nil, fmt.Errorf("get reward events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*RewardEvent
+	for rows.Next() {
+		var e RewardEvent
+		if err := rows.Scan(&e.ProblemID, &e.Kind, &e.XP, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan reward event: %w", err)
+		}
+		events = append(events, &e)
+	}
+	return events, rows.Err()
 }
 
 func XPToLevel(xp int) int {

@@ -197,6 +197,167 @@ func TestOnboarding_GitExportNotNow(t *testing.T) {
 	assert.Empty(t, s.cfg.GitExportRepo)
 }
 
+func TestOnboarding_GitExportUsesVerticalSelection(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepGitExport
+	s.gitExportChoice = 1
+
+	s.handleGitExportKey(tea.KeyMsg{Type: tea.KeyUp})
+	assert.Equal(t, 0, s.gitExportChoice)
+
+	s.handleGitExportKey(tea.KeyMsg{Type: tea.KeyDown})
+	assert.Equal(t, 1, s.gitExportChoice)
+
+	s.handleGitExportKey(tea.KeyMsg{Type: tea.KeyCtrlP})
+	assert.Equal(t, 0, s.gitExportChoice)
+
+	s.handleGitExportKey(tea.KeyMsg{Type: tea.KeyCtrlN})
+	assert.Equal(t, 1, s.gitExportChoice)
+
+	footer := s.renderFooter()
+	assert.Contains(t, footer, "up/down")
+	assert.Contains(t, footer, "ctrl+n/p")
+	assert.NotContains(t, footer, "left/right")
+}
+
+func TestOnboarding_JKAreTextInGitExportRepoInput(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepGitExport
+	s.gitExportChoice = 0
+	s.gitExportRepo = ""
+
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Nil(t, cmd)
+	_, cmd = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Nil(t, cmd)
+
+	assert.Equal(t, "jk", s.gitExportRepo)
+	assert.Equal(t, 0, s.gitExportChoice)
+}
+
+func TestOnboarding_QIsTextOnDisplayName(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, "q", s.displayNameInput)
+}
+
+func TestOnboarding_QIsTextOnWorkspace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepWorkspaceLang
+	s.workspaceInput = ""
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, "q", s.workspaceInput)
+}
+
+func TestOnboarding_JKAreTextInWorkspaceInput(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepWorkspaceLang
+	s.workspaceInput = ""
+	s.languageIndex = 0
+
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Nil(t, cmd)
+	_, cmd = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Nil(t, cmd)
+
+	assert.Equal(t, "jk", s.workspaceInput)
+	assert.Equal(t, 0, s.languageIndex)
+}
+
+func TestOnboarding_CtrlNPSelectLanguageWhileTypingWorkspace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepWorkspaceLang
+	s.languageIndex = 0
+
+	s.handleWorkspaceLangKey(tea.KeyMsg{Type: tea.KeyCtrlN})
+	assert.Equal(t, 1, s.languageIndex)
+
+	s.handleWorkspaceLangKey(tea.KeyMsg{Type: tea.KeyCtrlP})
+	assert.Equal(t, 0, s.languageIndex)
+}
+
+func TestOnboarding_ReplacesGoTestTempWorkspaceDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+	cfg.Workspace = filepath.Join(os.TempDir(), "TestRootModel_ThemeCycle1737575936", "001")
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+
+	assert.Equal(t, filepath.Join(home, "leetgo-workspace"), s.workspaceInput)
+}
+
+func TestOnboarding_FooterShowsCtrlCQuitOnInputStep(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepWorkspaceLang
+	footer := s.renderFooter()
+
+	assert.Contains(t, footer, "ctrl+c")
+	assert.NotContains(t, footer, "q quit")
+}
+
+func TestOnboarding_QQuitsOnSelectionStep(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s.step = stepRoadmapCarousel
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+
+	assert.NotNil(t, cmd)
+}
+
 func TestOnboarding_GitExportOptIn(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -527,7 +688,7 @@ func TestOnboarding_QuitDoesNotMarkComplete(t *testing.T) {
 	cfg.OnboardingComplete = false
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
-	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	require.NotNil(t, cmd)
 	assert.False(t, s.cfg.OnboardingComplete, "quitting should not mark Onboarding complete")
 }

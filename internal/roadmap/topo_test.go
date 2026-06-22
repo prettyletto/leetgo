@@ -31,6 +31,26 @@ func TestTopologicalSort(t *testing.T) {
 	assert.Less(t, positions[49], positions[128])
 }
 
+func TestTopologicalSort_DeterministicOrder(t *testing.T) {
+	problems := []*Problem{
+		{ID: 30, Title: "C"},
+		{ID: 10, Title: "A"},
+		{ID: 20, Title: "B"},
+		{ID: 40, Title: "D", Prerequisites: []int{10, 20}},
+	}
+	g := NewGraph(problems)
+
+	for i := 0; i < 20; i++ {
+		sorted, err := g.TopologicalSort()
+		require.NoError(t, err)
+		require.Len(t, sorted, 4)
+		assert.Equal(t, 10, sorted[0].ID)
+		assert.Equal(t, 20, sorted[1].ID)
+		assert.Equal(t, 30, sorted[2].ID)
+		assert.Equal(t, 40, sorted[3].ID)
+	}
+}
+
 func TestTopologicalSort_CycleDetected(t *testing.T) {
 	problems := []*Problem{
 		{ID: 1, Title: "A", Prerequisites: []int{2}},

@@ -82,7 +82,12 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
+		if delta, ok := dashboardFocusDelta(msg); ok {
+			s.moveFocus(delta)
+			return s, nil
+		}
+		key := msg.String()
+		switch key {
 		case "q", "ctrl+c":
 			return s, tea.Quit
 
@@ -91,17 +96,11 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				return NavigateMsg{ScreenID: ScreenLegacyList}
 			}
 
-		case "j", "down":
-			s.moveFocus(1)
-
-		case "k", "up":
-			s.moveFocus(-1)
-
 		case "enter":
 			if s.focusIndex < len(s.actions) {
 				action := s.actions[s.focusIndex]
 				switch action.Kind {
-				case recommendation.KindContinue, recommendation.KindStart:
+				case recommendation.KindContinue, recommendation.KindStart, recommendation.KindSubmit:
 					return s, func() tea.Msg {
 						return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: action.ProblemID}
 					}
@@ -136,6 +135,24 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		}
 	}
 	return s, nil
+}
+
+func dashboardFocusDelta(msg tea.KeyMsg) (int, bool) {
+	switch msg.Type {
+	case tea.KeyDown, tea.KeyShiftDown, tea.KeyCtrlDown, tea.KeyCtrlShiftDown:
+		return 1, true
+	case tea.KeyUp, tea.KeyShiftUp, tea.KeyCtrlUp, tea.KeyCtrlShiftUp:
+		return -1, true
+	}
+
+	switch msg.String() {
+	case "down", "shift+down", "ctrl+down", "ctrl+shift+down", "alt+down", "alt+shift+down", "alt+ctrl+down", "alt+ctrl+shift+down", "j":
+		return 1, true
+	case "up", "shift+up", "ctrl+up", "ctrl+shift+up", "alt+up", "alt+shift+up", "alt+ctrl+up", "alt+ctrl+shift+up", "k":
+		return -1, true
+	default:
+		return 0, false
+	}
 }
 
 func (s *DashboardScreen) moveFocus(delta int) {
@@ -175,13 +192,15 @@ func (s *DashboardScreen) View() string {
 	}
 
 	header := s.theme.Title.MarginBottom(1).Render(greeting)
+	var content string
 
 	if s.width > 100 {
 		left := s.renderHUD()
 		center := s.renderNextActions()
 		right := s.renderRoadmapContext()
 		body := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", center, "  ", right)
-		return header + "\n" + body + "\n" + s.renderFooter()
+		content = header + "\n" + body + "\n" + s.renderFooter()
+		return s.centerContent(content)
 	}
 
 	if s.width > 60 {
@@ -189,11 +208,20 @@ func (s *DashboardScreen) View() string {
 		left := s.renderHUD()
 		right := s.renderRoadmapContext()
 		rails := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
-		return header + "\n" + center + "\n" + rails + "\n" + s.renderFooter()
+		content = header + "\n" + center + "\n" + rails + "\n" + s.renderFooter()
+		return s.centerContent(content)
 	}
 
 	center := s.renderNextActions()
-	return header + "\n" + center + "\n" + s.renderFooter()
+	content = header + "\n" + center + "\n" + s.renderFooter()
+	return s.centerContent(content)
+}
+
+func (s *DashboardScreen) centerContent(content string) string {
+	if s.width <= 0 || s.height <= 0 {
+		return content
+	}
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (s *DashboardScreen) renderHUD() string {
@@ -204,7 +232,10 @@ func (s *DashboardScreen) renderHUD() string {
 		lines = append(lines, fmt.Sprintf("Level %d", s.stats.Level))
 		lines = append(lines, s.renderXPProgress())
 		lines = append(lines, fmt.Sprintf("Streak: %d days", s.stats.Streak))
-		lines = append(lines, fmt.Sprintf("Solved: %d/%d", s.stats.Solved, s.stats.Total))
+		lines = append(lines, fmt.Sprintf("Verified: %d", s.stats.Verified))
+		lines = append(lines, fmt.Sprintf("Solved: %d", s.stats.Solved))
+		progress := s.stats.Verified + s.stats.Solved
+		lines = append(lines, fmt.Sprintf("Progress: %d/%d", progress, s.stats.Total))
 	}
 
 	lines = append(lines, fmt.Sprintf("Roadmap: %s", s.cfg.Roadmap))
@@ -357,7 +388,7 @@ func (s *DashboardScreen) solvedMap() map[int]bool {
 	}
 	solved := make(map[int]bool, len(progress))
 	for id, status := range progress {
-		if status == roadmap.StatusSolved {
+		if status == roadmap.StatusSolved || status == roadmap.StatusVerified {
 			solved[id] = true
 		}
 	}
@@ -388,7 +419,9 @@ func (s *DashboardScreen) renderNextActions() string {
 
 func (s *DashboardScreen) renderActionCard(action recommendation.NextAction, focused bool) string {
 	var style, labelStyle lipgloss.Style
+	marker := " "
 	if focused {
+		marker = ">"
 		style = s.theme.FocusedPanel.Width(40)
 		labelStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -402,7 +435,8 @@ func (s *DashboardScreen) renderActionCard(action recommendation.NextAction, foc
 	label := string(action.Kind)
 	label = strings.ToUpper(label[:1]) + label[1:]
 
-	lines := fmt.Sprintf("%s  %s\n%s",
+	lines := fmt.Sprintf("%s %s  %s\n  %s",
+		marker,
 		labelStyle.Render(label),
 		s.theme.Key.Render(action.Title),
 		action.Reason,
@@ -420,6 +454,7 @@ func (s *DashboardScreen) renderActionCard(action recommendation.NextAction, foc
 
 func (s *DashboardScreen) renderFooter() string {
 	items := []string{
+		s.theme.Key.Render("up/down") + " navigate",
 		s.theme.Key.Render("j/k") + " navigate",
 		s.theme.Key.Render("enter") + " select",
 		s.theme.Key.Render("t") + " theme",

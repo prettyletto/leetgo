@@ -1,6 +1,9 @@
 package roadmap
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 func (g *Graph) TopologicalSort() ([]*Problem, error) {
 	inDegree := make(map[int]int, len(g.Problems))
@@ -29,6 +32,7 @@ func (g *Graph) TopologicalSort() ([]*Problem, error) {
 			queue = append(queue, id)
 		}
 	}
+	sort.Ints(queue)
 
 	var sorted []*Problem
 	for len(queue) > 0 {
@@ -42,6 +46,7 @@ func (g *Graph) TopologicalSort() ([]*Problem, error) {
 				queue = append(queue, dep)
 			}
 		}
+		sort.Ints(queue)
 	}
 
 	if len(sorted) != len(g.Problems) {

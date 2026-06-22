@@ -14,6 +14,7 @@ import (
 
 func newTestRootModel(t *testing.T, cfg *config.Config) *RootModel {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.NewSQLiteStore(dbPath)
 	require.NoError(t, err)
@@ -26,6 +27,9 @@ func newTestRootModel(t *testing.T, cfg *config.Config) *RootModel {
 			Roadmap:   "from-zero-to-hero",
 			Theme:     "rpg-skill-tree",
 		}
+	}
+	if cfg.OnboardingComplete && cfg.OnboardingVersion == 0 {
+		cfg.OnboardingVersion = config.CurrentOnboardingVersion
 	}
 
 	legacyModel, err := NewModel(cfg, db)
@@ -70,6 +74,43 @@ func TestNewRootModel_OnboardingComplete(t *testing.T) {
 	assert.NotNil(t, m.screen)
 	_, ok := m.screen.(*DashboardScreen)
 	assert.True(t, ok, "expected DashboardScreen when onboarding is complete")
+}
+
+func TestNewRootModel_StaleOnboardingVersionOpensOnboarding(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		OnboardingVersion:  0,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModelWithoutVersionUpgrade(t, cfg)
+	assert.NotNil(t, m.screen)
+	_, ok := m.screen.(*OnboardingScreen)
+	assert.True(t, ok, "stale configs should rerun Onboarding")
+}
+
+func newTestRootModelWithoutVersionUpgrade(t *testing.T, cfg *config.Config) *RootModel {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	legacyModel, err := NewModel(cfg, db)
+	require.NoError(t, err)
+
+	roadmaps, err := catalog.ListRoadmaps()
+	require.NoError(t, err)
+
+	languages := []string{"go", "python", "typescript", "java", "cpp", "javascript", "rust", "csharp"}
+	root, err := NewRootModel(cfg, legacyModel, db, languages, roadmaps)
+	require.NoError(t, err)
+	return root
 }
 
 func TestRootModel_View(t *testing.T) {
@@ -375,6 +416,55 @@ func TestRootModel_ThemeCycle(t *testing.T) {
 
 	_, isDashboard := root.screen.(*DashboardScreen)
 	assert.True(t, isDashboard, "theme change should recreate DashboardScreen")
+}
+
+func TestRootModel_ThemeCyclePreservesScreenSize(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 42})
+	root := updated.(*RootModel)
+	updated, _ = root.Update(ThemeChangedMsg{ThemeID: "clean-productivity"})
+	root = updated.(*RootModel)
+
+	dashboard, ok := root.screen.(*DashboardScreen)
+	require.True(t, ok)
+	assert.Equal(t, 140, dashboard.width)
+	assert.Equal(t, 42, dashboard.height)
+	assert.Contains(t, dashboard.View(), "Solved:", "wide Dashboard layout should remain after recreation")
+}
+
+func TestRootModel_ThemeCycleRecreatesSolveLogWithSize(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 132, Height: 37})
+	root := updated.(*RootModel)
+	updated, _ = root.Update(NavigateMsg{ScreenID: ScreenSolveLog})
+	root = updated.(*RootModel)
+
+	updated, _ = root.Update(ThemeChangedMsg{ThemeID: "clean-productivity"})
+	root = updated.(*RootModel)
+
+	solveLog, ok := root.screen.(*SolveLogScreen)
+	require.True(t, ok)
+	assert.Equal(t, "clean-productivity", solveLog.theme.ID)
+	assert.Equal(t, 132, solveLog.width)
+	assert.Equal(t, 37, solveLog.height)
 }
 
 func TestRootModel_NavigationToStageDetail(t *testing.T) {

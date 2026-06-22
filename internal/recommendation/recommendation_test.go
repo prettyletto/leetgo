@@ -294,6 +294,20 @@ func TestCalculate_SolvedProblemsNotListed(t *testing.T) {
 	}
 }
 
+func TestCalculate_VerifiedProblemsNotListedAsStart(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 242, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	for _, a := range collectActionsByKind(actions, KindStart) {
+		assert.NotEqual(t, 242, a.ProblemID, "verified problem should not appear in Start actions")
+	}
+}
+
 func TestCalculate_InProgressExcludedFromStart(t *testing.T) {
 	c, s := newTestCalculator(t)
 	ctx := context.Background()
@@ -333,4 +347,84 @@ func TestCalculate_StartsWithProblemFields(t *testing.T) {
 
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)
+}
+
+func TestCalculate_VerifiedProblemsGenerateSubmitActions(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, s.SetProgress(ctx, 242, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	submits := collectActionsByKind(actions, KindSubmit)
+	require.Len(t, submits, 2)
+
+	var problemIDs []int
+	for _, a := range submits {
+		problemIDs = append(problemIDs, a.ProblemID)
+		assert.Equal(t, KindSubmit, a.Kind)
+		assert.Contains(t, a.Reason, "Verified")
+		assert.NotEmpty(t, a.Title)
+	}
+	assert.Contains(t, problemIDs, 1)
+	assert.Contains(t, problemIDs, 242)
+
+	for _, a := range collectActionsByKind(actions, KindStart) {
+		assert.NotEqual(t, 1, a.ProblemID, "Verified Two Sum should not be in Start")
+		assert.NotEqual(t, 242, a.ProblemID, "Verified Valid Anagram should not be in Start")
+	}
+}
+
+func TestCalculate_SubmitRanksAfterContinueBeforeStart(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 217, roadmap.StatusInProgress))
+	require.NoError(t, s.SetProgress(ctx, 242, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	continueIdx := -1
+	submitIdx := -1
+	startIdx := -1
+	for i, a := range actions {
+		switch a.Kind {
+		case KindContinue:
+			if continueIdx < 0 {
+				continueIdx = i
+			}
+		case KindSubmit:
+			if submitIdx < 0 {
+				submitIdx = i
+			}
+		case KindStart:
+			if startIdx < 0 {
+				startIdx = i
+			}
+		}
+	}
+
+	require.NotEqual(t, -1, continueIdx)
+	require.NotEqual(t, -1, submitIdx)
+	require.NotEqual(t, -1, startIdx)
+	assert.Less(t, continueIdx, submitIdx, "Continue should rank before Submit")
+	assert.Less(t, submitIdx, startIdx, "Submit should rank before Start")
+}
+
+func TestCalculate_NoSubmitWhenNoVerified(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusSolved))
+	require.NoError(t, s.SetProgress(ctx, 217, roadmap.StatusInProgress))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	submits := collectActionsByKind(actions, KindSubmit)
+	assert.Empty(t, submits, "should not generate Submit actions when no Verified problems exist")
 }

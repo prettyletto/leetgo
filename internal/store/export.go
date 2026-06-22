@@ -11,17 +11,18 @@ import (
 )
 
 type ExportData struct {
-	Version              int              `json:"version"`
-	ExportedAt           time.Time        `json:"exported_at"`
-	ExportIdentity       string           `json:"export_identity,omitempty"`
-	ExportIdentitySource string           `json:"export_identity_source,omitempty"`
-	Progress             []ExportProgress `json:"progress"`
-	Attempts             []ExportAttempt  `json:"attempts"`
-	SolveLogs            []ExportSolveLog `json:"solve_logs"`
-	XP                   int              `json:"xp"`
-	Streak               ExportStreak     `json:"streak"`
-	StreakDays           []string         `json:"streak_days"`
-	Achievements         []string         `json:"achievements"`
+	Version              int                 `json:"version"`
+	ExportedAt           time.Time           `json:"exported_at"`
+	ExportIdentity       string              `json:"export_identity,omitempty"`
+	ExportIdentitySource string              `json:"export_identity_source,omitempty"`
+	Progress             []ExportProgress    `json:"progress"`
+	Attempts             []ExportAttempt     `json:"attempts"`
+	SolveLogs            []ExportSolveLog    `json:"solve_logs"`
+	RewardEvents         []ExportRewardEvent `json:"reward_events,omitempty"`
+	XP                   int                 `json:"xp"`
+	Streak               ExportStreak        `json:"streak"`
+	StreakDays           []string            `json:"streak_days"`
+	Achievements         []string            `json:"achievements"`
 }
 
 type ExportProgress struct {
@@ -56,6 +57,13 @@ type ExportStreak struct {
 	Current  int    `json:"current"`
 	Longest  int    `json:"longest"`
 	LastDate string `json:"last_date,omitempty"`
+}
+
+type ExportRewardEvent struct {
+	ProblemID int    `json:"problem_id"`
+	Kind      string `json:"kind"`
+	XP        int    `json:"xp"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (s *SQLiteStore) Export(ctx context.Context) (*ExportData, error) {
@@ -112,6 +120,19 @@ func (s *SQLiteStore) Export(ctx context.Context) (*ExportData, error) {
 			Error:       log.Error,
 			Note:        log.Note,
 			SubmittedAt: log.SubmittedAt.Format(time.RFC3339),
+		})
+	}
+
+	rewardEvents, err := s.getAllRewardEvents(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("export reward events: %w", err)
+	}
+	for _, e := range rewardEvents {
+		data.RewardEvents = append(data.RewardEvents, ExportRewardEvent{
+			ProblemID: e.ProblemID,
+			Kind:      e.Kind,
+			XP:        e.XP,
+			CreatedAt: e.CreatedAt.Format(time.RFC3339),
 		})
 	}
 
@@ -190,6 +211,22 @@ func (s *SQLiteStore) Import(ctx context.Context, data *ExportData) error {
 		}
 	}
 
+	for _, e := range data.RewardEvents {
+		createdAt, err := time.Parse(time.RFC3339, e.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("parse reward event timestamp %q: %w", e.CreatedAt, err)
+		}
+		event := &RewardEvent{
+			ProblemID: e.ProblemID,
+			Kind:      e.Kind,
+			XP:        e.XP,
+			CreatedAt: createdAt,
+		}
+		if err := s.RecordRewardEvent(ctx, event); err != nil {
+			return fmt.Errorf("import reward event: %w", err)
+		}
+	}
+
 	if data.XP > 0 {
 		if err := s.AddXP(ctx, data.XP); err != nil {
 			return fmt.Errorf("import xp: %w", err)
@@ -203,6 +240,24 @@ func (s *SQLiteStore) Import(ctx context.Context, data *ExportData) error {
 	}
 
 	return nil
+}
+
+func (s *SQLiteStore) getAllRewardEvents(ctx context.Context) ([]*RewardEvent, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT problem_id, kind, xp, created_at FROM reward_events ORDER BY problem_id, created_at")
+	if err != nil {
+		return nil, fmt.Errorf("get all reward events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*RewardEvent
+	for rows.Next() {
+		var e RewardEvent
+		if err := rows.Scan(&e.ProblemID, &e.Kind, &e.XP, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan reward event: %w", err)
+		}
+		events = append(events, &e)
+	}
+	return events, rows.Err()
 }
 
 func ExportToFile(ctx context.Context, s *SQLiteStore, path string) error {

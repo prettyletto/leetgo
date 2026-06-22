@@ -76,6 +76,10 @@ func TestView_Renders(t *testing.T) {
 	assert.Contains(t, view, "Prerequisites")
 }
 
+func TestRenderStatus_Verified(t *testing.T) {
+	assert.Contains(t, renderStatus(roadmap.StatusVerified), "VERIFIED")
+}
+
 func TestStageFilter_CyclesAndClears(t *testing.T) {
 	m := newTestModel(t)
 	total := len(m.list.Items())
@@ -106,6 +110,37 @@ func TestHandleMarkSolved_AlreadySolved(t *testing.T) {
 	require.NoError(t, m.store.SetProgress(ctx, item.problem.ID, roadmap.StatusSolved))
 
 	m.handleMarkSolved()
+}
+
+func TestLegacyHandleMarkSolvedAwardsNoXP(t *testing.T) {
+	m := newTestModel(t)
+	ctx := context.Background()
+	m.list.Select(0)
+
+	m.handleMarkSolved()
+
+	stats, err := m.store.GetStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats.TotalXP)
+}
+
+func TestLegacyAcceptedSubmitRewardIdempotent(t *testing.T) {
+	m := newTestModel(t)
+	ctx := context.Background()
+
+	m.markAcceptedSubmission(1)
+	m.markAcceptedSubmission(1)
+
+	stats, err := m.store.GetStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, stats.TotalXP)
+
+	events, err := m.store.GetRewardEvents(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, "submit", events[0].Kind)
+	assert.Equal(t, 3, events[0].XP)
+	assert.Contains(t, m.notifications.Render(), "already claimed")
 }
 
 func TestHandleSelect_LockedProblem(t *testing.T) {

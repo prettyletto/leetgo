@@ -107,6 +107,7 @@ type OnboardingScreen struct {
 
 func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roadmap.Roadmap, themes ...*Theme) *OnboardingScreen {
 	theme := firstTheme(themes)
+	workspaceInput := onboardingWorkspaceDefault(cfg.Workspace)
 	s := &OnboardingScreen{
 		cfg:              cfg,
 		step:             stepDisplayName,
@@ -114,7 +115,7 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 		roadmaps:         roadmaps,
 		theme:            theme,
 		displayNameInput: cfg.DisplayName,
-		workspaceInput:   cfg.Workspace,
+		workspaceInput:   workspaceInput,
 		roadmapFocus:     0,
 		themeFocus:       0,
 		width:            100,
@@ -158,6 +159,29 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 	return s
 }
 
+func onboardingWorkspaceDefault(saved string) string {
+	workspace := strings.TrimSpace(saved)
+	if workspace != "" && !isGoTestTempWorkspace(workspace) {
+		return workspace
+	}
+	defaultWorkspace, err := config.DefaultWorkspace()
+	if err != nil {
+		return workspace
+	}
+	return defaultWorkspace
+}
+
+func isGoTestTempWorkspace(path string) bool {
+	cleaned := filepath.Clean(path)
+	tempDir := filepath.Clean(os.TempDir())
+	rel, err := filepath.Rel(tempDir, cleaned)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return false
+	}
+	firstPart := strings.Split(rel, string(os.PathSeparator))[0]
+	return strings.HasPrefix(firstPart, "Test")
+}
+
 func firstTheme(themes []*Theme) *Theme {
 	if len(themes) > 0 && themes[0] != nil {
 		return themes[0]
@@ -180,8 +204,12 @@ func (s *OnboardingScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "ctrl+c":
 			return s, tea.Quit
+		case "q":
+			if s.canQuitWithQ() {
+				return s, tea.Quit
+			}
 		case "esc":
 			if s.step > 0 {
 				s.step--
@@ -207,6 +235,17 @@ func (s *OnboardingScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 	}
 	return s, nil
+}
+
+func (s *OnboardingScreen) canQuitWithQ() bool {
+	switch s.step {
+	case stepDisplayName, stepWorkspaceLang:
+		return false
+	case stepGitExport:
+		return s.gitExportChoice != 0
+	default:
+		return true
+	}
 }
 
 func (s *OnboardingScreen) roadmapIDs() []string {
@@ -267,13 +306,16 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 	case stepThemeSelection:
 		s.cfg.Theme = config.ValidThemes[s.themeFocus]
 		s.cfg.OnboardingComplete = true
+		s.cfg.OnboardingVersion = config.CurrentOnboardingVersion
 		if err := s.cfg.Validate(s.languages, s.roadmapIDs()); err != nil {
 			s.cfg.OnboardingComplete = false
+			s.cfg.OnboardingVersion = 0
 			s.errorMsg = fmt.Sprintf("Config validation failed: %v", err)
 			return s, nil
 		}
 		if err := s.cfg.Save(); err != nil {
 			s.cfg.OnboardingComplete = false
+			s.cfg.OnboardingVersion = 0
 			s.errorMsg = fmt.Sprintf("Failed to save config: %v", err)
 			return s, nil
 		}
@@ -303,11 +345,11 @@ func (s *OnboardingScreen) handleDisplayNameKey(msg tea.KeyMsg) {
 
 func (s *OnboardingScreen) handleGitExportKey(msg tea.KeyMsg) {
 	switch msg.String() {
-	case "left", "h":
+	case "up", "ctrl+p":
 		if s.gitExportChoice > 0 {
 			s.gitExportChoice--
 		}
-	case "right", "l":
+	case "down", "ctrl+n":
 		if s.gitExportChoice < 1 {
 			s.gitExportChoice++
 		}
@@ -330,11 +372,11 @@ func (s *OnboardingScreen) handleGitExportKey(msg tea.KeyMsg) {
 
 func (s *OnboardingScreen) handleWorkspaceLangKey(msg tea.KeyMsg) {
 	switch msg.String() {
-	case "up", "k":
+	case "up", "ctrl+p":
 		if s.languageIndex > 0 {
 			s.languageIndex--
 		}
-	case "down", "j":
+	case "down", "ctrl+n":
 		if s.languageIndex < len(s.languages)-1 {
 			s.languageIndex++
 		}
@@ -628,7 +670,8 @@ func (s *OnboardingScreen) renderFooter() string {
 		}
 	case stepGitExport:
 		items = []string{
-			s.theme.Key.Render("left/right") + " choose",
+			s.theme.Key.Render("up/down") + " choose",
+			s.theme.Key.Render("ctrl+n/p") + " choose",
 			s.theme.Key.Render("type") + " repo path",
 			s.theme.Key.Render("enter") + " next",
 		}
@@ -636,6 +679,7 @@ func (s *OnboardingScreen) renderFooter() string {
 		items = []string{
 			s.theme.Key.Render("type") + " workspace",
 			s.theme.Key.Render("up/down") + " language",
+			s.theme.Key.Render("ctrl+n/p") + " language",
 			s.theme.Key.Render("enter") + " next",
 		}
 	case stepRoadmapCarousel:
@@ -653,7 +697,11 @@ func (s *OnboardingScreen) renderFooter() string {
 	if s.step > 0 {
 		items = append(items, s.theme.Key.Render("esc")+" back")
 	}
-	items = append(items, s.theme.Key.Render("q")+" quit")
+	if s.canQuitWithQ() {
+		items = append(items, s.theme.Key.Render("q")+" quit")
+	} else {
+		items = append(items, s.theme.Key.Render("ctrl+c")+" quit")
+	}
 
 	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
 }

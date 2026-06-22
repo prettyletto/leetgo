@@ -53,3 +53,15 @@ func TestGraph_Available(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []int{15, 49}, ids)
 }
+
+func TestGraph_IsUnlocked_VerifiedSatisfiesPrereq(t *testing.T) {
+	problems := []*Problem{
+		{ID: 1, Title: "Two Sum", Prerequisites: nil},
+		{ID: 15, Title: "3Sum", Prerequisites: []int{1}},
+	}
+	g := NewGraph(problems)
+
+	// Verified satisfies prerequisite
+	solved := map[int]bool{1: true}
+	assert.True(t, g.IsUnlocked(15, solved))
+}

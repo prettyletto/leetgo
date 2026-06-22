@@ -14,6 +14,7 @@ type ActionKind string
 const (
 	KindContinue ActionKind = "continue"
 	KindStart    ActionKind = "start"
+	KindSubmit   ActionKind = "submit"
 	KindReview   ActionKind = "review"
 	KindExport   ActionKind = "export"
 	KindInspect  ActionKind = "inspect"
@@ -50,7 +51,7 @@ func (c *Calculator) Calculate(ctx context.Context) ([]NextAction, error) {
 
 	solved := make(map[int]bool)
 	for id, status := range progress {
-		if status == roadmap.StatusSolved {
+		if status == roadmap.StatusSolved || status == roadmap.StatusVerified {
 			solved[id] = true
 		}
 	}
@@ -68,6 +69,7 @@ func (c *Calculator) Calculate(ctx context.Context) ([]NextAction, error) {
 	var actions []NextAction
 
 	actions = append(actions, c.continueActions(progress, topoIndex)...)
+	actions = append(actions, c.submitActions(progress)...)
 	actions = append(actions, c.startActions(progress, solved, topoIndex)...)
 	actions = append(actions, c.reviewActions(ctx)...)
 	actions = append(actions, c.maintenanceActions()...)
@@ -136,7 +138,7 @@ func (c *Calculator) startActions(progress map[int]roadmap.Status, solved map[in
 
 	var entries []availableEntry
 	for _, p := range graph.Problems {
-		if progress[p.ID] == roadmap.StatusSolved {
+		if progress[p.ID] == roadmap.StatusSolved || progress[p.ID] == roadmap.StatusVerified {
 			continue
 		}
 		if progress[p.ID] == roadmap.StatusInProgress {
@@ -168,6 +170,42 @@ func (c *Calculator) startActions(progress map[int]roadmap.Status, solved map[in
 			ProblemID: p.ID,
 			Title:     p.Title,
 			Reason:    "This problem is ready for you.",
+			Stage:     p.Stage,
+			Category:  string(p.Category),
+			Slug:      p.Slug,
+		})
+	}
+	return actions
+}
+
+func (c *Calculator) submitActions(progress map[int]roadmap.Status) []NextAction {
+	graph := c.roadmap.Graph
+
+	type submitEntry struct {
+		problem *roadmap.Problem
+	}
+
+	var entries []submitEntry
+	for id, status := range progress {
+		if status != roadmap.StatusVerified {
+			continue
+		}
+		problem, ok := graph.Problems[id]
+		if !ok {
+			continue
+		}
+		entries = append(entries, submitEntry{problem: problem})
+	}
+
+	actions := make([]NextAction, 0, len(entries))
+	for _, entry := range entries {
+		p := entry.problem
+		actions = append(actions, NextAction{
+			ID:        fmt.Sprintf("submit-%d", p.ID),
+			Kind:      KindSubmit,
+			ProblemID: p.ID,
+			Title:     p.Title,
+			Reason:    "Verified locally — ready for LeetCode submission.",
 			Stage:     p.Stage,
 			Category:  string(p.Category),
 			Slug:      p.Slug,

@@ -142,11 +142,137 @@ func TestDashboard_FocusNavigation(t *testing.T) {
 	assert.Equal(t, 0, d.focusIndex)
 }
 
-func TestDashboard_FocusWraps(t *testing.T) {
+func TestDashboard_ArrowFocusNavigation(t *testing.T) {
 	d, _ := newTestDashboard(t)
 
 	if len(d.actions) == 0 {
 		t.Skip("no actions available")
+	}
+
+	assert.Equal(t, 0, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyDown})
+	assert.Equal(t, 1, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyUp})
+	assert.Equal(t, 0, d.focusIndex)
+}
+
+func TestDashboard_ArrowStringFocusNavigation(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	if len(d.actions) == 0 {
+		t.Skip("no actions available")
+	}
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("down")})
+	assert.Equal(t, 1, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("up")})
+	assert.Equal(t, 0, d.focusIndex)
+}
+
+func TestDashboard_ArrowVariantFocusNavigation(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  tea.KeyMsg
+		want int
+	}{
+		{name: "shift down", msg: tea.KeyMsg{Type: tea.KeyShiftDown}, want: 1},
+		{name: "ctrl down", msg: tea.KeyMsg{Type: tea.KeyCtrlDown}, want: 1},
+		{name: "alt down", msg: tea.KeyMsg{Type: tea.KeyDown, Alt: true}, want: 1},
+		{name: "shift up", msg: tea.KeyMsg{Type: tea.KeyShiftUp}, want: -1},
+		{name: "ctrl up", msg: tea.KeyMsg{Type: tea.KeyCtrlUp}, want: -1},
+		{name: "alt up", msg: tea.KeyMsg{Type: tea.KeyUp, Alt: true}, want: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := dashboardFocusDelta(tt.msg)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDashboard_FocusDeltaIgnoresPlainRunes(t *testing.T) {
+	_, ok := dashboardFocusDelta(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
+	assert.False(t, ok)
+}
+
+func TestDashboard_FocusedActionShowsCursor(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	if len(d.actions) == 0 {
+		t.Skip("no actions available")
+	}
+
+	view := d.View()
+	assert.Contains(t, view, "> Start")
+}
+
+func TestDashboard_EnterOnSubmitAction(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusVerified))
+	d.refresh(ctx)
+
+	hasSubmit := false
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindSubmit && a.ProblemID == 1 {
+			d.focusIndex = i
+			hasSubmit = true
+			break
+		}
+	}
+	if !hasSubmit {
+		t.Skip("no submit action for problem 1")
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+	assert.Equal(t, 1, navigate.ProblemID)
+}
+
+func TestDashboard_SubmitActionVisibleInView(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusVerified))
+	d.refresh(ctx)
+	d.width = 120
+
+	hasSubmit := false
+	for _, a := range d.actions {
+		if a.Kind == recommendation.KindSubmit {
+			hasSubmit = true
+			break
+		}
+	}
+	if !hasSubmit {
+		t.Skip("no submit action")
+	}
+
+	view := d.View()
+	assert.Contains(t, view, "Submit")
+}
+
+func TestDashboard_FocusWrapsWithSubmitActions(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, db.SetProgress(ctx, 242, roadmap.StatusVerified))
+	d.refresh(ctx)
+
+	if len(d.actions) == 0 {
+		t.Skip("no actions")
 	}
 
 	rendered := len(d.actions)
@@ -269,11 +395,23 @@ func TestDashboard_WindowResize(t *testing.T) {
 func TestDashboard_WideLayoutHasThreeColumns(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.width = 120
+	d.height = 40
 
 	view := d.View()
 	assert.Contains(t, view, "XP", "wide view should show stats")
 	assert.Contains(t, view, "From Zero To Hero", "wide view should show roadmap info")
 	assert.Contains(t, view, "j/k", "wide view should show footer")
+	assert.Contains(t, view, "up/down", "footer should show arrow navigation")
+}
+
+func TestDashboard_CenterContentWhenSized(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 20
+	d.height = 5
+
+	view := d.centerContent("x")
+	assert.Contains(t, view, "x")
+	assert.Greater(t, len(view), 1, "centered content should include placement padding")
 }
 
 func TestDashboard_NarrowLayoutShowsCenterOnly(t *testing.T) {
@@ -336,7 +474,26 @@ func TestDashboard_ProgressStatsInHUD(t *testing.T) {
 	assert.Contains(t, view, "Level")
 	assert.Contains(t, view, "XP")
 	assert.Contains(t, view, "Streak")
-	assert.Contains(t, view, "Solved")
+	assert.Contains(t, view, "Verified: 0")
+	assert.Contains(t, view, "Solved: 2")
+	assert.Contains(t, view, "Progress: 2")
+}
+
+func TestDashboard_VerifiedStatsInHUD(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, db.SetProgress(ctx, 217, roadmap.StatusVerified))
+	require.NoError(t, db.SetProgress(ctx, 242, roadmap.StatusSolved))
+
+	d.refresh(ctx)
+	d.width = 120
+
+	view := d.View()
+	assert.Contains(t, view, "Verified: 2")
+	assert.Contains(t, view, "Solved: 1")
+	assert.Contains(t, view, "Progress: 3")
 }
 
 func TestDashboard_RoadmapContextInWideView(t *testing.T) {
