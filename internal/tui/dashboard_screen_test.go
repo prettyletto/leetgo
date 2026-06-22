@@ -1,0 +1,609 @@
+package tui
+
+import (
+	"context"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/prettyletto/leetgo/internal/catalog"
+	"github.com/prettyletto/leetgo/internal/config"
+	"github.com/prettyletto/leetgo/internal/recommendation"
+	"github.com/prettyletto/leetgo/internal/roadmap"
+	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func newTestDashboard(t *testing.T) (*DashboardScreen, store.Store) {
+	t.Helper()
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	rm, err := catalog.LoadRoadmap("from-zero-to-hero")
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	theme, err := LookupTheme(cfg.Theme)
+	require.NoError(t, err)
+
+	dash := NewDashboardScreen(cfg, theme, db, rm)
+	return dash, db
+}
+
+func TestDashboard_ViewShowsGreeting(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	d.width = 120
+	d.height = 40
+
+	view := d.View()
+	assert.Contains(t, view, "Welcome, Ada")
+}
+
+func TestDashboard_ViewShowsDisplayName(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.DisplayName = "Hello"
+
+	d.width = 120
+	view := d.View()
+	assert.Contains(t, view, "Hello")
+}
+
+func TestDashboard_ViewShowsRoadmapTitle(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	d.width = 120
+	view := d.View()
+	assert.Contains(t, view, "From Zero To Hero")
+}
+
+func TestDashboard_ViewHasFooter(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	d.width = 120
+	view := d.View()
+	assert.Contains(t, view, "j/k")
+	assert.Contains(t, view, "enter")
+	assert.Contains(t, view, "t")
+	assert.Contains(t, view, "q")
+}
+
+func TestDashboard_Quit(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	require.NotNil(t, cmd)
+}
+
+func TestDashboard_NavigateToList(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenLegacyList, navigate.ScreenID)
+}
+
+func TestDashboard_ThemeCycle(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	themeChange, ok := msg.(ThemeChangedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "clean-productivity", themeChange.ThemeID)
+
+	d.cfg.Theme = "clean-productivity"
+
+	_, cmd = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	msg = cmd()
+	themeChange, ok = msg.(ThemeChangedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "cyber-dashboard", themeChange.ThemeID)
+}
+
+func TestDashboard_FocusNavigation(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	if len(d.actions) == 0 {
+		t.Skip("no actions available")
+	}
+
+	assert.Equal(t, 0, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, 1, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, 2, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Equal(t, 1, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Equal(t, 0, d.focusIndex)
+}
+
+func TestDashboard_FocusWraps(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	if len(d.actions) == 0 {
+		t.Skip("no actions available")
+	}
+
+	rendered := len(d.actions)
+	maxShow := 5
+	if rendered > maxShow {
+		rendered = maxShow
+	}
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Equal(t, rendered-1, d.focusIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, 0, d.focusIndex)
+}
+
+func TestDashboard_EnterOnStartAction(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	hasStart := false
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindStart {
+			d.focusIndex = i
+			hasStart = true
+			break
+		}
+	}
+	if !hasStart {
+		t.Skip("no start actions available")
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+	assert.Greater(t, navigate.ProblemID, 0)
+}
+
+func TestDashboard_EnterOnContinueAction(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusInProgress))
+	d.refresh(ctx)
+
+	hasContinue := false
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindContinue && a.ProblemID == 1 {
+			d.focusIndex = i
+			hasContinue = true
+			break
+		}
+	}
+	if !hasContinue {
+		t.Skip("no continue action for problem 1")
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+	assert.Equal(t, 1, navigate.ProblemID)
+}
+
+func TestDashboard_EnterOnExportAction(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = true
+	d.cfg.GitExportRepo = "/tmp/repo"
+	d.refresh(context.Background())
+
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindExport {
+			d.focusIndex = i
+			break
+		}
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	notif, ok := msg.(GlobalNotificationMsg)
+	require.True(t, ok)
+	assert.Contains(t, notif.Message, "git-export")
+	assert.NotContains(t, notif.Message, "legacy")
+}
+
+func TestDashboard_EnterOnInspectAction(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindInspect {
+			d.focusIndex = i
+			break
+		}
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	_, ok := msg.(GlobalNotificationMsg)
+	assert.True(t, ok, "should return a notification for inspect")
+}
+
+func TestDashboard_WindowResize(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	d.Update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	assert.Equal(t, 150, d.width)
+	assert.Equal(t, 50, d.height)
+}
+
+func TestDashboard_WideLayoutHasThreeColumns(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+
+	view := d.View()
+	assert.Contains(t, view, "XP", "wide view should show stats")
+	assert.Contains(t, view, "From Zero To Hero", "wide view should show roadmap info")
+	assert.Contains(t, view, "j/k", "wide view should show footer")
+}
+
+func TestDashboard_NarrowLayoutShowsCenterOnly(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 50
+
+	view := d.View()
+	assert.Contains(t, view, "Welcome")
+	assert.Contains(t, view, "j/k")
+}
+
+func TestDashboard_MediumLayoutShowsRailsBelow(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 80
+
+	view := d.View()
+	assert.Contains(t, view, "Welcome")
+	assert.Contains(t, view, "j/k")
+}
+
+func TestDashboard_EmptyActions(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.actions = nil
+	d.width = 120
+
+	view := d.View()
+	assert.Contains(t, view, "No actions available")
+}
+
+func TestDashboard_NextActionsShown(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+
+	view := d.View()
+	hasStartActions := false
+	for _, a := range d.actions {
+		if a.Kind == recommendation.KindStart || a.Kind == recommendation.KindContinue {
+			hasStartActions = true
+			break
+		}
+	}
+	if hasStartActions {
+		assert.Contains(t, view, "Start")
+	}
+}
+
+func TestDashboard_ProgressStatsInHUD(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusSolved))
+	require.NoError(t, db.SetProgress(ctx, 217, roadmap.StatusSolved))
+	require.NoError(t, db.SetProgress(ctx, 242, roadmap.StatusInProgress))
+	require.NoError(t, db.AddXP(ctx, 50))
+
+	d.refresh(ctx)
+	d.width = 120
+
+	view := d.View()
+	assert.Contains(t, view, "Level")
+	assert.Contains(t, view, "XP")
+	assert.Contains(t, view, "Streak")
+	assert.Contains(t, view, "Solved")
+}
+
+func TestDashboard_RoadmapContextInWideView(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+
+	view := d.View()
+	hasRoadmapContext := strings.Contains(view, "Stage") || strings.Contains(view, "Progress")
+	assert.True(t, hasRoadmapContext, "wide view should include roadmap context with stage/progress info")
+}
+
+func TestDashboard_ThemeChangedMsgRecreatesScreen(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	assert.IsType(t, ThemeChangedMsg{}, msg)
+}
+
+func TestDashboard_RKeyShowsRoadmapDetail(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenRoadmapDetail, navigate.ScreenID)
+}
+
+func TestDashboard_SKeyShowsSolveLog(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	_, ok := msg.(GlobalNotificationMsg)
+	assert.True(t, ok)
+}
+
+func TestDashboard_ContinueActionShowsInProgress(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusInProgress))
+	d.refresh(ctx)
+	d.width = 120
+
+	hasContinue := false
+	for _, a := range d.actions {
+		if a.Kind == recommendation.KindContinue {
+			hasContinue = true
+			assert.Equal(t, 1, a.ProblemID)
+		}
+	}
+	assert.True(t, hasContinue, "should have a Continue action for InProgress problem")
+
+	view := d.View()
+	assert.Contains(t, view, "Continue")
+}
+
+func TestDashboard_XPProgressBar(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.stats = &store.Stats{
+		Level:   2,
+		TotalXP: 150,
+	}
+
+	d.width = 120
+	view := d.View()
+	assert.Contains(t, view, "XP")
+}
+
+func TestDashboard_XPNaN(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.stats = &store.Stats{
+		Level:   1,
+		TotalXP: 0,
+	}
+
+	d.width = 120
+	view := d.View()
+	assert.Contains(t, view, "XP")
+}
+
+func TestDashboard_LatestAchievement(t *testing.T) {
+	d, db := newTestDashboard(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.UnlockAchievement(ctx, "first_solve"))
+	d.refresh(ctx)
+	d.width = 120
+
+	view := d.View()
+	assert.Contains(t, view, "First Blood")
+}
+
+func TestDashboard_NoAchievement(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.achievementIDs = nil
+	d.width = 120
+
+	view := d.View()
+	assert.NotContains(t, view, "Latest:")
+}
+
+func TestDashboard_BlockerSummary(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+
+	view := d.View()
+	hasBlocker := strings.Contains(view, "Blocker") || strings.Contains(view, "blocked by")
+	assert.True(t, hasBlocker, "wide view should include blocker summary")
+}
+
+func TestDashboard_ExportFilteredWhenDisabled(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = false
+
+	d.refresh(context.Background())
+
+	for _, a := range d.actions {
+		assert.NotEqual(t, recommendation.KindExport, a.Kind, "export action should not appear when disabled")
+	}
+}
+
+func TestDashboard_ExportVisibleWhenEnabled(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = true
+	d.cfg.GitExportRepo = "/tmp/repo"
+
+	d.refresh(context.Background())
+
+	hasExport := false
+	for _, a := range d.actions {
+		if a.Kind == recommendation.KindExport {
+			hasExport = true
+		}
+	}
+	assert.True(t, hasExport, "export action should appear when git export is enabled with repo")
+}
+
+func TestDashboard_ExportHiddenWhenNoRepo(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = true
+	d.cfg.GitExportRepo = ""
+
+	d.refresh(context.Background())
+
+	for _, a := range d.actions {
+		assert.NotEqual(t, recommendation.KindExport, a.Kind, "export action should not appear when repo is empty")
+	}
+}
+
+func TestDashboard_NarrowLayoutOmitsHUD(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 50
+
+	view := d.View()
+	assert.NotContains(t, view, "Latest:")
+	assert.Contains(t, view, "j/k")
+}
+
+func TestDashboard_MediumLayoutShowsHUD(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 80
+
+	view := d.View()
+	assert.Contains(t, view, "j/k")
+}
+
+func TestDashboard_BackNavigationStageID(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindStart {
+			d.focusIndex = i
+			_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			require.NotNil(t, cmd)
+			msg := cmd()
+			navigate, ok := msg.(NavigateMsg)
+			require.True(t, ok)
+			assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+			assert.Greater(t, navigate.ProblemID, 0)
+			return
+		}
+	}
+	t.Skip("no start actions")
+}
+
+func TestDashboard_FocusClampedToRenderedWindow(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	if len(d.actions) <= 5 {
+		t.Skip("need more than 5 actions to test focus clamping")
+	}
+
+	maxShow := 5
+
+	for i := 0; i < maxShow+2; i++ {
+		d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	}
+	assert.Less(t, d.focusIndex, maxShow, "focus should not exceed rendered window")
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Less(t, d.focusIndex, maxShow, "focus should stay within rendered window")
+}
+
+func TestDashboard_ExportWordingIsCLI(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = true
+	d.cfg.GitExportRepo = "/tmp/repo"
+	d.refresh(context.Background())
+
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindExport {
+			assert.Contains(t, a.Title, "CLI", "title should indicate CLI usage")
+			assert.Contains(t, a.Reason, "leetgo", "reason should contain CLI command hint")
+			assert.Contains(t, a.Reason, "git-export", "reason should contain git-export command")
+			_ = i
+			return
+		}
+	}
+	t.Skip("no export action")
+}
+
+func TestDashboard_ExportEnterShowsNotification(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.GitExportEnabled = true
+	d.cfg.GitExportRepo = "/tmp/repo"
+	d.refresh(context.Background())
+
+	for i, a := range d.actions {
+		if a.Kind == recommendation.KindExport {
+			d.focusIndex = i
+			break
+		}
+	}
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	notif, ok := msg.(GlobalNotificationMsg)
+	require.True(t, ok)
+	assert.Contains(t, notif.Message, "leetgo git-export")
+	assert.Contains(t, notif.Message, "repo-dir")
+	assert.Contains(t, notif.Message, "--commit")
+}
+
+func TestDashboard_FocusResetsOnRefresh(t *testing.T) {
+	d, _ := newTestDashboard(t)
+
+	maxShow := 5
+	for i := 0; i < maxShow-1; i++ {
+		d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	}
+	assert.Equal(t, maxShow-1, d.focusIndex)
+
+	d.refresh(context.Background())
+	rendered := len(d.actions)
+	if rendered > maxShow {
+		rendered = maxShow
+	}
+	assert.Less(t, d.focusIndex, rendered, "focus should stay within rendered window after refresh")
+}

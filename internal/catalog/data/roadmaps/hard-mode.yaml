@@ -1,0 +1,141 @@
+id: hard-mode
+title: "Hard Mode"
+description: "A compact advanced Roadmap for users who already know the common patterns and want harder unlocks."
+tagline: "Push past comfort zones with harder, invariant-heavy problems."
+audience: "Experienced users who want to tackle medium-hard and hard problems."
+promise: "You will deepen pattern fluency under harder constraints."
+recommended: false
+estimated_hours: 30
+difficulty_mix:
+  easy: 0
+  medium: 35
+  hard: 65
+highlights:
+  - "All medium and hard problems"
+  - "Invariant-heavy reasoning"
+stages:
+  - id: precision-patterns
+    title: "Precision Patterns"
+    description: "Harder pointer, window, and stack Problems where invariants matter."
+  - id: advanced-structures
+    title: "Advanced Structures"
+    description: "Problems that require stronger data-structure control."
+  - id: graph-search
+    title: "Graph Search"
+    description: "Bigger search spaces and graph frontiers."
+  - id: dynamic-programming
+    title: "Dynamic Programming"
+    description: "Difficult recurrence and state design Problems."
+problems:
+  - id: 11
+    title: "Container With Most Water"
+    slug: "container-with-most-water"
+    difficulty: medium
+    category: "two-pointers"
+    stage: precision-patterns
+    prerequisites: []
+  - id: 42
+    title: "Trapping Rain Water"
+    slug: "trapping-rain-water"
+    difficulty: hard
+    category: "two-pointers"
+    stage: precision-patterns
+    prerequisites: [11]
+  - id: 3
+    title: "Longest Substring Without Repeating Characters"
+    slug: "longest-substring-without-repeating-characters"
+    difficulty: medium
+    category: "sliding-window"
+    stage: precision-patterns
+    prerequisites: []
+  - id: 424
+    title: "Longest Repeating Character Replacement"
+    slug: "longest-repeating-character-replacement"
+    difficulty: medium
+    category: "sliding-window"
+    stage: precision-patterns
+    prerequisites: [3]
+  - id: 567
+    title: "Permutation in String"
+    slug: "permutation-in-string"
+    difficulty: medium
+    category: "sliding-window"
+    stage: precision-patterns
+    prerequisites: [3]
+  - id: 76
+    title: "Minimum Window Substring"
+    slug: "minimum-window-substring"
+    difficulty: hard
+    category: "sliding-window"
+    stage: precision-patterns
+    prerequisites: [424, 567]
+  - id: 739
+    title: "Daily Temperatures"
+    slug: "daily-temperatures"
+    difficulty: medium
+    category: "stack"
+    stage: precision-patterns
+    prerequisites: []
+  - id: 84
+    title: "Largest Rectangle in Histogram"
+    slug: "largest-rectangle-in-histogram"
+    difficulty: hard
+    category: "stack"
+    stage: precision-patterns
+    prerequisites: [739]
+  - id: 23
+    title: "Merge k Sorted Lists"
+    slug: "merge-k-sorted-lists"
+    difficulty: hard
+    category: "heap-priority-queue"
+    stage: advanced-structures
+    prerequisites: []
+  - id: 295
+    title: "Find Median from Data Stream"
+    slug: "find-median-from-data-stream"
+    difficulty: hard
+    category: "heap-priority-queue"
+    stage: advanced-structures
+    prerequisites: [23]
+  - id: 127
+    title: "Word Ladder"
+    slug: "word-ladder"
+    difficulty: hard
+    category: "graphs"
+    stage: graph-search
+    prerequisites: []
+  - id: 51
+    title: "N-Queens"
+    slug: "n-queens"
+    difficulty: hard
+    category: "backtracking"
+    stage: graph-search
+    prerequisites: []
+  - id: 212
+    title: "Word Search II"
+    slug: "word-search-ii"
+    difficulty: hard
+    category: "backtracking"
+    stage: graph-search
+    prerequisites: [51]
+  - id: 72
+    title: "Edit Distance"
+    slug: "edit-distance"
+    difficulty: medium
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: []
+  - id: 10
+    title: "Regular Expression Matching"
+    slug: "regular-expression-matching"
+    difficulty: hard
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: [72]
+  - id: 312
+    title: "Burst Balloons"
+    slug: "burst-balloons"
+    difficulty: hard
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: [72]

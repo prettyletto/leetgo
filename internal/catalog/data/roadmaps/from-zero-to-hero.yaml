@@ -1,0 +1,1002 @@
+id: from-zero-to-hero
+title: "From Zero To Hero"
+description: "A default Roadmap that starts with fundamentals and builds toward interview-ready problem solving."
+tagline: "Build LeetCode fundamentals from zero into interview readiness."
+audience: "New or returning users who want a guided foundation-first path."
+promise: "You will learn the core patterns in the order they unlock each other."
+recommended: true
+estimated_hours: 80
+difficulty_mix:
+  easy: 35
+  medium: 50
+  hard: 15
+highlights:
+  - "Foundation-first unlock path"
+  - "Broad interview coverage"
+  - "Gentle difficulty ramp"
+stages:
+  - id: arrays-hashing
+    title: "Arrays & Hashing"
+    description: "Build the base patterns for lookup tables, counting, and array traversal."
+  - id: two-pointers
+    title: "Two Pointers"
+    description: "Learn converging pointer and sorted-input patterns."
+  - id: sliding-window
+    title: "Sliding Window"
+    description: "Practice fixed and variable-size window reasoning."
+  - id: stack
+    title: "Stack"
+    description: "Use stack state to model nesting, monotonic order, and deferred work."
+  - id: binary-search
+    title: "Binary Search"
+    description: "Search ordered spaces and monotonic answer functions."
+  - id: linked-list
+    title: "Linked List"
+    description: "Handle pointer manipulation and list invariants."
+  - id: trees
+    title: "Trees"
+    description: "Traverse and reason about hierarchical structures."
+  - id: heap-priority-queue
+    title: "Heap & Priority Queue"
+    description: "Maintain ordered frontiers and top-k selections."
+  - id: backtracking
+    title: "Backtracking"
+    description: "Explore combinatorial search spaces with pruning."
+  - id: graphs
+    title: "Graphs"
+    description: "Model relationships with traversal, components, and shortest paths."
+  - id: dynamic-programming
+    title: "Dynamic Programming"
+    description: "Convert recurrence structure into reliable state transitions."
+  - id: intervals
+    title: "Intervals"
+    description: "Sort and merge ranges while preserving boundary correctness."
+  - id: greedy
+    title: "Greedy"
+    description: "Choose local moves that preserve global optimality."
+  - id: math-geometry
+    title: "Math & Geometry"
+    description: "Use numeric and spatial reasoning for specialized Problems."
+  - id: bit-manipulation
+    title: "Bit Manipulation"
+    description: "Operate directly on binary representations and masks."
+problems:
+  # ========== Arrays & Hashing ==========
+  - id: 217
+    title: "Contains Duplicate"
+    slug: "contains-duplicate"
+    difficulty: easy
+    category: "arrays-hashing"
+    prerequisites: []
+
+  - id: 242
+    title: "Valid Anagram"
+    slug: "valid-anagram"
+    difficulty: easy
+    category: "arrays-hashing"
+    prerequisites: []
+
+  - id: 1
+    title: "Two Sum"
+    slug: "two-sum"
+    difficulty: easy
+    category: "arrays-hashing"
+    prerequisites: []
+
+  - id: 49
+    title: "Group Anagrams"
+    slug: "group-anagrams"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [242]
+
+  - id: 347
+    title: "Top K Frequent Elements"
+    slug: "top-k-frequent-elements"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [217]
+
+  - id: 238
+    title: "Product of Array Except Self"
+    slug: "product-of-array-except-self"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [1]
+
+  - id: 36
+    title: "Valid Sudoku"
+    slug: "valid-sudoku"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [217]
+
+  - id: 128
+    title: "Longest Consecutive Sequence"
+    slug: "longest-consecutive-sequence"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [217]
+
+  - id: 271
+    title: "Encode and Decode Strings"
+    slug: "encode-and-decode-strings"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: []
+
+  - id: 454
+    title: "4Sum II"
+    slug: "4sum-ii"
+    difficulty: medium
+    category: "arrays-hashing"
+    prerequisites: [1]
+
+  # ========== Two Pointers ==========
+  - id: 125
+    title: "Valid Palindrome"
+    slug: "valid-palindrome"
+    difficulty: easy
+    category: "two-pointers"
+    prerequisites: []
+
+  - id: 167
+    title: "Two Sum II"
+    slug: "two-sum-ii-input-array-is-sorted"
+    difficulty: medium
+    category: "two-pointers"
+    prerequisites: [1]
+
+  - id: 15
+    title: "3Sum"
+    slug: "3sum"
+    difficulty: medium
+    category: "two-pointers"
+    prerequisites: [1, 167]
+
+  - id: 11
+    title: "Container With Most Water"
+    slug: "container-with-most-water"
+    difficulty: medium
+    category: "two-pointers"
+    prerequisites: [125]
+
+  - id: 42
+    title: "Trapping Rain Water"
+    slug: "trapping-rain-water"
+    difficulty: hard
+    category: "two-pointers"
+    prerequisites: [11]
+
+  # ========== Sliding Window ==========
+  - id: 121
+    title: "Best Time to Buy and Sell Stock"
+    slug: "best-time-to-buy-and-sell-stock"
+    difficulty: easy
+    category: "sliding-window"
+    prerequisites: []
+
+  - id: 3
+    title: "Longest Substring Without Repeating Characters"
+    slug: "longest-substring-without-repeating-characters"
+    difficulty: medium
+    category: "sliding-window"
+    prerequisites: [121]
+
+  - id: 424
+    title: "Longest Repeating Character Replacement"
+    slug: "longest-repeating-character-replacement"
+    difficulty: medium
+    category: "sliding-window"
+    prerequisites: [3]
+
+  - id: 567
+    title: "Permutation in String"
+    slug: "permutation-in-string"
+    difficulty: medium
+    category: "sliding-window"
+    prerequisites: [3]
+
+  - id: 76
+    title: "Minimum Window Substring"
+    slug: "minimum-window-substring"
+    difficulty: hard
+    category: "sliding-window"
+    prerequisites: [424, 567]
+
+  - id: 239
+    title: "Sliding Window Maximum"
+    slug: "sliding-window-maximum"
+    difficulty: hard
+    category: "sliding-window"
+    prerequisites: [3]
+
+  # ========== Stack ==========
+  - id: 20
+    title: "Valid Parentheses"
+    slug: "valid-parentheses"
+    difficulty: easy
+    category: "stack"
+    prerequisites: []
+
+  - id: 155
+    title: "Min Stack"
+    slug: "min-stack"
+    difficulty: medium
+    category: "stack"
+    prerequisites: [20]
+
+  - id: 150
+    title: "Evaluate Reverse Polish Notation"
+    slug: "evaluate-reverse-polish-notation"
+    difficulty: medium
+    category: "stack"
+    prerequisites: [20]
+
+  - id: 22
+    title: "Generate Parentheses"
+    slug: "generate-parentheses"
+    difficulty: medium
+    category: "stack"
+    prerequisites: [20]
+
+  - id: 739
+    title: "Daily Temperatures"
+    slug: "daily-temperatures"
+    difficulty: medium
+    category: "stack"
+    prerequisites: [20]
+
+  - id: 853
+    title: "Car Fleet"
+    slug: "car-fleet"
+    difficulty: medium
+    category: "stack"
+    prerequisites: [739]
+
+  - id: 84
+    title: "Largest Rectangle in Histogram"
+    slug: "largest-rectangle-in-histogram"
+    difficulty: hard
+    category: "stack"
+    prerequisites: [739]
+
+  # ========== Binary Search ==========
+  - id: 704
+    title: "Binary Search"
+    slug: "binary-search"
+    difficulty: easy
+    category: "binary-search"
+    prerequisites: []
+
+  - id: 74
+    title: "Search a 2D Matrix"
+    slug: "search-a-2d-matrix"
+    difficulty: medium
+    category: "binary-search"
+    prerequisites: [704]
+
+  - id: 875
+    title: "Koko Eating Bananas"
+    slug: "koko-eating-bananas"
+    difficulty: medium
+    category: "binary-search"
+    prerequisites: [704]
+
+  - id: 153
+    title: "Find Minimum in Rotated Sorted Array"
+    slug: "find-minimum-in-rotated-sorted-array"
+    difficulty: medium
+    category: "binary-search"
+    prerequisites: [704]
+
+  - id: 33
+    title: "Search in Rotated Sorted Array"
+    slug: "search-in-rotated-sorted-array"
+    difficulty: medium
+    category: "binary-search"
+    prerequisites: [153]
+
+  - id: 981
+    title: "Time Based Key-Value Store"
+    slug: "time-based-key-value-store"
+    difficulty: medium
+    category: "binary-search"
+    prerequisites: [704]
+
+  - id: 4
+    title: "Median of Two Sorted Arrays"
+    slug: "median-of-two-sorted-arrays"
+    difficulty: hard
+    category: "binary-search"
+    prerequisites: [33]
+
+  # ========== Linked List ==========
+  - id: 206
+    title: "Reverse Linked List"
+    slug: "reverse-linked-list"
+    difficulty: easy
+    category: "linked-list"
+    prerequisites: []
+
+  - id: 21
+    title: "Merge Two Sorted Lists"
+    slug: "merge-two-sorted-lists"
+    difficulty: easy
+    category: "linked-list"
+    prerequisites: []
+
+  - id: 141
+    title: "Linked List Cycle"
+    slug: "linked-list-cycle"
+    difficulty: easy
+    category: "linked-list"
+    prerequisites: []
+
+  - id: 143
+    title: "Reorder List"
+    slug: "reorder-list"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [206, 141]
+
+  - id: 19
+    title: "Remove Nth Node From End of List"
+    slug: "remove-nth-node-from-end-of-list"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [206]
+
+  - id: 138
+    title: "Copy List with Random Pointer"
+    slug: "copy-list-with-random-pointer"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [141]
+
+  - id: 2
+    title: "Add Two Numbers"
+    slug: "add-two-numbers"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [21]
+
+  - id: 287
+    title: "Find the Duplicate Number"
+    slug: "find-the-duplicate-number"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [141]
+
+  - id: 146
+    title: "LRU Cache"
+    slug: "lru-cache"
+    difficulty: medium
+    category: "linked-list"
+    prerequisites: [206]
+
+  - id: 23
+    title: "Merge k Sorted Lists"
+    slug: "merge-k-sorted-lists"
+    difficulty: hard
+    category: "linked-list"
+    prerequisites: [21]
+
+  - id: 25
+    title: "Reverse Nodes in k-Group"
+    slug: "reverse-nodes-in-k-group"
+    difficulty: hard
+    category: "linked-list"
+    prerequisites: [206]
+
+  # ========== Trees ==========
+  - id: 94
+    title: "Binary Tree Inorder Traversal"
+    slug: "binary-tree-inorder-traversal"
+    difficulty: easy
+    category: "trees"
+    prerequisites: []
+
+  - id: 104
+    title: "Maximum Depth of Binary Tree"
+    slug: "maximum-depth-of-binary-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: []
+
+  - id: 226
+    title: "Invert Binary Tree"
+    slug: "invert-binary-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 101
+    title: "Symmetric Tree"
+    slug: "symmetric-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 105
+    title: "Construct Binary Tree from Preorder and Inorder Traversal"
+    slug: "construct-binary-tree-from-preorder-and-inorder-traversal"
+    difficulty: medium
+    category: "trees"
+    prerequisites: [94]
+
+  - id: 102
+    title: "Binary Tree Level Order Traversal"
+    slug: "binary-tree-level-order-traversal"
+    difficulty: medium
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 108
+    title: "Convert Sorted Array to Binary Search Tree"
+    slug: "convert-sorted-array-to-binary-search-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 98
+    title: "Validate Binary Search Tree"
+    slug: "validate-binary-search-tree"
+    difficulty: medium
+    category: "trees"
+    prerequisites: [94]
+
+  - id: 230
+    title: "Kth Smallest Element in a BST"
+    slug: "kth-smallest-element-in-a-bst"
+    difficulty: medium
+    category: "trees"
+    prerequisites: [98]
+
+  - id: 199
+    title: "Binary Tree Right Side View"
+    slug: "binary-tree-right-side-view"
+    difficulty: medium
+    category: "trees"
+    prerequisites: [102]
+
+  - id: 100
+    title: "Same Tree"
+    slug: "same-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 110
+    title: "Balanced Binary Tree"
+    slug: "balanced-binary-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 543
+    title: "Diameter of Binary Tree"
+    slug: "diameter-of-binary-tree"
+    difficulty: easy
+    category: "trees"
+    prerequisites: [104]
+
+  - id: 124
+    title: "Binary Tree Maximum Path Sum"
+    slug: "binary-tree-maximum-path-sum"
+    difficulty: hard
+    category: "trees"
+    prerequisites: [543]
+
+  - id: 297
+    title: "Serialize and Deserialize Binary Tree"
+    slug: "serialize-and-deserialize-binary-tree"
+    difficulty: hard
+    category: "trees"
+    prerequisites: [102]
+
+  # ========== Tries ==========
+  - id: 208
+    title: "Implement Trie (Prefix Tree)"
+    slug: "implement-trie-prefix-tree"
+    difficulty: medium
+    category: "tries"
+    prerequisites: []
+
+  - id: 211
+    title: "Design Add and Search Words Data Structure"
+    slug: "design-add-and-search-words-data-structure"
+    difficulty: medium
+    category: "tries"
+    prerequisites: [208]
+
+  - id: 212
+    title: "Word Search II"
+    slug: "word-search-ii"
+    difficulty: hard
+    category: "tries"
+    prerequisites: [211]
+
+  # ========== Heap / Priority Queue ==========
+  - id: 703
+    title: "Kth Largest Element in a Stream"
+    slug: "kth-largest-element-in-a-stream"
+    difficulty: easy
+    category: "heap"
+    prerequisites: []
+
+  - id: 1046
+    title: "Last Stone Weight"
+    slug: "last-stone-weight"
+    difficulty: easy
+    category: "heap"
+    prerequisites: []
+
+  - id: 973
+    title: "K Closest Points to Origin"
+    slug: "k-closest-points-to-origin"
+    difficulty: medium
+    category: "heap"
+    prerequisites: [703]
+
+  - id: 215
+    title: "Kth Largest Element in an Array"
+    slug: "kth-largest-element-in-an-array"
+    difficulty: medium
+    category: "heap"
+    prerequisites: [703]
+
+  - id: 621
+    title: "Task Scheduler"
+    slug: "task-scheduler"
+    difficulty: medium
+    category: "heap"
+    prerequisites: [703]
+
+  - id: 355
+    title: "Design Twitter"
+    slug: "design-twitter"
+    difficulty: medium
+    category: "heap"
+    prerequisites: [703]
+
+  - id: 295
+    title: "Find Median from Data Stream"
+    slug: "find-median-from-data-stream"
+    difficulty: hard
+    category: "heap"
+    prerequisites: [703]
+
+  # ========== Backtracking ==========
+  - id: 78
+    title: "Subsets"
+    slug: "subsets"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: []
+
+  - id: 39
+    title: "Combination Sum"
+    slug: "combination-sum"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 46
+    title: "Permutations"
+    slug: "permutations"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 90
+    title: "Subsets II"
+    slug: "subsets-ii"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 40
+    title: "Combination Sum II"
+    slug: "combination-sum-ii"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [39]
+
+  - id: 17
+    title: "Letter Combinations of a Phone Number"
+    slug: "letter-combinations-of-a-phone-number"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 79
+    title: "Word Search"
+    slug: "word-search"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 51
+    title: "N-Queens"
+    slug: "n-queens"
+    difficulty: hard
+    category: "backtracking"
+    prerequisites: [78]
+
+  - id: 131
+    title: "Palindrome Partitioning"
+    slug: "palindrome-partitioning"
+    difficulty: medium
+    category: "backtracking"
+    prerequisites: [78]
+
+  # ========== Graphs ==========
+  - id: 200
+    title: "Number of Islands"
+    slug: "number-of-islands"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: []
+
+  - id: 133
+    title: "Clone Graph"
+    slug: "clone-graph"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 695
+    title: "Max Area of Island"
+    slug: "max-area-of-island"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 417
+    title: "Pacific Atlantic Water Flow"
+    slug: "pacific-atlantic-water-flow"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 994
+    title: "Rotting Oranges"
+    slug: "rotting-oranges"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 207
+    title: "Course Schedule"
+    slug: "course-schedule"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 210
+    title: "Course Schedule II"
+    slug: "course-schedule-ii"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [207]
+
+  - id: 684
+    title: "Redundant Connection"
+    slug: "redundant-connection"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 323
+    title: "Number of Connected Components in an Undirected Graph"
+    slug: "number-of-connected-components-in-an-undirected-graph"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 261
+    title: "Graph Valid Tree"
+    slug: "graph-valid-tree"
+    difficulty: medium
+    category: "graphs"
+    prerequisites: [200]
+
+  - id: 127
+    title: "Word Ladder"
+    slug: "word-ladder"
+    difficulty: hard
+    category: "graphs"
+    prerequisites: [200]
+
+  # ========== Advanced Graphs ==========
+  - id: 332
+    title: "Reconstruct Itinerary"
+    slug: "reconstruct-itinerary"
+    difficulty: hard
+    category: "advanced-graphs"
+    prerequisites: [207]
+
+  - id: 743
+    title: "Network Delay Time"
+    slug: "network-delay-time"
+    difficulty: medium
+    category: "advanced-graphs"
+    prerequisites: [207]
+
+  - id: 778
+    title: "Swim in Rising Water"
+    slug: "swim-in-rising-water"
+    difficulty: hard
+    category: "advanced-graphs"
+    prerequisites: [207]
+
+  - id: 787
+    title: "Cheapest Flights Within K Stops"
+    slug: "cheapest-flights-within-k-stops"
+    difficulty: medium
+    category: "advanced-graphs"
+    prerequisites: [743]
+
+  # ========== Dynamic Programming ==========
+  - id: 70
+    title: "Climbing Stairs"
+    slug: "climbing-stairs"
+    difficulty: easy
+    category: "dynamic-programming"
+    prerequisites: []
+
+  - id: 198
+    title: "House Robber"
+    slug: "house-robber"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 213
+    title: "House Robber II"
+    slug: "house-robber-ii"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [198]
+
+  - id: 5
+    title: "Longest Palindromic Substring"
+    slug: "longest-palindromic-substring"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 647
+    title: "Palindromic Substrings"
+    slug: "palindromic-substrings"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [5]
+
+  - id: 91
+    title: "Decode Ways"
+    slug: "decode-ways"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 322
+    title: "Coin Change"
+    slug: "coin-change"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 152
+    title: "Maximum Product Subarray"
+    slug: "maximum-product-subarray"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 139
+    title: "Word Break"
+    slug: "word-break"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 300
+    title: "Longest Increasing Subsequence"
+    slug: "longest-increasing-subsequence"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 416
+    title: "Partition Equal Subset Sum"
+    slug: "partition-equal-subset-sum"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 309
+    title: "Best Time to Buy and Sell Stock with Cooldown"
+    slug: "best-time-to-buy-and-sell-stock-with-cooldown"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [121]
+
+  - id: 494
+    title: "Target Sum"
+    slug: "target-sum"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 1143
+    title: "Longest Common Subsequence"
+    slug: "longest-common-subsequence"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [70]
+
+  - id: 72
+    title: "Edit Distance"
+    slug: "edit-distance"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [1143]
+
+  - id: 518
+    title: "Coin Change II"
+    slug: "coin-change-ii"
+    difficulty: medium
+    category: "dynamic-programming"
+    prerequisites: [322]
+
+  # ========== Greedy ==========
+  - id: 53
+    title: "Maximum Subarray"
+    slug: "maximum-subarray"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: []
+
+  - id: 55
+    title: "Jump Game"
+    slug: "jump-game"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [53]
+
+  - id: 45
+    title: "Jump Game II"
+    slug: "jump-game-ii"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [55]
+
+  - id: 134
+    title: "Gas Station"
+    slug: "gas-station"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [53]
+
+  - id: 846
+    title: "Hand of Straights"
+    slug: "hand-of-straights"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [53]
+
+  - id: 1899
+    title: "Merge Triplets to Form Target Triplet"
+    slug: "merge-triplets-to-form-target-triplet"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [53]
+
+  - id: 678
+    title: "Valid Parenthesis String"
+    slug: "valid-parenthesis-string"
+    difficulty: medium
+    category: "greedy"
+    prerequisites: [20]
+
+  # ========== Intervals ==========
+  - id: 56
+    title: "Merge Intervals"
+    slug: "merge-intervals"
+    difficulty: medium
+    category: "intervals"
+    prerequisites: []
+
+  - id: 57
+    title: "Insert Interval"
+    slug: "insert-interval"
+    difficulty: medium
+    category: "intervals"
+    prerequisites: [56]
+
+  - id: 435
+    title: "Non-overlapping Intervals"
+    slug: "non-overlapping-intervals"
+    difficulty: medium
+    category: "intervals"
+    prerequisites: [56]
+
+  - id: 252
+    title: "Meeting Rooms"
+    slug: "meeting-rooms"
+    difficulty: easy
+    category: "intervals"
+    prerequisites: []
+
+  - id: 253
+    title: "Meeting Rooms II"
+    slug: "meeting-rooms-ii"
+    difficulty: medium
+    category: "intervals"
+    prerequisites: [252, 56]
+
+  - id: 986
+    title: "Interval List Intersections"
+    slug: "interval-list-intersections"
+    difficulty: medium
+    category: "intervals"
+    prerequisites: [56]
+
+  # ========== Math & Geometry ==========
+  - id: 48
+    title: "Rotate Image"
+    slug: "rotate-image"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: []
+
+  - id: 54
+    title: "Spiral Matrix"
+    slug: "spiral-matrix"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: [48]
+
+  - id: 73
+    title: "Set Matrix Zeroes"
+    slug: "set-matrix-zeroes"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: []
+
+  - id: 202
+    title: "Happy Number"
+    slug: "happy-number"
+    difficulty: easy
+    category: "math-geometry"
+    prerequisites: []
+
+  - id: 66
+    title: "Plus One"
+    slug: "plus-one"
+    difficulty: easy
+    category: "math-geometry"
+    prerequisites: []
+
+  - id: 50
+    title: "Pow(x, n)"
+    slug: "powx-n"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: []
+
+  - id: 43
+    title: "Multiply Strings"
+    slug: "multiply-strings"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: [66]
+
+  - id: 286
+    title: "Walls and Gates"
+    slug: "walls-and-gates"
+    difficulty: medium
+    category: "math-geometry"
+    prerequisites: [200]

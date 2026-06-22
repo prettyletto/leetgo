@@ -1,0 +1,144 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+const MaxDisplayNameLength = 40
+
+var ValidThemes = []string{
+	"rpg-skill-tree",
+	"clean-productivity",
+	"cyber-dashboard",
+}
+
+type Config struct {
+	OnboardingComplete bool   `toml:"onboarding_complete"`
+	DisplayName        string `toml:"display_name"`
+	Workspace          string `toml:"workspace"`
+	Editor             string `toml:"editor"`
+	Language           string `toml:"language"`
+	Roadmap            string `toml:"roadmap"`
+	Theme              string `toml:"theme"`
+	GitExportEnabled   bool   `toml:"git_export_enabled"`
+	GitExportRepo      string `toml:"git_export_repo"`
+}
+
+func DefaultConfig() (*Config, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("get home dir: %w", err)
+	}
+	return &Config{
+		OnboardingComplete: false,
+		DisplayName:        "",
+		Workspace:          filepath.Join(home, "leetgo-workspace"),
+		Editor:             "",
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+		GitExportEnabled:   false,
+		GitExportRepo:      "",
+	}, nil
+}
+
+func DataDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home dir: %w", err)
+	}
+	return filepath.Join(home, ".leetgo"), nil
+}
+
+func Load() (*Config, error) {
+	dataDir, err := DataDir()
+	if err != nil {
+		return nil, err
+	}
+
+	path := filepath.Join(dataDir, "config.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return DefaultConfig()
+		}
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	cfg, err := DefaultConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := toml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	return cfg, nil
+}
+
+func (c *Config) Save() error {
+	dataDir, err := DataDir()
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
+	}
+
+	data, err := toml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	path := filepath.Join(dataDir, "config.toml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	return nil
+}
+
+func (c *Config) Validate(languages, roadmaps []string) error {
+	if c.Workspace == "" {
+		return fmt.Errorf("workspace is required")
+	}
+	if !slices.Contains(languages, c.Language) {
+		return fmt.Errorf("unsupported language %q", c.Language)
+	}
+	if !slices.Contains(roadmaps, c.Roadmap) {
+		return fmt.Errorf("unknown roadmap %q", c.Roadmap)
+	}
+	if !slices.Contains(ValidThemes, c.Theme) {
+		return fmt.Errorf("unknown theme %q", c.Theme)
+	}
+	if c.OnboardingComplete {
+		trimmed := strings.TrimSpace(c.DisplayName)
+		if trimmed == "" {
+			return fmt.Errorf("display_name is required when onboarding is complete")
+		}
+		if len(trimmed) > MaxDisplayNameLength {
+			return fmt.Errorf("display_name exceeds %d characters", MaxDisplayNameLength)
+		}
+	}
+	if c.GitExportEnabled && strings.TrimSpace(c.GitExportRepo) == "" {
+		return fmt.Errorf("git_export_repo is required when git_export_enabled is true")
+	}
+	if c.GitExportEnabled && strings.TrimSpace(c.GitExportRepo) != "" {
+		info, err := os.Stat(c.GitExportRepo)
+		if err != nil {
+			return fmt.Errorf("git_export_repo is not accessible: %w", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("git_export_repo is not a directory: %s", c.GitExportRepo)
+		}
+		if _, err := os.Stat(filepath.Join(c.GitExportRepo, ".git")); err != nil {
+			return fmt.Errorf("git_export_repo is not a git repository: %s", c.GitExportRepo)
+		}
+	}
+	return nil
+}

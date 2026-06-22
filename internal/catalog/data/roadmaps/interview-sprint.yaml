@@ -1,0 +1,176 @@
+id: interview-sprint
+title: "Interview Sprint"
+description: "A tighter Roadmap for users already practicing who need high-yield interview coverage."
+tagline: "Fast-track your interview prep with high-yield problems."
+audience: "Users with some LeetCode experience preparing for upcoming interviews."
+promise: "You will cover the most frequently asked patterns in a focused timeline."
+recommended: false
+estimated_hours: 40
+difficulty_mix:
+  easy: 25
+  medium: 60
+  hard: 15
+highlights:
+  - "High-frequency interview patterns"
+  - "Condensed timeline"
+stages:
+  - id: foundations
+    title: "Foundations"
+    description: "Refresh the patterns that appear everywhere."
+  - id: core-patterns
+    title: "Core Patterns"
+    description: "Practice the highest-frequency array, pointer, window, stack, and search Problems."
+  - id: trees-graphs
+    title: "Trees & Graphs"
+    description: "Cover traversal and connectivity patterns."
+  - id: dynamic-programming
+    title: "Dynamic Programming"
+    description: "Build enough recurrence fluency for common interviews."
+problems:
+  - id: 1
+    title: "Two Sum"
+    slug: "two-sum"
+    difficulty: easy
+    category: "arrays-hashing"
+    stage: foundations
+    prerequisites: []
+  - id: 217
+    title: "Contains Duplicate"
+    slug: "contains-duplicate"
+    difficulty: easy
+    category: "arrays-hashing"
+    stage: foundations
+    prerequisites: []
+  - id: 242
+    title: "Valid Anagram"
+    slug: "valid-anagram"
+    difficulty: easy
+    category: "arrays-hashing"
+    stage: foundations
+    prerequisites: []
+  - id: 20
+    title: "Valid Parentheses"
+    slug: "valid-parentheses"
+    difficulty: easy
+    category: "stack"
+    stage: foundations
+    prerequisites: []
+  - id: 704
+    title: "Binary Search"
+    slug: "binary-search"
+    difficulty: easy
+    category: "binary-search"
+    stage: foundations
+    prerequisites: []
+  - id: 49
+    title: "Group Anagrams"
+    slug: "group-anagrams"
+    difficulty: medium
+    category: "arrays-hashing"
+    stage: core-patterns
+    prerequisites: [242]
+  - id: 347
+    title: "Top K Frequent Elements"
+    slug: "top-k-frequent-elements"
+    difficulty: medium
+    category: "arrays-hashing"
+    stage: core-patterns
+    prerequisites: [217]
+  - id: 167
+    title: "Two Sum II"
+    slug: "two-sum-ii-input-array-is-sorted"
+    difficulty: medium
+    category: "two-pointers"
+    stage: core-patterns
+    prerequisites: [1]
+  - id: 15
+    title: "3Sum"
+    slug: "3sum"
+    difficulty: medium
+    category: "two-pointers"
+    stage: core-patterns
+    prerequisites: [1, 167]
+  - id: 121
+    title: "Best Time to Buy and Sell Stock"
+    slug: "best-time-to-buy-and-sell-stock"
+    difficulty: easy
+    category: "sliding-window"
+    stage: core-patterns
+    prerequisites: []
+  - id: 3
+    title: "Longest Substring Without Repeating Characters"
+    slug: "longest-substring-without-repeating-characters"
+    difficulty: medium
+    category: "sliding-window"
+    stage: core-patterns
+    prerequisites: [121]
+  - id: 155
+    title: "Min Stack"
+    slug: "min-stack"
+    difficulty: medium
+    category: "stack"
+    stage: core-patterns
+    prerequisites: [20]
+  - id: 74
+    title: "Search a 2D Matrix"
+    slug: "search-a-2d-matrix"
+    difficulty: medium
+    category: "binary-search"
+    stage: core-patterns
+    prerequisites: [704]
+  - id: 206
+    title: "Reverse Linked List"
+    slug: "reverse-linked-list"
+    difficulty: easy
+    category: "linked-list"
+    stage: core-patterns
+    prerequisites: []
+  - id: 226
+    title: "Invert Binary Tree"
+    slug: "invert-binary-tree"
+    difficulty: easy
+    category: "trees"
+    stage: trees-graphs
+    prerequisites: []
+  - id: 104
+    title: "Maximum Depth of Binary Tree"
+    slug: "maximum-depth-of-binary-tree"
+    difficulty: easy
+    category: "trees"
+    stage: trees-graphs
+    prerequisites: [226]
+  - id: 102
+    title: "Binary Tree Level Order Traversal"
+    slug: "binary-tree-level-order-traversal"
+    difficulty: medium
+    category: "trees"
+    stage: trees-graphs
+    prerequisites: [104]
+  - id: 200
+    title: "Number of Islands"
+    slug: "number-of-islands"
+    difficulty: medium
+    category: "graphs"
+    stage: trees-graphs
+    prerequisites: [102]
+  - id: 70
+    title: "Climbing Stairs"
+    slug: "climbing-stairs"
+    difficulty: easy
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: []
+  - id: 198
+    title: "House Robber"
+    slug: "house-robber"
+    difficulty: medium
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: [70]
+  - id: 322
+    title: "Coin Change"
+    slug: "coin-change"
+    difficulty: medium
+    category: "dynamic-programming"
+    stage: dynamic-programming
+    prerequisites: [198]
