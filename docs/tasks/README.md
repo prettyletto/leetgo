@@ -27,6 +27,8 @@ Read first:
 13. [Dashboard Context Completeness](./013-dashboard-context-completeness.md)
 14. [Theme Motion and Async Polish](./014-theme-motion-async-polish.md)
 15. [Dashboard Action State Fixes](./015-dashboard-action-state-fixes.md)
+16. [Solve Log Dashboard Flow](./016-solve-log-dashboard-flow.md)
+17. [Onboarding Defaults and Rerun](./017-onboarding-defaults-and-rerun.md)
 
 ## Task Rules
 

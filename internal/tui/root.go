@@ -183,6 +183,10 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 		m.refreshTheme()
 		m.screen = NewProblemDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, msg.ProblemID)
 		return m, nil
+	case ScreenSolveLog:
+		m.refreshTheme()
+		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)
+		return m, nil
 	}
 	return m, nil
 }

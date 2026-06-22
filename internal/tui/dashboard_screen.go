@@ -111,7 +111,7 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 					}
 				case recommendation.KindInspect:
 					return s, func() tea.Msg {
-						return GlobalNotificationMsg{Message: "Solve Log view not yet implemented from Dashboard."}
+						return NavigateMsg{ScreenID: ScreenSolveLog}
 					}
 				}
 			}
@@ -131,7 +131,7 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "s":
 			return s, func() tea.Msg {
-				return GlobalNotificationMsg{Message: "Solve Log detail not yet implemented."}
+				return NavigateMsg{ScreenID: ScreenSolveLog}
 			}
 		}
 	}

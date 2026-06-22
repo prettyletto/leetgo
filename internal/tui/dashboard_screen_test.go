@@ -253,8 +253,9 @@ func TestDashboard_EnterOnInspectAction(t *testing.T) {
 	require.NotNil(t, cmd)
 
 	msg := cmd()
-	_, ok := msg.(GlobalNotificationMsg)
-	assert.True(t, ok, "should return a notification for inspect")
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenSolveLog, navigate.ScreenID)
 }
 
 func TestDashboard_WindowResize(t *testing.T) {
@@ -377,8 +378,9 @@ func TestDashboard_SKeyShowsSolveLog(t *testing.T) {
 	require.NotNil(t, cmd)
 
 	msg := cmd()
-	_, ok := msg.(GlobalNotificationMsg)
-	assert.True(t, ok)
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenSolveLog, navigate.ScreenID)
 }
 
 func TestDashboard_ContinueActionShowsInProgress(t *testing.T) {
