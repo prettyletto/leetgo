@@ -644,6 +644,7 @@ func TestProblemDetail_SpinnerStopsAfterSubmit(t *testing.T) {
 func TestProblemDetail_SubmitStartsSpinner(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 	pd.status = roadmap.StatusInProgress
+	pd.leetcode = nil
 
 	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
 	assert.Contains(t, pd.errorMsg, "Session expired")

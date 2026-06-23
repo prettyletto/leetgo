@@ -3,129 +3,172 @@ package leetcode
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/http"
-	"os/exec"
-	"runtime"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/chromedp"
 )
 
 const (
 	leetcodeLoginURL = "https://leetcode.com/accounts/login/"
-	callbackPath     = "/callback"
 )
 
 func (c *Client) browserSessionAuth(ctx context.Context) error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	b, err := detectChromiumBrowser()
 	if err != nil {
-		return fmt.Errorf("start callback server: %w", err)
+		return fmt.Errorf("%s", unsupportedBrowserMessage())
 	}
-	defer listener.Close()
 
-	port := listener.Addr().(*net.TCPAddr).Port
-	callbackURL := fmt.Sprintf("http://127.0.0.1:%d%s", port, callbackPath)
+	profileDir := filepath.Join(c.dataDir, "browser-profile")
+	if err := os.MkdirAll(profileDir, 0o700); err != nil {
+		return fmt.Errorf("create browser profile: %w", err)
+	}
 
-	resultCh := make(chan sessionAuthResult, 1)
+	fmt.Printf("Opening %s for LeetCode authentication...\n", b.Name)
+	fmt.Println("Log in to LeetCode in the browser window. Leetgo will close it after the Session is connected.")
 
-	mux := http.NewServeMux()
-	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
-		csrf := r.URL.Query().Get("csrf_token")
-		session := r.URL.Query().Get("session_id")
-
-		if csrf == "" || session == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			if _, err := w.Write([]byte("Missing tokens. Please try again.")); err != nil {
-				resultCh <- sessionAuthResult{err: fmt.Errorf("write callback response: %w", err)}
-				return
-			}
-			resultCh <- sessionAuthResult{err: fmt.Errorf("missing tokens in callback")}
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/html")
-		if _, err := w.Write([]byte(`
-			<html>
-			<body style="font-family: sans-serif; text-align: center; padding: 50px;">
-				<h1>✅ Leetgo Connected!</h1>
-				<p>You can close this tab and return to the terminal.</p>
-			</body>
-			</html>
-		`)); err != nil {
-			resultCh <- sessionAuthResult{err: fmt.Errorf("write callback response: %w", err)}
-			return
-		}
-
-		resultCh <- sessionAuthResult{
-			csrf:    csrf,
-			session: session,
-		}
-	})
-
-	server := &http.Server{Handler: mux}
-	go server.Serve(listener)
-	defer server.Shutdown(ctx)
-
-	instructions := fmt.Sprintf(
-		"\n🔐 LeetCode Authentication\n\n"+
-			"1. Open this URL in your browser:\n   %s\n\n"+
-			"2. Log in to LeetCode\n"+
-			"3. Copy your CSRF token and session ID from browser cookies\n"+
-			"4. Visit: %s?csrf_token=<CSRF>&session_id=<SESSION>\n\n"+
-			"Waiting for callback...\n",
-		leetcodeLoginURL, callbackURL,
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx,
+		chromedp.ExecPath(b.Path),
+		chromedp.UserDataDir(profileDir),
+		chromedp.Flag("no-first-run", true),
+		chromedp.Flag("no-default-browser-check", true),
 	)
-	fmt.Print(instructions)
+	defer cancelAlloc()
 
-	if err := openBrowser(leetcodeLoginURL); err != nil {
-		fmt.Printf("Could not open browser automatically: %v\n", err)
+	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx,
+		chromedp.WithLogf(func(string, ...any) {}),
+		chromedp.WithErrorf(func(string, ...any) {}),
+	)
+	defer cancelBrowser()
+
+	authCtx, cancelAuth := context.WithTimeout(browserCtx, 5*time.Minute)
+	defer cancelAuth()
+
+	if err := chromedp.Run(authCtx,
+		clearLeetCodeCookies(),
+		chromedp.Navigate(leetcodeLoginURL),
+	); err != nil {
+		return fmt.Errorf("open LeetCode login: %w", err)
 	}
 
-	select {
-	case result := <-resultCh:
-		if result.err != nil {
-			return result.err
-		}
-		c.session = &Session{
-			CSRFToken: result.csrf,
-			SessionID: result.session,
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		}
-		return c.saveSession()
-
-	case <-ctx.Done():
-		return ctx.Err()
-
-	case <-time.After(5 * time.Minute):
-		return fmt.Errorf("authentication timed out")
+	session, err := waitForSignedInSession(authCtx)
+	if err != nil {
+		return err
 	}
-}
-
-type sessionAuthResult struct {
-	csrf    string
-	session string
-	err     error
-}
-
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start", url}
-	default:
-		return fmt.Errorf("unsupported platform")
+	c.session = session
+	if err := c.saveSession(); err != nil {
+		return fmt.Errorf("save Session: %w", err)
 	}
 
-	if err := exec.Command(cmd, args...).Start(); err != nil {
-		return fmt.Errorf("open browser: %w", err)
-	}
+	cancelAuth()
+	cancelBrowser()
+	cancelAlloc()
+
+	fmt.Println("LeetCode Session connected.")
+	fmt.Println("Browser closed. You can now run `leetgo submit .`.")
 	return nil
+}
+
+func clearLeetCodeCookies() chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		for _, name := range []string{"csrftoken", "LEETCODE_SESSION"} {
+			if err := network.DeleteCookies(name).WithURL(leetcodeBaseURL).Do(ctx); err != nil {
+				return err
+			}
+			if err := network.DeleteCookies(name).WithDomain(".leetcode.com").WithPath("/").Do(ctx); err != nil {
+				return err
+			}
+			if err := network.DeleteCookies(name).WithDomain("leetcode.com").WithPath("/").Do(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func waitForSignedInSession(ctx context.Context) (*Session, error) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("authentication timed out")
+		case <-ticker.C:
+			var cookies []*network.Cookie
+			if err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+				var err error
+				cookies, err = network.GetCookies().WithURLs([]string{leetcodeBaseURL}).Do(ctx)
+				return err
+			})); err != nil {
+				return nil, fmt.Errorf("read browser cookies: %w", err)
+			}
+
+			session := sessionFromCookies(cookies)
+			if session != nil {
+				signedIn, err := browserShowsSignedIn(ctx)
+				if err != nil {
+					continue
+				}
+				if signedIn {
+					return session, nil
+				}
+			}
+		}
+	}
+}
+
+func browserShowsSignedIn(ctx context.Context) (bool, error) {
+	var currentURL string
+	if err := chromedp.Run(ctx, chromedp.Location(&currentURL)); err != nil {
+		return false, err
+	}
+	if !strings.Contains(currentURL, "leetcode.com") {
+		return false, nil
+	}
+
+	var signedIn bool
+	err := chromedp.Run(ctx,
+		chromedp.Evaluate(`(() => {
+			const signedOut = document.querySelector('a[href*="/accounts/login"], a[href*="/accounts/signup"]') || /\bSign\s*In\b|\bSign\s*Up\b/i.test(document.body ? document.body.innerText : '');
+			const signedIn = document.querySelector('[data-cy*="user"], [class*="user"], button[class*="avatar"], a[href^="/u/"], a[href^="/profile/"], img[src*="avatar"], img[alt*="avatar"]');
+			return Boolean(!signedOut && signedIn);
+		})()`, &signedIn),
+	)
+	if err != nil {
+		return false, err
+	}
+	return signedIn, nil
+}
+
+func sessionFromCookies(cookies []*network.Cookie) *Session {
+	var csrf string
+	var sessionID string
+	var expiresAt *time.Time
+
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case "csrftoken":
+			csrf = cookie.Value
+		case "LEETCODE_SESSION":
+			sessionID = cookie.Value
+			if cookie.Expires > 0 {
+				expiry := time.Unix(int64(cookie.Expires), 0)
+				expiresAt = &expiry
+			}
+		}
+	}
+
+	if csrf == "" || sessionID == "" {
+		return nil
+	}
+	return &Session{
+		CSRFToken: csrf,
+		SessionID: sessionID,
+		ExpiresAt: expiresAt,
+		Source:    "chromium-cdp",
+	}
 }

@@ -316,7 +316,7 @@ func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
 	}
 
 	if s.leetcode == nil || !s.leetcode.IsAuthenticated() {
-		s.errorMsg = "Session expired. Run `leetgo auth` and try again."
+		s.errorMsg = "Session expired. Run `leetgo auth` to reconnect."
 		return s, nil
 	}
 
@@ -337,7 +337,7 @@ func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
 	return s, tea.Batch(
 		spinnerTickCmd(),
 		func() tea.Msg {
-			result, err := client.Submit(context.Background(), slug, lang, string(code))
+			result, err := client.Submit(context.Background(), s.problem.ID, slug, lang, string(code))
 			return submitResultMsg{problemID: s.problem.ID, slug: slug, language: lang, result: result, err: err}
 		},
 	)
@@ -356,13 +356,27 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 	if msg.result.StatusCode == 10 {
 		s.markAcceptedSubmission(msg.problemID)
 		if s.errorMsg == "" {
-			s.errorMsg = fmt.Sprintf("Accepted! Runtime: %s, Memory: %s", msg.result.Runtime, msg.result.Memory)
+			s.errorMsg = acceptedMessage(msg.result)
 		}
 	} else {
 		s.errorMsg = fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests)
+		if msg.result.Error != "" {
+			s.errorMsg += ": " + msg.result.Error
+		}
 	}
 
 	return s, nil
+}
+
+func acceptedMessage(result *leetcode.SubmissionResult) string {
+	parts := []string{"Accepted!"}
+	if result.Runtime != "" {
+		parts = append(parts, "Runtime: "+result.Runtime)
+	}
+	if result.Memory != "" {
+		parts = append(parts, "Memory: "+result.Memory)
+	}
+	return strings.Join(parts, " ")
 }
 
 func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen, tea.Cmd) {

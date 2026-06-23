@@ -3,6 +3,7 @@ package leetcode
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,9 +14,11 @@ import (
 )
 
 type Session struct {
-	CSRFToken string    `json:"csrf_token"`
-	SessionID string    `json:"session_id"`
-	ExpiresAt time.Time `json:"expires_at"`
+	CSRFToken       string     `json:"csrf_token"`
+	SessionID       string     `json:"session_id"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	LastValidatedAt time.Time  `json:"last_validated_at,omitempty"`
+	Source          string     `json:"source,omitempty"`
 }
 
 type Client struct {
@@ -23,6 +26,8 @@ type Client struct {
 	session    *Session
 	dataDir    string
 }
+
+var ErrSessionExpired = errors.New("Session expired. Run `leetgo auth` to reconnect")
 
 func NewClient() (*Client, error) {
 	dataDir, err := config.DataDir()
@@ -43,19 +48,34 @@ func NewClient() (*Client, error) {
 }
 
 func (c *Client) IsAuthenticated() bool {
-	return c.session != nil && c.session.ExpiresAt.After(time.Now())
+	if c.session == nil || c.session.CSRFToken == "" || c.session.SessionID == "" {
+		return false
+	}
+	return c.session.ExpiresAt == nil || c.session.ExpiresAt.After(time.Now())
 }
 
 func (c *Client) Authenticate(ctx context.Context) error {
 	return c.browserSessionAuth(ctx)
 }
 
-func (c *Client) Submit(ctx context.Context, problemSlug string, lang string, code string) (*SubmissionResult, error) {
+func (c *Client) Submit(ctx context.Context, problemID int, problemSlug string, lang string, code string) (*SubmissionResult, error) {
 	if !c.IsAuthenticated() {
-		return nil, fmt.Errorf("not authenticated: run `leetgo auth` first")
+		return nil, ErrSessionExpired
 	}
 
-	return c.submitSolution(ctx, problemSlug, lang, code)
+	return c.submitSolution(ctx, problemID, problemSlug, lang, code)
+}
+
+func (c *Client) ValidateSession(ctx context.Context) error {
+	if !c.IsAuthenticated() {
+		return ErrSessionExpired
+	}
+
+	c.session.LastValidatedAt = time.Now()
+	if err := c.saveSession(); err != nil {
+		return fmt.Errorf("save validated Session: %w", err)
+	}
+	return nil
 }
 
 func (c *Client) sessionPath() string {
@@ -78,12 +98,20 @@ func (c *Client) loadSession() error {
 }
 
 func (c *Client) saveSession() error {
+	if c.session == nil {
+		return os.Remove(c.sessionPath())
+	}
 	data, err := json.MarshalIndent(c.session, "", "  ")
 	if err != nil {
 		return err
 	}
 
 	return os.WriteFile(c.sessionPath(), data, 0o600)
+}
+
+func (c *Client) invalidateSession() {
+	c.session = nil
+	_ = c.saveSession()
 }
 
 type SubmissionResult struct {

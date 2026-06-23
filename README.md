@@ -48,7 +48,7 @@ leetgo start         # Same as above
 ### CLI Commands
 
 ```bash
-leetgo auth          # Authenticate with LeetCode (browser-assisted Session)
+leetgo auth          # Connect LeetCode Session through Chrome/Chromium
 leetgo export        # Export progress to JSON (~/.leetgo/exports/)
 leetgo import <file> # Import progress from JSON
 leetgo status        # Show progress summary
@@ -69,7 +69,7 @@ language = "go"                   # go, python, typescript, java
 1. **Roadmap**: 132 curated problems across 16 categories form a DAG with prerequisite edges. Solving "Two Sum" unlocks "3Sum", etc.
 2. **Start**: Press Enter on an available problem. Leetgo generates a stub file and test file in your workspace, then opens them in your editor.
 3. **Solve**: Write your solution, run the tests locally, then press `m` to mark it solved. XP is awarded based on difficulty.
-4. **Submit**: Press `s` to submit your solution to LeetCode's judge (requires `leetgo auth` first).
+4. **Submit**: Press `s` to submit your solution to LeetCode's judge (requires `leetgo auth` first; Linux/Windows need Chrome or another Chromium-based browser).
 5. **Track**: Watch your XP bar grow, maintain streaks, unlock achievements, and review weakness analytics.
 
 ## Architecture
@@ -98,8 +98,15 @@ All data stored locally at `~/.leetgo/`:
   config.toml        # Configuration
   leetgo.db          # SQLite database
   session.json       # LeetCode Session credentials
+  browser-profile/   # Browser profile used by `leetgo auth`
   exports/           # JSON export/import
 ```
+
+## LeetCode Session Setup
+
+`leetgo auth` opens Chrome or another Chromium-based browser, lets you log in to LeetCode normally, extracts the required Session cookies through Chrome DevTools Protocol, then closes the browser after a successful connection.
+
+Supported initially: Chrome, Chromium, Brave, Edge, and Vivaldi on Linux and Windows. Firefox and Safari are not supported yet.
 
 ## License
 

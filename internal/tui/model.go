@@ -265,10 +265,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.result.StatusCode == 10 {
 			m.recordSolveLog(msg)
 			m.markAcceptedSubmission(msg.problemID)
-			m.notifications.Add(fmt.Sprintf("Accepted! Runtime: %s, Memory: %s", msg.result.Runtime, msg.result.Memory))
+			m.notifications.Add(acceptedMessage(msg.result))
 		} else {
 			m.recordSolveLog(msg)
-			m.notifications.Add(fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests))
+			message := fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests)
+			if msg.result.Error != "" {
+				message += ": " + msg.result.Error
+			}
+			m.notifications.Add(message)
 		}
 		return m, nil
 
@@ -660,7 +664,7 @@ func (m *Model) refreshStats() {
 
 func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
 	if m.leetcode == nil || !m.leetcode.IsAuthenticated() {
-		m.notifications.Add("Not authenticated. Run `leetgo auth` first.")
+		m.notifications.Add("Session expired. Run `leetgo auth` to reconnect.")
 		return m, nil
 	}
 
@@ -691,7 +695,7 @@ func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
 	client := m.leetcode
 
 	return m, func() tea.Msg {
-		result, err := client.Submit(context.Background(), slug, lang, string(code))
+		result, err := client.Submit(context.Background(), item.problem.ID, slug, lang, string(code))
 		return submitResultMsg{problemID: item.problem.ID, slug: slug, language: lang, result: result, err: err}
 	}
 }
