@@ -54,14 +54,47 @@ func TestGraph_Available(t *testing.T) {
 	assert.ElementsMatch(t, []int{15, 49}, ids)
 }
 
-func TestGraph_IsUnlocked_VerifiedSatisfiesPrereq(t *testing.T) {
+func TestGraph_IsUnlocked_SolvedSatisfiesPrereq(t *testing.T) {
 	problems := []*Problem{
 		{ID: 1, Title: "Two Sum", Prerequisites: nil},
 		{ID: 15, Title: "3Sum", Prerequisites: []int{1}},
 	}
 	g := NewGraph(problems)
 
-	// Verified satisfies prerequisite
 	solved := map[int]bool{1: true}
 	assert.True(t, g.IsUnlocked(15, solved))
+}
+
+func TestRoadmap_IsComplete(t *testing.T) {
+	problems := []*Problem{
+		{ID: 1, Title: "Two Sum"},
+		{ID: 15, Title: "3Sum"},
+		{ID: 49, Title: "Group Anagrams"},
+	}
+	g := NewGraph(problems)
+	r := &Roadmap{ID: "test", Graph: g}
+
+	assert.True(t, r.IsComplete(map[int]bool{1: true, 15: true, 49: true}))
+	assert.False(t, r.IsComplete(map[int]bool{1: true, 15: true}))
+	assert.False(t, r.IsComplete(map[int]bool{}))
+}
+
+func TestRoadmap_IsComplete_ManualSolveCounts(t *testing.T) {
+	problems := []*Problem{
+		{ID: 1, Title: "Two Sum"},
+	}
+	g := NewGraph(problems)
+	r := &Roadmap{ID: "test", Graph: g}
+
+	assert.True(t, r.IsComplete(map[int]bool{1: true}))
+}
+
+func TestRoadmap_IsComplete_VerifiedDoesNotCount(t *testing.T) {
+	problems := []*Problem{
+		{ID: 1, Title: "Two Sum"},
+	}
+	g := NewGraph(problems)
+	r := &Roadmap{ID: "test", Graph: g}
+
+	assert.False(t, r.IsComplete(map[int]bool{}))
 }

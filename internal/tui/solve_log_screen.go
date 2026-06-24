@@ -1,3 +1,4 @@
+// Package tui implements the terminal user interface for leetgo.
 package tui
 
 import (
@@ -5,11 +6,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/prettyletto/leetgo/internal/config"
 	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/prettyletto/leetgo/internal/tui/views"
 )
 
 type SolveLogScreen struct {
@@ -18,6 +21,7 @@ type SolveLogScreen struct {
 	db    store.Store
 
 	logs       []*store.SolveLogRecord
+	provenance map[int]*store.SolveProvenance
 	focusIndex int
 
 	width  int
@@ -46,6 +50,11 @@ func (s *SolveLogScreen) refresh() {
 	})
 
 	s.logs = logs
+
+	provenance, err := s.db.GetSolveProvenanceAll(context.Background())
+	if err == nil {
+		s.provenance = provenance
+	}
 }
 
 func (s *SolveLogScreen) Init() tea.Cmd {
@@ -101,18 +110,27 @@ func (s *SolveLogScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 func (s *SolveLogScreen) View() string {
 	var lines []string
 
-	lines = append(lines, s.theme.Title.MarginBottom(1).Render("Solve Log"))
+	lines = append(lines, s.theme.Title.MarginBottom(1).Render("Practice Log"))
 
-	if len(s.logs) == 0 {
+	if len(s.logs) == 0 && len(s.provenance) == 0 {
 		lines = append(lines, "")
 		lines = append(lines, lipgloss.NewStyle().
 			Foreground(s.theme.Muted).
-			Render("No Solve Logs yet."))
+			Render("No entries yet."))
 		lines = append(lines, lipgloss.NewStyle().
 			Foreground(s.theme.Muted).
-			Render("Solve Logs are created when you submit a solution to LeetCode."))
+			Render("Practice Log entries are created when you submit solutions or manually solve problems."))
 	} else {
-		lines = append(lines, fmt.Sprintf("Recent submissions: %d", len(s.logs)))
+		if len(s.logs) > 0 {
+			lines = append(lines, views.PixelFrame("Learning History", fmt.Sprintf("Recent submissions: %d", len(s.logs)), viewPalette(s.theme)))
+		}
+
+		for _, sp := range s.provenance {
+			if sp.Kind == "manual" {
+				lines = append(lines, s.renderProvenanceLine(sp))
+			}
+		}
+
 		lines = append(lines, "")
 
 		for i, log := range s.logs {
@@ -125,18 +143,35 @@ func (s *SolveLogScreen) View() string {
 	return strings.Join(lines, "\n") + "\n" + footer
 }
 
+func (s *SolveLogScreen) renderProvenanceLine(sp *store.SolveProvenance) string {
+	when := sp.SolvedAt.Format("2006-01-02 15:04")
+	kindLabel := "Manual Solve"
+	if sp.Note != "" {
+		kindLabel += fmt.Sprintf(" (%s)", sp.Note)
+	}
+	line := fmt.Sprintf("  %s  #%d %s", when, sp.ProblemID, kindLabel)
+	return lipgloss.NewStyle().
+		Foreground(s.theme.Review).
+		Render(line)
+}
+
 func (s *SolveLogScreen) renderLogLine(log *store.SolveLogRecord, focused bool) string {
 	when := log.SubmittedAt.Format("2006-01-02 15:04")
 
-	result := log.Status
+	var result string
 	if log.StatusCode == 10 {
-		result = fmt.Sprintf("Accepted · %s · %s", log.Runtime, log.Memory)
+		result = fmt.Sprintf("✓ Accepted · %s · %s", log.Runtime, log.Memory)
 	} else {
-		result = fmt.Sprintf("%s (%d/%d tests)", log.Status, log.PassedTests, log.TotalTests)
+		result = fmt.Sprintf("! %s (%d/%d tests)", log.Status, log.PassedTests, log.TotalTests)
+	}
+
+	solveLabel := ""
+	if sp, ok := s.provenance[log.ProblemID]; ok && sp.Kind == "accepted" && sp.SolveLogID != nil && *sp.SolveLogID == log.ID {
+		solveLabel = " [Accepted Solve]"
 	}
 
 	prefix := fmt.Sprintf("#%d %s", log.ProblemID, log.Slug)
-	line := fmt.Sprintf("  %s  %s  %s  %s", when, prefix, log.Language, result)
+	line := fmt.Sprintf("  %s  %s  %s  %s%s", when, prefix, log.Language, result, solveLabel)
 
 	if focused {
 		return lipgloss.NewStyle().
@@ -158,4 +193,84 @@ func (s *SolveLogScreen) renderFooter() string {
 	}
 
 	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+}
+
+type ProblemLogEntry struct {
+	Timestamp time.Time
+	Kind      string
+	Detail    string
+}
+
+func BuildPracticeLog(db store.Store, problemID int) []ProblemLogEntry {
+	ctx := context.Background()
+
+	var entries []ProblemLogEntry
+
+	attempts, err := db.GetAttempts(ctx, problemID)
+	if err == nil {
+		for _, a := range attempts {
+			kind := "Local Attempt passed"
+			if !a.Passed {
+				kind = "Local Attempt failed"
+			}
+			detail := fmt.Sprintf("Duration: %s", a.Duration.Round(time.Second))
+			if a.SelfReported != "" {
+				detail += fmt.Sprintf(" · Self-Reported: %s", a.SelfReported)
+			}
+			entries = append(entries, ProblemLogEntry{
+				Timestamp: a.Timestamp,
+				Kind:      kind,
+				Detail:    detail,
+			})
+		}
+	}
+
+	logs, err := db.GetSolveLogsForProblem(ctx, problemID)
+	if err == nil {
+		for _, l := range logs {
+			kind := fmt.Sprintf("Submission Attempt %s", l.Status)
+			if l.StatusCode == 10 {
+				kind = "Submission Attempt accepted"
+			}
+			detail := fmt.Sprintf("Language: %s · %d/%d tests", l.Language, l.PassedTests, l.TotalTests)
+			if l.Runtime != "" {
+				detail += fmt.Sprintf(" · Runtime: %s", l.Runtime)
+			}
+			if l.Memory != "" {
+				detail += fmt.Sprintf(" · Memory: %s", l.Memory)
+			}
+			entries = append(entries, ProblemLogEntry{
+				Timestamp: l.SubmittedAt,
+				Kind:      kind,
+				Detail:    detail,
+			})
+		}
+	}
+
+	sp, err := db.GetSolveProvenance(ctx, problemID)
+	if err == nil && sp != nil {
+		kind := "Accepted Solve"
+		if sp.Kind == "manual" {
+			kind = "Manual Solve"
+		}
+		detail := ""
+		if sp.Note != "" {
+			detail = sp.Note
+		}
+		entries = append(entries, ProblemLogEntry{
+			Timestamp: sp.SolvedAt,
+			Kind:      kind,
+			Detail:    detail,
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp.After(entries[j].Timestamp)
+	})
+
+	if len(entries) > 5 {
+		entries = entries[:5]
+	}
+
+	return entries
 }

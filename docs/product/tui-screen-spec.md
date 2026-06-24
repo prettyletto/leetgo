@@ -22,7 +22,7 @@ Target screens:
 - Roadmap Detail
 - Stage Detail
 - Problem Detail
-- Solve Log Detail, optional later
+- Practice Log Detail, optional later
 
 The current list, graph, heatmap, stats, and notification code should become reusable components or be moved into one of these screens.
 
@@ -37,7 +37,8 @@ Steps:
 3. Workspace and Language confirmation.
 4. Roadmap Selection.
 5. Theme Selection.
-6. Completion and Dashboard handoff.
+6. Optional LeetCode Session setup.
+7. Completion and Dashboard handoff.
 
 ### Welcome and Display Name
 
@@ -131,7 +132,7 @@ Focused card content:
 - Promise.
 - Problem count.
 - Difficulty mix.
-- Estimated hours.
+- Roadmap Time Estimate.
 - First 2-3 Stages.
 - Highlights.
 
@@ -186,7 +187,7 @@ Rank order:
 1. Continue InProgress Problems.
 2. Start earliest Available Problems in selected Roadmap/Stage order.
 3. Weakness-targeting review actions.
-4. Maintenance actions such as Git Export or Solve Log review.
+4. Maintenance actions such as Git Export or Practice Log review.
 
 Each Next Action card includes:
 
@@ -201,7 +202,7 @@ Primary keybindings:
 - `enter`: activate focused Next Action.
 - `j/k` or `up/down`: move focus.
 - `r`: Roadmap Detail.
-- `s`: Solve Log.
+- `s`: Practice Log.
 - `t`: cycle Theme.
 - `q`: quit.
 
@@ -220,7 +221,7 @@ Includes:
 Does not include:
 
 - Weakness list.
-- Full Solve Log.
+- Full Practice Log.
 - Git Export details.
 
 ### Right Rail: Roadmap/Stage Context
@@ -282,7 +283,7 @@ Content:
 - Prerequisites.
 - Blockers when locked.
 - Local file paths when generated.
-- Latest Solve Log entries for this Problem.
+- Latest Practice Log entries for this Problem.
 
 Actions:
 

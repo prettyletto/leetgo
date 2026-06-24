@@ -66,7 +66,7 @@ Rework Problem Detail so `enter` changes by Status, editor launches detached, lo
    - If Verify Reward Event was not claimed (submitted from InProgress), also claim it.
    - Show: "Accepted by LeetCode. +N XP."
 4. If rejected:
-   - Write Solve Log with status.
+   - Write Practice Log with status.
    - Do not change Status.
    - Show failure details.
 5. If unauthenticated/session expired:
@@ -82,7 +82,7 @@ Rework Problem Detail so `enter` changes by Status, editor launches detached, lo
 - Local TestSuite pass from InProgress sets Verified and awards 70% XP.
 - Local TestSuite pass from Verified/Solved shows "already claimed".
 - Accepted Submission sets Solved and awards 30% XP (plus 70% if Verify was unclaimed).
-- Failed Submission writes Solve Log and does not change Status.
+- Failed Submission writes Practice Log and does not change Status.
 - Editor launches detached; Leetgo stays alive.
 - Tests cover all Status transitions and reward idempotency.
 

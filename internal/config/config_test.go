@@ -19,6 +19,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "rich", cfg.SymbolMode)
+	assert.Equal(t, "normal", cfg.MotionPreference)
 	assert.False(t, cfg.GitExportEnabled)
 	assert.Empty(t, cfg.GitExportRepo)
 }
@@ -34,6 +36,8 @@ func TestLoad_NoFile(t *testing.T) {
 	assert.False(t, cfg.OnboardingComplete)
 	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "rich", cfg.SymbolMode)
+	assert.Equal(t, "normal", cfg.MotionPreference)
 }
 
 func TestSaveAndLoad(t *testing.T) {
@@ -47,6 +51,8 @@ func TestSaveAndLoad(t *testing.T) {
 		Language:         "python",
 		Roadmap:          "interview-sprint",
 		Theme:            "clean-productivity",
+		SymbolMode:       "plain",
+		MotionPreference: "reduced",
 		GitExportEnabled: false,
 	}
 	require.NoError(t, cfg.Save())
@@ -63,6 +69,8 @@ func TestSaveAndLoad(t *testing.T) {
 	assert.Equal(t, "python", loaded.Language)
 	assert.Equal(t, "interview-sprint", loaded.Roadmap)
 	assert.Equal(t, "clean-productivity", loaded.Theme)
+	assert.Equal(t, "plain", loaded.SymbolMode)
+	assert.Equal(t, "reduced", loaded.MotionPreference)
 }
 
 func TestValidate(t *testing.T) {
@@ -111,6 +119,34 @@ func TestValidate_UnknownTheme(t *testing.T) {
 
 	err := cfg.Validate([]string{"go"}, []string{"from-zero-to-hero"})
 	assert.ErrorContains(t, err, "unknown theme")
+}
+
+func TestValidate_UnknownSymbolMode(t *testing.T) {
+	cfg := &Config{
+		Workspace:        "/tmp/leetgo",
+		Language:         "go",
+		Roadmap:          "from-zero-to-hero",
+		Theme:            "rpg-skill-tree",
+		SymbolMode:       "neon",
+		MotionPreference: "normal",
+	}
+
+	err := cfg.Validate([]string{"go"}, []string{"from-zero-to-hero"})
+	assert.ErrorContains(t, err, "unknown symbol_mode")
+}
+
+func TestValidate_UnknownMotionPreference(t *testing.T) {
+	cfg := &Config{
+		Workspace:        "/tmp/leetgo",
+		Language:         "go",
+		Roadmap:          "from-zero-to-hero",
+		Theme:            "rpg-skill-tree",
+		SymbolMode:       "rich",
+		MotionPreference: "chaotic",
+	}
+
+	err := cfg.Validate([]string{"go"}, []string{"from-zero-to-hero"})
+	assert.ErrorContains(t, err, "unknown motion_preference")
 }
 
 func TestValidate_OnboardingCompleteWithoutDisplayName(t *testing.T) {
@@ -241,6 +277,11 @@ func TestValidThemes(t *testing.T) {
 	assert.Len(t, ValidThemes, 3)
 }
 
+func TestValidAppearancePreferences(t *testing.T) {
+	assert.ElementsMatch(t, []string{"rich", "plain"}, ValidSymbolModes)
+	assert.ElementsMatch(t, []string{"normal", "reduced", "off"}, ValidMotionPreferences)
+}
+
 func TestLoad_BackwardCompatibility(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
@@ -265,6 +306,8 @@ roadmap = "from-zero-to-hero"
 	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
 	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "rich", cfg.SymbolMode)
+	assert.Equal(t, "normal", cfg.MotionPreference)
 	assert.False(t, cfg.GitExportEnabled)
 	assert.Empty(t, cfg.GitExportRepo)
 }

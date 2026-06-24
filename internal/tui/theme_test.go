@@ -28,8 +28,30 @@ func TestLookupTheme(t *testing.T) {
 		assert.NotEmpty(t, theme.SecondaryAccent)
 		assert.NotEmpty(t, theme.Border)
 		assert.NotEmpty(t, theme.Muted)
+		assert.NotEmpty(t, theme.Palette.Primary)
+		assert.NotEmpty(t, theme.Palette.XP)
+		assert.NotEmpty(t, theme.Palette.Review)
+		assert.NotEmpty(t, theme.XP)
+		assert.NotEmpty(t, theme.Review)
 		assert.NotEmpty(t, theme.Spinner.Foreground)
+		assert.NotEmpty(t, theme.Labels.PrimaryAction)
+		assert.NotEmpty(t, theme.Labels.Profile)
 	}
+}
+
+func TestThemeLabels(t *testing.T) {
+	rpg, _ := LookupTheme("rpg-skill-tree")
+	clean, _ := LookupTheme("clean-productivity")
+	cyber, _ := LookupTheme("cyber-dashboard")
+
+	assert.Equal(t, "Main Quest", rpg.Labels.PrimaryAction)
+	assert.Equal(t, "Character HUD", rpg.Labels.Profile)
+	assert.Equal(t, "Recommended", clean.Labels.PrimaryAction)
+	assert.Equal(t, "Available", clean.Labels.SecondaryActions)
+	assert.Equal(t, "Profile", clean.Labels.Profile)
+	assert.Equal(t, "Primary Signal", cyber.Labels.PrimaryAction)
+	assert.Equal(t, "Secondary Targets", cyber.Labels.SecondaryActions)
+	assert.Equal(t, "Operator", cyber.Labels.Profile)
 }
 
 func TestLookupTheme_Invalid(t *testing.T) {
@@ -78,4 +100,25 @@ func TestTheme_FocusedPanelDiffersFromPanel(t *testing.T) {
 	cleanPanel := clean.Panel.Render("test")
 	cleanFocused := clean.FocusedPanel.Render("test")
 	assert.NotEqual(t, cleanPanel, cleanFocused, "focused should differ from normal panel in Clean theme")
+}
+
+func TestLookupSymbolSet(t *testing.T) {
+	rich, err := LookupSymbolSet("rich")
+	require.NoError(t, err)
+	assert.Equal(t, "🔒", rich.Locked)
+	assert.Equal(t, "✦", rich.XP)
+
+	plain, err := LookupSymbolSet("plain")
+	require.NoError(t, err)
+	assert.Equal(t, "[L]", plain.Locked)
+	assert.Equal(t, "XP", plain.XP)
+
+	defaultSet, err := LookupSymbolSet("")
+	require.NoError(t, err)
+	assert.Equal(t, rich, defaultSet)
+}
+
+func TestLookupSymbolSet_Invalid(t *testing.T) {
+	_, err := LookupSymbolSet("emoji-only")
+	assert.ErrorContains(t, err, "unknown symbol_mode")
 }

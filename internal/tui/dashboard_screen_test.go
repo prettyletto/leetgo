@@ -53,6 +53,68 @@ func TestDashboard_ViewShowsGreeting(t *testing.T) {
 	assert.Contains(t, view, "Welcome, Ada")
 }
 
+func TestDashboard_RPGLabels(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+	d.height = 40
+
+	view := d.View()
+	assert.Contains(t, view, "Quest Board")
+	assert.Contains(t, view, "Main Quest")
+	assert.Contains(t, view, "Side Quests")
+	assert.Contains(t, view, "Character HUD")
+	assert.Contains(t, view, "Map Fragment")
+}
+
+func TestDashboard_CleanThemeLabels(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.Theme = "clean-productivity"
+	theme, err := LookupTheme(d.cfg.Theme)
+	require.NoError(t, err)
+	d.theme = theme
+	d.width = 120
+	d.height = 40
+
+	view := d.View()
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Available")
+	assert.Contains(t, view, "Profile")
+	assert.Contains(t, view, "Upcoming")
+	assert.NotContains(t, view, "Character HUD")
+}
+
+func TestDashboard_CyberThemeLabels(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.Theme = "cyber-dashboard"
+	theme, err := LookupTheme(d.cfg.Theme)
+	require.NoError(t, err)
+	d.theme = theme
+	d.width = 120
+	d.height = 40
+
+	view := d.View()
+	assert.Contains(t, view, "Primary Signal")
+	assert.Contains(t, view, "Secondary Targets")
+	assert.Contains(t, view, "Operator")
+	assert.Contains(t, view, "Locked Signals")
+	assert.Contains(t, view, "SYS:")
+}
+
+func TestDashboard_CleanPlainSymbolsNoRichGlyphs(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.Theme = "clean-productivity"
+	d.cfg.SymbolMode = "plain"
+	theme, err := LookupTheme(d.cfg.Theme)
+	require.NoError(t, err)
+	d.theme = theme
+	d.width = 120
+	d.height = 40
+
+	view := d.View()
+	assert.Contains(t, view, "XP Level")
+	assert.NotContains(t, view, "✦")
+}
+
 func TestDashboard_ViewShowsDisplayName(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.cfg.DisplayName = "Hello"
@@ -538,6 +600,44 @@ func TestDashboard_SKeyShowsSolveLog(t *testing.T) {
 	navigate, ok := msg.(NavigateMsg)
 	require.True(t, ok)
 	assert.Equal(t, ScreenSolveLog, navigate.ScreenID)
+}
+
+func TestDashboard_CompletionActionNavigatesToCompletionScreen(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.actions = []recommendation.NextAction{{Kind: recommendation.KindViewRoadmapCompletion, Title: "View Roadmap Completion"}}
+	d.focusIndex = 0
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenCompletion, navigate.ScreenID)
+}
+
+func TestDashboard_ReviewActivationCreatesReviewCycle(t *testing.T) {
+	d, db := newTestDashboard(t)
+	action := recommendation.NextAction{
+		Kind:       recommendation.KindReview,
+		ProblemID:  1,
+		Title:      "Review Two Sum",
+		ReasonType: recommendation.ReasonValidatesManualSolve,
+	}
+	d.actions = []recommendation.NextAction{action}
+	d.focusIndex = 0
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+
+	cycles, err := db.GetReviewCyclesForProblem(context.Background(), 1)
+	require.NoError(t, err)
+	require.Len(t, cycles, 1)
+	assert.Equal(t, "manual_solve_validation", cycles[0].Reason)
 }
 
 func TestDashboard_ContinueActionShowsInProgress(t *testing.T) {

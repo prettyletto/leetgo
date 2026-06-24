@@ -6,6 +6,7 @@ audience: "New or returning users who want a guided foundation-first path."
 promise: "You will learn the core patterns in the order they unlock each other."
 recommended: true
 estimated_hours: 80
+roadmap_time_estimate: "4-8 weeks at 3-5 Problems/week"
 difficulty_mix:
   easy: 35
   medium: 50
@@ -14,6 +15,9 @@ highlights:
   - "Foundation-first unlock path"
   - "Broad interview coverage"
   - "Gentle difficulty ramp"
+next_roadmaps:
+  - "interview-sprint"
+  - "hard-mode"
 stages:
   - id: arrays-hashing
     title: "Arrays & Hashing"
@@ -68,6 +72,14 @@ problems:
     difficulty: easy
     category: "arrays-hashing"
     prerequisites: []
+    practice_focus: "Set membership and duplicate detection"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Check whether any value appears at least twice in an integer array."
+    why_now: "Introduces hash-set lookup as the simplest building block for all future hash-table Problems."
+    unlock_impact: "Prepares the set-membership pattern needed for Valid Sudoku, Top K Frequent, and Longest Consecutive Sequence."
+    hints:
+      - "What data structure gives O(1) membership checks?"
+      - "Can you check every element against a growing set in one pass?"
 
   - id: 242
     title: "Valid Anagram"
@@ -75,6 +87,14 @@ problems:
     difficulty: easy
     category: "arrays-hashing"
     prerequisites: []
+    practice_focus: "Character frequency counting"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Determine if one string is an anagram of another by comparing character counts."
+    why_now: "Introduces frequency counting, which generalizes from characters to arbitrary keys in Group Anagrams."
+    unlock_impact: "Unlocks Group Anagrams by establishing the frequency-counting pattern."
+    hints:
+      - "Can you count occurrences of each character in both strings?"
+      - "For follow-up with Unicode, what data structure replaces a fixed array?"
 
   - id: 1
     title: "Two Sum"
@@ -82,6 +102,14 @@ problems:
     difficulty: easy
     category: "arrays-hashing"
     prerequisites: []
+    practice_focus: "Hash-table complement lookup"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find two indices whose values sum to a target using a single-pass hash map."
+    why_now: "The complement pattern is the most common hash-table interview technique and a fundamental building block."
+    unlock_impact: "Unlocks Two Sum II, 3Sum, Product of Array Except Self, 4Sum II, and many pointer-based follow-ups."
+    hints:
+      - "Given a number x at index i, what value would you look up to reach the target?"
+      - "Store each visited number in a map so you can check complements in one pass."
 
   - id: 49
     title: "Group Anagrams"
@@ -89,6 +117,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [242]
+    practice_focus: "Encoding strings into canonical keys"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Group strings that are anagrams of each other by mapping each to a canonical key."
+    why_now: "Builds on Valid Anagram: now you encode each string into a key so anagrams share the same bucket."
+    unlock_impact: "Strengthens the key-derivation pattern needed for advanced hashing and encoding Problems."
+    hints:
+      - "What property do all anagrams of the same word share?"
+      - "Can you sort each string to produce a shared key? Is there a faster encoding?"
 
   - id: 347
     title: "Top K Frequent Elements"
@@ -96,6 +132,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [217]
+    practice_focus: "Frequency counting combined with heap/bucket selection"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Return the K most frequent elements using frequency counts and a heap or bucket sort."
+    why_now: "Combines the set-membership from Contains Duplicate with counting and introduces heap selection."
+    unlock_impact: "Prepares the frequency-plus-ordering pattern used in heap and top-k Problems ahead."
+    hints:
+      - "Count frequencies first, then how do you select the top K?"
+      - "Consider using bucket sort if the value range is bounded."
 
   - id: 238
     title: "Product of Array Except Self"
@@ -103,6 +147,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [1]
+    practice_focus: "Prefix and suffix product arrays"
+    problem_time_estimate: "20-25 minutes"
+    summary: "Compute an array where each element is the product of all other elements without division."
+    why_now: "Shifts from hash-table complements to structural prefix products, which appear in many prefix-sum Problems."
+    unlock_impact: "Establishes the prefix-array pattern used in subarray-sum, product, and cumulative-count Problems."
+    hints:
+      - "What if you compute left-side products and right-side products separately?"
+      - "Can you reuse the output array to avoid extra space?"
 
   - id: 36
     title: "Valid Sudoku"
@@ -110,6 +162,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [217]
+    practice_focus: "Grid indexing and duplicate detection with tuple keys"
+    problem_time_estimate: "20-25 minutes"
+    summary: "Validate that a partially filled 9x9 Sudoku board follows the row, column, and sub-box rules."
+    why_now: "Applies the set-membership pattern to a 2D grid, combining multiple indexing schemes."
+    unlock_impact: "Prepares the multidimensional hashing and grid-tracking patterns for matrix Problems ahead."
+    hints:
+      - "Can you encode each (value, row), (value, column), and (value, box) tuple as a set key?"
+      - "What's the formula for mapping a cell to its 3x3 sub-box index?"
 
   - id: 128
     title: "Longest Consecutive Sequence"
@@ -117,6 +177,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [217]
+    practice_focus: "Sequence building with O(n) set lookups"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the length of the longest consecutive elements sequence in an unsorted array in O(n) time."
+    why_now: "Deepens the set-membership pattern by showing how set lookups can replace sorting for sequence detection."
+    unlock_impact: "Demonstrates how to replace sorting with clever set use, a recurring optimization in greedy and interval Problems."
+    hints:
+      - "If you put everything in a set, how do you identify a sequence start?"
+      - "Only count from numbers that have no left neighbor in the set."
 
   - id: 271
     title: "Encode and Decode Strings"
@@ -124,6 +192,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: []
+    practice_focus: "Serialization with length-prefix encoding"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Design a reversible encoding that converts a list of strings to a single string and back."
+    why_now: "Introduces length-prefix encoding, a practical pattern that appears in network protocols and serialization."
+    unlock_impact: "Prepares encoding/decoding patterns that appear in tree serialization and bit-level Problems."
+    hints:
+      - "How can you embed the length of each string so the decoder knows where one ends?"
+      - "Consider using the pattern '3:abc' read as '3 characters followed by abc'."
 
   - id: 454
     title: "4Sum II"
@@ -131,6 +207,14 @@ problems:
     difficulty: medium
     category: "arrays-hashing"
     prerequisites: [1]
+    practice_focus: "Sum decomposition with hash-table counting"
+    problem_time_estimate: "20-25 minutes"
+    summary: "Count tuples from four arrays that sum to zero by decomposing into two-sum subproblems."
+    why_now: "Extends the Two Sum complement pattern to four arrays, reinforcing decomposition as a problem-solving tool."
+    unlock_impact: "Strengthens divide-and-conquer thinking that applies to multi-pointer and k-sum variations."
+    hints:
+      - "Can you split the four arrays into two groups and solve a two-sum-like problem?"
+      - "Count all sums of A[i] + B[j] in a map, then check complements from C[k] + D[l]."
 
   # ========== Two Pointers ==========
   - id: 125
@@ -139,6 +223,14 @@ problems:
     difficulty: easy
     category: "two-pointers"
     prerequisites: []
+    practice_focus: "Two-pointer character comparison with filtering"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Check if a string reads the same forward and backward after removing non-alphanumeric characters."
+    why_now: "Introduces the converging two-pointer pattern on a single sequence, the simplest pointer technique."
+    unlock_impact: "Prepares the inward-convergence pattern used in Container With Most Water and Trapping Rain Water."
+    hints:
+      - "Can you skip non-alphanumeric characters while moving two pointers inward?"
+      - "Use isalnum and tolower to filter and normalize as you go."
 
   - id: 167
     title: "Two Sum II"
@@ -146,6 +238,14 @@ problems:
     difficulty: medium
     category: "two-pointers"
     prerequisites: [1]
+    practice_focus: "Opposing pointers on sorted input"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find two numbers in a sorted array that sum to a target using left and right pointers."
+    why_now: "Extends Two Sum into sorted-array territory, replacing the hash map with the opposing-pointer trick."
+    unlock_impact: "Unlocks 3Sum by establishing the sorted-array two-sum subproblem."
+    hints:
+      - "If the current sum is too small, which pointer should move inward?"
+      - "Initialize left at 0 and right at n-1; the sorted property guarantees you only need one pass."
 
   - id: 15
     title: "3Sum"
@@ -153,6 +253,14 @@ problems:
     difficulty: medium
     category: "two-pointers"
     prerequisites: [1, 167]
+    practice_focus: "Three-pointer decomposition with deduplication"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find all unique triplets that sum to zero by fixing one element and running a two-pointer search on the remainder."
+    why_now: "Combines Two Sum's sum-seeking with Two Sum II's sorted-pointer pattern to handle a third element."
+    unlock_impact: "Establishes the fix-one-run-two-pointers pattern used in 4Sum, 3Sum Closest, and general k-sum Problems."
+    hints:
+      - "Sort first, then for each index i, run Two Sum II on the right subarray."
+      - "Skip duplicate values for both the fixed element and the two-pointer pairs."
 
   - id: 11
     title: "Container With Most Water"
@@ -160,6 +268,14 @@ problems:
     difficulty: medium
     category: "two-pointers"
     prerequisites: [125]
+    practice_focus: "Greedy area maximization with two pointers"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the maximum water container area formed by vertical lines using two converging pointers."
+    why_now: "Applies the Valid Palindrome two-pointer convergence pattern to a greedy area-optimization problem."
+    unlock_impact: "Sets up the left/right max-tracking intuition needed for Trapping Rain Water."
+    hints:
+      - "Area is min(height[left], height[right]) * (right - left). How do you decide which pointer to move?"
+      - "Always move the pointer at the shorter line, because moving the taller one can never increase the area."
 
   - id: 42
     title: "Trapping Rain Water"
@@ -167,6 +283,14 @@ problems:
     difficulty: hard
     category: "two-pointers"
     prerequisites: [11]
+    practice_focus: "Water trapping with max-boundary tracking"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Compute total trapped water by tracking the maximum heights seen from the left and right at each position."
+    why_now: "Extends Container With Most Water from single-area optimization to cumulative water trapping using boundary tracking."
+    unlock_impact: "Completes the two-pointer track and prepares the monotonic-stack variant useful in histogram and elevation Problems."
+    hints:
+      - "At each index, trapped water = min(maxLeft, maxRight) - height[i] (if positive)."
+      - "Use two pointers that converge while maintaining leftMax and rightMax; you don't need a full prefix array."
 
   # ========== Sliding Window ==========
   - id: 121
@@ -175,6 +299,14 @@ problems:
     difficulty: easy
     category: "sliding-window"
     prerequisites: []
+    practice_focus: "Single-pass min-tracking with max-profit window"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Find the maximum profit from buying and selling a stock once by tracking the running minimum price."
+    why_now: "Introduces the running-min / sliding-decision pattern that is the foundation for variable-size windows."
+    unlock_impact: "Unlocks Longest Substring Without Repeating Characters and the stock-series extensions (Cooldown, II, III)."
+    hints:
+      - "Track the lowest price seen so far while scanning forward."
+      - "At each day, compute profit = price[i] - minSoFar and keep the max."
 
   - id: 3
     title: "Longest Substring Without Repeating Characters"
@@ -182,6 +314,14 @@ problems:
     difficulty: medium
     category: "sliding-window"
     prerequisites: [121]
+    practice_focus: "Variable-size window with set-based validity"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the longest substring without repeating characters by expanding and contracting a window with a set."
+    why_now: "Builds on stock profit's single-pointer tracking by adding a second pointer that contracts on invalid state."
+    unlock_impact: "Unlocks all remaining sliding-window Problems (Replacement, Permutation, Minimum Window) by teaching window contraction."
+    hints:
+      - "Use a set to track characters in the current window; when you see a duplicate, shrink the left side."
+      - "The window is valid when set size equals window length; maximize window length."
 
   - id: 424
     title: "Longest Repeating Character Replacement"
@@ -189,6 +329,14 @@ problems:
     difficulty: medium
     category: "sliding-window"
     prerequisites: [3]
+    practice_focus: "Window validity via max-frequency check"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the longest substring where at most k replacements make all characters equal, using a frequency-count window."
+    why_now: "Extends Longest Substring's variable window by replacing set-based validity with a max-frequency budget condition."
+    unlock_impact: "Prepares the frequency-budget window condition used in Minimum Window Substring."
+    hints:
+      - "Track the max frequency of any character in the window; the window is valid if length - maxFreq <= k."
+      - "You never need to shrink maxFreq downwards, because a smaller maxFreq can't produce a longer window."
 
   - id: 567
     title: "Permutation in String"
@@ -196,6 +344,14 @@ problems:
     difficulty: medium
     category: "sliding-window"
     prerequisites: [3]
+    practice_focus: "Fixed-size window with frequency matching"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Check if s2 contains a permutation of s1 by sliding a fixed-size window and comparing character counts."
+    why_now: "Shifts from variable-length to fixed-length window pattern, a distinct and common subcategory of sliding window."
+    unlock_impact: "Completes the fixed-size window pattern needed alongside variable windows in Minimum Window Substring."
+    hints:
+      - "The window size is exactly len(s1); what frequency array must it match?"
+      - "Use a sliding count array that updates in O(1) when the window moves right."
 
   - id: 76
     title: "Minimum Window Substring"
@@ -203,6 +359,14 @@ problems:
     difficulty: hard
     category: "sliding-window"
     prerequisites: [424, 567]
+    practice_focus: "Contract-while-valid variable-size window"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Find the minimum window in s that contains all characters of t, contracting to minimize length while maintaining validity."
+    why_now: "Combines frequency-budget validity (Replacement) with the contract-to-optimize pattern from earlier windows."
+    unlock_impact: "Culminates the sliding-window track and prepares multi-constraint window Problems in interview hard rounds."
+    hints:
+      - "Maintain two frequency maps (window and target); track how many characters have met their required count."
+      - "Expand right until valid, then shrink left while valid to minimize window length."
 
   - id: 239
     title: "Sliding Window Maximum"
@@ -210,6 +374,14 @@ problems:
     difficulty: hard
     category: "sliding-window"
     prerequisites: [3]
+    practice_focus: "Monotonic deque for fixed-window max"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find the maximum in each sliding window of size k using a monotonic decreasing deque."
+    why_now: "Introduces the monotonic deque pattern, which combines sliding window movement with ordered queue maintenance."
+    unlock_impact: "Bridges sliding windows with monotonic data structures, key for stack/deque hybrid Problems ahead."
+    hints:
+      - "Use a deque that stores indices in decreasing order of values; the front is always the window max."
+      - "Remove indices from the back that are smaller than the incoming element, and from the front that fall outside the window."
 
   # ========== Stack ==========
   - id: 20
@@ -218,6 +390,14 @@ problems:
     difficulty: easy
     category: "stack"
     prerequisites: []
+    practice_focus: "Bracket matching with LIFO stack"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Determine if a string of parentheses is valid by pushing opening brackets onto a stack and popping on closing matches."
+    why_now: "Introduces stack as the go-to tool for deferred matching and nested-structure validation."
+    unlock_impact: "Unlocks all remaining stack Problems and the balanced-parenthesis pattern used in backtracking and parsing."
+    hints:
+      - "Push opening brackets; on a closing bracket, the top of the stack must be its matching opener."
+      - "Use a map from closing to opening brackets for clean lookups."
 
   - id: 155
     title: "Min Stack"
@@ -225,6 +405,14 @@ problems:
     difficulty: medium
     category: "stack"
     prerequisites: [20]
+    practice_focus: "Dual-stack design for O(1) min query"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Design a stack that supports push, pop, top, and getMin in O(1) time."
+    why_now: "Extends the basic stack from Valid Parentheses with a secondary structure for efficient min-tracking."
+    unlock_impact: "Introduces the auxiliary-data-structure design pattern that reappears in LRU Cache and Median Stream."
+    hints:
+      - "Keep a second stack that stores the minimum value seen so far at each level."
+      - "When pushing, push min(val, currentMin) onto the min-stack; pop both stacks together."
 
   - id: 150
     title: "Evaluate Reverse Polish Notation"
@@ -232,6 +420,14 @@ problems:
     difficulty: medium
     category: "stack"
     prerequisites: [20]
+    practice_focus: "Postfix expression evaluation with stack"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Evaluate an arithmetic expression in Reverse Polish Notation by pushing operands and applying operators to the top two."
+    why_now: "Applies stack push/pop discipline to expression evaluation, a classic use of LIFO for deferred operations."
+    unlock_impact: "Forms the basis for expression evaluation patterns used in calculator and compiler Problems."
+    hints:
+      - "Push numbers onto the stack; when you see an operator, pop two, compute, and push the result."
+      - "Be careful about operand order: the second pop is the left operand for non-commutative operators."
 
   - id: 22
     title: "Generate Parentheses"
@@ -239,6 +435,14 @@ problems:
     difficulty: medium
     category: "stack"
     prerequisites: [20]
+    practice_focus: "Backtracking with balanced-parens constraint"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Generate all valid combinations of n pairs of parentheses using recursive backtracking with open/close counts."
+    why_now: "Combines Valid Parentheses stack logic with recursive generation, bridging stack and backtracking patterns."
+    unlock_impact: "Links stack validation to backtracking generation, a dual perspective that strengthens both categories."
+    hints:
+      - "You can add an opening bracket if open < n; add a closing bracket if close < open."
+      - "Use recursion that builds strings incrementally, backtracking when both counts reach n."
 
   - id: 739
     title: "Daily Temperatures"
@@ -246,6 +450,14 @@ problems:
     difficulty: medium
     category: "stack"
     prerequisites: [20]
+    practice_focus: "Monotonic decreasing stack for next-greater"
+    problem_time_estimate: "15-20 minutes"
+    summary: "For each day, find how many days until a warmer temperature using a monotonic decreasing stack."
+    why_now: "Introduces monotonic stack, a powerful extension of basic LIFO for next-greater/next-smaller pattern Problems."
+    unlock_impact: "Unlocks Car Fleet, Largest Rectangle, and the entire next-greater-element family of Problems."
+    hints:
+      - "Iterate through temperatures; while the stack top is colder than the current day, pop and record the difference."
+      - "The stack stores indices, and you compare temperatures[index]."
 
   - id: 853
     title: "Car Fleet"
@@ -253,6 +465,14 @@ problems:
     difficulty: medium
     category: "stack"
     prerequisites: [739]
+    practice_focus: "Monotonic stack for time-to-destination grouping"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Determine how many car fleets arrive at the target by computing arrival times and using a monotonic stack."
+    why_now: "Applies the monotonic stack from Daily Temperatures to a physics-based grouping problem with arrival-time ordering."
+    unlock_impact: "Extends monotonic stack reasoning to non-array-element domains, showing the pattern's generality."
+    hints:
+      - "Sort by starting position, then compute each car's time to target: (target - position) / speed."
+      - "A car forms a fleet with the car ahead if its arrival time is slower; use a stack to merge fleets from back to front."
 
   - id: 84
     title: "Largest Rectangle in Histogram"
@@ -260,6 +480,14 @@ problems:
     difficulty: hard
     category: "stack"
     prerequisites: [739]
+    practice_focus: "Monotonic increasing stack for rectangle area"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Find the largest rectangular area in a histogram using a monotonic increasing stack to track bar boundaries."
+    why_now: "Deepens monotonic stack technique from next-greater to area computation with boundary-tracking on both sides."
+    unlock_impact: "Culminates the stack track and directly unlocks the maximal-rectangle variant in binary matrix Problems."
+    hints:
+      - "Use an increasing stack of indices; pop when the current bar is shorter, computing area with the popped height."
+      - "Width is determined by current index minus stack-top-after-pop minus one."
 
   # ========== Binary Search ==========
   - id: 704
@@ -268,6 +496,14 @@ problems:
     difficulty: easy
     category: "binary-search"
     prerequisites: []
+    practice_focus: "Classic sorted-array binary search"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Find the index of a target value in a sorted array using iterative binary search."
+    why_now: "Introduces the fundamental mid-point narrowing pattern that all binary search Problems extend."
+    unlock_impact: "Unlocks every remaining binary search Problem: 2D search, rotating arrays, and answer-space search."
+    hints:
+      - "Compute mid = left + (right - left) / 2 to avoid overflow."
+      - "If nums[mid] < target, search right; else search left."
 
   - id: 74
     title: "Search a 2D Matrix"
@@ -275,6 +511,14 @@ problems:
     difficulty: medium
     category: "binary-search"
     prerequisites: [704]
+    practice_focus: "1D-to-2D index mapping for binary search"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Search a sorted 2D matrix as a flattened sorted array using index arithmetic."
+    why_now: "Extends basic binary search by applying it to a 2D structure via row/column index mapping."
+    unlock_impact: "Reinforces the treat-2D-as-1D mapping pattern used in matrix and search-space Problems."
+    hints:
+      - "Treat the matrix as a sorted array of size rows * cols; map index i to matrix[i / cols][i % cols]."
+      - "Binary search over the virtual 1D range from 0 to rows * cols - 1."
 
   - id: 875
     title: "Koko Eating Bananas"
@@ -282,6 +526,14 @@ problems:
     difficulty: medium
     category: "binary-search"
     prerequisites: [704]
+    practice_focus: "Binary search on answer space"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the minimum eating speed K such that all bananas are eaten within H hours using binary search on K."
+    why_now: "Introduces binary search over the answer space (not the input), a meta-pattern for optimization Problems."
+    unlock_impact: "Unlocks answer-space binary search used in capacity-shipment, split-array, and many minimax Problems."
+    hints:
+      - "The answer K is between 1 and max(piles). Can you binary search this range?"
+      - "For a candidate speed K, compute total hours = sum(ceil(p / K) for p in piles) and check if <= H."
 
   - id: 153
     title: "Find Minimum in Rotated Sorted Array"
@@ -289,6 +541,14 @@ problems:
     difficulty: medium
     category: "binary-search"
     prerequisites: [704]
+    practice_focus: "Binary search with rotation-discontinuity detection"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the minimum element in a rotated sorted array using binary search on the inflection point."
+    why_now: "Extends binary search to handle a single discontinuity (rotation), teaching pivot-finding logic."
+    unlock_impact: "Unlocks Search in Rotated Sorted Array by establishing the pivot-relative comparison pattern."
+    hints:
+      - "Compare nums[mid] with nums[right]; if nums[mid] > nums[right], the minimum is on the right."
+      - "When the while loop exits, left points to the minimum element."
 
   - id: 33
     title: "Search in Rotated Sorted Array"
@@ -296,6 +556,14 @@ problems:
     difficulty: medium
     category: "binary-search"
     prerequisites: [153]
+    practice_focus: "Two-phase binary search in rotated array"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Search for a target in a rotated sorted array by determining which half is sorted before narrowing."
+    why_now: "Builds on Find Minimum's pivot logic to perform a full target search within the rotated structure."
+    unlock_impact: "Completes the rotated-array search track and serves as a template for search-with-unknown-pivot Problems."
+    hints:
+      - "At each mid, determine which half is sorted; check if the target lies in the sorted half."
+      - "If nums[left] <= nums[mid], the left half is sorted; otherwise the right half is sorted."
 
   - id: 981
     title: "Time Based Key-Value Store"
@@ -303,6 +571,14 @@ problems:
     difficulty: medium
     category: "binary-search"
     prerequisites: [704]
+    practice_focus: "Binary search for floor lookup in timestamps"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Design a key-value store that returns the value at the largest timestamp <= the queried timestamp."
+    why_now: "Applies binary search to a practical data-structure problem, reinforcing floor/ceil pattern variants."
+    unlock_impact: "Demonstrates how binary search solves time-series and versioned-storage Problems seen in system design."
+    hints:
+      - "For each key, maintain a list of (timestamp, value) pairs sorted by timestamp."
+      - "Binary search for the floor of the queried timestamp; return the value at that index."
 
   - id: 4
     title: "Median of Two Sorted Arrays"
@@ -310,6 +586,14 @@ problems:
     difficulty: hard
     category: "binary-search"
     prerequisites: [33]
+    practice_focus: "Binary search on partition point of two arrays"
+    problem_time_estimate: "35-45 minutes"
+    summary: "Find the median of two sorted arrays by binary searching the partition point in the smaller array."
+    why_now: "Culminates the binary search track with the most complex partition-boundary variant, requiring careful invariants."
+    unlock_impact: "Demonstrates binary search applied to partition problems, a meta-technique for k-th element in partitioned data."
+    hints:
+      - "Binary search on the smaller array's partition index; the other array's partition is determined by total half-size."
+      - "Check conditions: max(leftA, leftB) <= min(rightA, rightB) to determine if the partition is correct."
 
   # ========== Linked List ==========
   - id: 206
@@ -318,6 +602,14 @@ problems:
     difficulty: easy
     category: "linked-list"
     prerequisites: []
+    practice_focus: "Iterative three-pointer reversal"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Reverse a singly linked list by reassigning next pointers with prev, curr, and next pointers."
+    why_now: "Introduces the fundamental pointer-reassignment pattern that every linked list manipulation builds on."
+    unlock_impact: "Unlocks Reorder List, Remove Nth Node, LRU Cache, and Reverse k-Group by establishing pointer rewriting skills."
+    hints:
+      - "Use three pointers: prev (initialized to null), curr = head, and a temp variable for next."
+      - "At each step, save curr.next, then redirect curr.next to prev, then advance prev and curr."
 
   - id: 21
     title: "Merge Two Sorted Lists"
@@ -325,6 +617,14 @@ problems:
     difficulty: easy
     category: "linked-list"
     prerequisites: []
+    practice_focus: "Two-list merge with dummy head"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Merge two sorted linked lists into one sorted list using a dummy head and pointer comparison."
+    why_now: "Introduces the dummy-head technique and merge logic that forms the basis of divide-and-conquer list merging."
+    unlock_impact: "Unlocks Add Two Numbers, Merge k Sorted Lists, and the merge step of merge sort on linked lists."
+    hints:
+      - "Create a dummy head node; compare list1.val vs list2.val and attach the smaller one."
+      - "After one list is exhausted, attach the remainder of the other list directly."
 
   - id: 141
     title: "Linked List Cycle"
@@ -332,6 +632,14 @@ problems:
     difficulty: easy
     category: "linked-list"
     prerequisites: []
+    practice_focus: "Floyd's cycle detection with fast/slow pointers"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Detect if a linked list has a cycle using two pointers moving at different speeds."
+    why_now: "Introduces the fast/slow pointer (tortoise-and-hare) pattern, a cornerstone of linked list algorithms."
+    unlock_impact: "Unlocks Reorder List, Copy List with Random Pointer, Find Duplicate, and the cycle-entry detection variant."
+    hints:
+      - "Use two pointers: slow moves 1 step, fast moves 2 steps."
+      - "If fast and slow ever meet, there is a cycle. If fast reaches null, there is no cycle."
 
   - id: 143
     title: "Reorder List"
@@ -339,6 +647,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [206, 141]
+    practice_focus: "Find-middle, reverse, merge three-step composite"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Reorder a list L0→L1→...→Ln-1→Ln into L0→Ln→L1→Ln-1→... by finding the middle, reversing the second half, and merging."
+    why_now: "Combines cycle detection's fast/slow midpoint with Reverse Linked List to solve a multi-step transformation."
+    unlock_impact: "Demonstrates the composite-algorithm pattern where elementary list operations combine for sophisticated results."
+    hints:
+      - "Use fast/slow pointer to find the midpoint, then split the list into two halves."
+      - "Reverse the second half, then interleave the two halves one node at a time."
 
   - id: 19
     title: "Remove Nth Node From End of List"
@@ -346,6 +662,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [206]
+    practice_focus: "Two-pass offset pointer for nth-from-end"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Remove the Nth node from the end of a list using a leading pointer n steps ahead."
+    why_now: "Applies pointer manipulation to the common 'kth from end' pattern, a one-pass solution using a gap of length n."
+    unlock_impact: "Introduces the offset-pointer technique that reappears in k-to-last and window-like list Problems."
+    hints:
+      - "Advance a 'fast' pointer n steps, then move 'slow' and 'fast' together until fast reaches the end."
+      - "Use a dummy head to handle edge cases where the head itself must be removed."
 
   - id: 138
     title: "Copy List with Random Pointer"
@@ -353,6 +677,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [141]
+    practice_focus: "Deep copy with interleaved node mapping"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Deep copy a list where each node has a next and random pointer by interleaving copies between originals."
+    why_now: "Extends cycle detection's pointer traversal to a deep-copy problem requiring two-pass node mapping."
+    unlock_impact: "Teaches the interleaved-copy pattern and hash-free deep-copy technique useful in complex data structure cloning."
+    hints:
+      - "Pass 1: interleave a copy node after each original node (A → A' → B → B')."
+      - "Pass 2: assign random pointers (orig.next.random = orig.random.next), then Pass 3: separate the two lists."
 
   - id: 2
     title: "Add Two Numbers"
@@ -360,6 +692,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [21]
+    practice_focus: "Digit-by-digit addition with carry propagation"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Add two numbers represented as reversed linked lists, propagating carry digit by digit."
+    why_now: "Extends merge-list traversal to digit arithmetic, combining dummy-head building with carry-state tracking."
+    unlock_impact: "Prepares the carry-propagation pattern for big-integer arithmetic and multi-list aggregation Problems."
+    hints:
+      - "Traverse both lists simultaneously, computing sum = digit1 + digit2 + carry."
+      - "Create a new node with sum % 10 and advance carry = sum / 10."
 
   - id: 287
     title: "Find the Duplicate Number"
@@ -367,6 +707,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [141]
+    practice_focus: "Cycle detection applied to array value-jumps"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the duplicate number in an array where values act as pointers using Floyd's cycle detection."
+    why_now: "Demonstrates how Linked List Cycle's fast/slow pattern applies to array-indexed graphs, not just linked lists."
+    unlock_impact: "Shows the cross-domain application of cycle detection, bridging linked lists, arrays, and graph cycle detection."
+    hints:
+      - "Treat each array value as a 'next' pointer; the duplicate creates a cycle entry point."
+      - "Use Floyd's algorithm: find the meeting point, then reset one pointer to start and move both at the same speed to find the duplicate."
 
   - id: 146
     title: "LRU Cache"
@@ -374,6 +722,14 @@ problems:
     difficulty: medium
     category: "linked-list"
     prerequisites: [206]
+    practice_focus: "Doubly-linked list with hash-map O(1) eviction"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Design an LRU cache with O(1) get and put using a doubly-linked list and hash map combination."
+    why_now: "Combines linked-list manipulation with hash-table lookups, a classic system-design data structure pattern."
+    unlock_impact: "Teaches the linked list + hash map composite pattern essential for LFU, file systems, and caching interview Problems."
+    hints:
+      - "Use a doubly-linked list for O(1) node removal; store node pointers in a hash map."
+      - "Move accessed nodes to the head (most recently used); evict from the tail (least recently used)."
 
   - id: 23
     title: "Merge k Sorted Lists"
@@ -381,6 +737,14 @@ problems:
     difficulty: hard
     category: "linked-list"
     prerequisites: [21]
+    practice_focus: "K-way merge with divide-and-conquer or heap"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Merge k sorted linked lists into one sorted list using divide-and-conquer pairwise merging or a min-heap."
+    why_now: "Extends Merge Two Sorted Lists to k lists, introducing heap-assisted and divide-and-conquer merge strategies."
+    unlock_impact: "Completes the merge track and prepares k-way merge for external sort and distributed data Problems."
+    hints:
+      - "Approach 1: repeatedly merge pairs of lists using the merge-two-lists logic (divide and conquer)."
+      - "Approach 2: use a min-heap of (value, list-index, node) to always extract the smallest head."
 
   - id: 25
     title: "Reverse Nodes in k-Group"
@@ -388,6 +752,14 @@ problems:
     difficulty: hard
     category: "linked-list"
     prerequisites: [206]
+    practice_focus: "Batch reversal with group-boundary tracking"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Reverse every k consecutive nodes in a linked list, leaving any remainder untouched, using iterative group reversal."
+    why_now: "Extends Reverse Linked List to batched groups, requiring careful boundary-pointer management between groups."
+    unlock_impact: "Completes the linked-list track and tests mastery of group-level pointer reconnection and dummy-head technique."
+    hints:
+      - "For each group of k, reverse the group using the standard three-pointer technique, then reconnect to the previous group."
+      - "First check if at least k nodes remain; if not, leave the remainder as-is."
 
   # ========== Trees ==========
   - id: 94
@@ -396,6 +768,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: []
+    practice_focus: "Recursive and iterative inorder traversal"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Return the inorder traversal (left-root-right) of a binary tree using recursion or an explicit stack."
+    why_now: "Introduces tree traversal order, the foundational building block for all tree-search and BST Problems."
+    unlock_impact: "Unlocks Validate BST, Kth Smallest in BST, and Construct Tree from Preorder/Inorder."
+    hints:
+      - "Recursively visit left subtree, then process the current node, then visit the right subtree."
+      - "For iterative: push all left children to a stack, pop to visit, then switch to the right child."
 
   - id: 104
     title: "Maximum Depth of Binary Tree"
@@ -403,6 +783,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: []
+    practice_focus: "Recursive depth-first height computation"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Find the maximum depth (height) of a binary tree using DFS recursion."
+    why_now: "Introduces the root-to-leaf depth recursion that underpins Balanced Tree, Diameter, and max-path Problems."
+    unlock_impact: "Unlocks Invert Tree, Symmetric Tree, Level Order, Same Tree, Balanced Tree, and Diameter."
+    hints:
+      - "The depth of a node is 1 + max(maxDepth(left), maxDepth(right))."
+      - "Base case: a null node has depth 0."
 
   - id: 226
     title: "Invert Binary Tree"
@@ -410,6 +798,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Recursive subtree swapping"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Invert a binary tree by recursively swapping the left and right children of every node."
+    why_now: "Applies the basic recursive tree traversal from Max Depth to a structural transformation problem."
+    unlock_impact: "Reinforces post-order traversal and the swap-then-propagate pattern for tree mirroring."
+    hints:
+      - "Swap left and right children at the current node, then recursively invert each subtree."
+      - "Base case: if the node is null, return null."
 
   - id: 101
     title: "Symmetric Tree"
@@ -417,6 +813,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Mirror-comparison with dual DFS pointers"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Check if a binary tree is symmetric by comparing left and right subtrees in mirror order."
+    why_now: "Extends traversal to a two-pointer comparison pattern, testing both structure and value symmetry."
+    unlock_impact: "Introduces dual-pointer traversal that appears in Same Tree and multi-tree comparison Problems."
+    hints:
+      - "Compare node1.left with node2.right and node1.right with node2.left recursively."
+      - "Both nodes must be null, or both must be non-null with equal values and mirrored children."
 
   - id: 105
     title: "Construct Binary Tree from Preorder and Inorder Traversal"
@@ -424,6 +828,14 @@ problems:
     difficulty: medium
     category: "trees"
     prerequisites: [94]
+    practice_focus: "Tree reconstruction from traversal orders"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Build a binary tree given its preorder and inorder traversal arrays by identifying root and partition indices."
+    why_now: "Applies inorder traversal understanding to the inverse problem: reconstructing the tree from its traversal records."
+    unlock_impact: "Deepens traversal understanding and prepares the serialization/deserialization pattern for tree encoding."
+    hints:
+      - "The first element of preorder is always the root; find it in inorder to determine left and right subtree sizes."
+      - "Recursively construct left and right subtrees using the appropriate subarray slices."
 
   - id: 102
     title: "Binary Tree Level Order Traversal"
@@ -431,6 +843,14 @@ problems:
     difficulty: medium
     category: "trees"
     prerequisites: [104]
+    practice_focus: "BFS level-by-level with queue"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Return the level-order traversal of a binary tree using BFS with a queue, grouping values by level."
+    why_now: "Introduces BFS as an alternative to DFS traversal, essential for level-by-level and shortest-path tree Problems."
+    unlock_impact: "Unlocks Right Side View, Serialize/Deserialize, and any BFS-based tree or graph Problems."
+    hints:
+      - "Use a queue initialized with the root; process level by level by tracking queue size before each level."
+      - "For each level, dequeue size items, add their children, and collect values."
 
   - id: 108
     title: "Convert Sorted Array to Binary Search Tree"
@@ -438,6 +858,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Midpoint-root recursive BST construction"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Convert a sorted array into a height-balanced BST by recursively picking the middle as root."
+    why_now: "Connects binary search's midpoint selection with tree construction, bridging binary search and BST building."
+    unlock_impact: "Reinforces the balanced-tree construction pattern used in AVL/Red-Black conceptual understanding."
+    hints:
+      - "Pick the middle element as root, build the left subtree from the left subarray, right from the right subarray."
+      - "Recurse until start > end; the base case returns null."
 
   - id: 98
     title: "Validate Binary Search Tree"
@@ -445,6 +873,14 @@ problems:
     difficulty: medium
     category: "trees"
     prerequisites: [94]
+    practice_focus: "BST validation with min/max range tracking"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Validate a BST by ensuring each node's value falls within a valid range propagated from ancestors."
+    why_now: "Applies inorder traversal knowledge to the BST property, which requires range propagation, not just local checks."
+    unlock_impact: "Unlocks Kth Smallest in BST and establishes the range-boundary pattern for all BST validation."
+    hints:
+      - "Pass a min and max bound to each recursive call; the node's value must be strictly between them."
+      - "For the left child, the max becomes the current node's value; for the right child, the min becomes the current node's value."
 
   - id: 230
     title: "Kth Smallest Element in a BST"
@@ -452,6 +888,14 @@ problems:
     difficulty: medium
     category: "trees"
     prerequisites: [98]
+    practice_focus: "Inorder traversal with early-stop counter"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the Kth smallest element in a BST using inorder traversal with a decrementing counter."
+    why_now: "Exploits the BST inorder-is-sorted property from Validate BST to efficiently find the k-th element."
+    unlock_impact: "Demonstrates how BST structure enables O(k) queries, a pattern for ordered-statistic tree operations."
+    hints:
+      - "Perform inorder traversal; decrement k after visiting each node."
+      - "When k reaches 0, the current node's value is your answer — you can early-stop the traversal."
 
   - id: 199
     title: "Binary Tree Right Side View"
@@ -459,6 +903,14 @@ problems:
     difficulty: medium
     category: "trees"
     prerequisites: [102]
+    practice_focus: "BFS with last-node-per-level capture"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Return the nodes visible from the right side of a binary tree by capturing the last node at each BFS level."
+    why_now: "Applies BFS level-order traversal to a visibility problem, showing how BFS gives direct level-by-level access."
+    unlock_impact: "Reinforces BFS as the go-to tool for level-sensitive problems, including bottom-view and vertical-order variants."
+    hints:
+      - "Use level-order BFS; the rightmost node at each level is appended to the result."
+      - "Alternatively, a modified DFS that processes right child first can work by tracking first-time-level encounters."
 
   - id: 100
     title: "Same Tree"
@@ -466,6 +918,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Dual-node structural and value comparison"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Check if two binary trees are identical by recursively comparing corresponding nodes."
+    why_now: "Extends the symmetric-tree dual-pointer comparison pattern to two independent trees."
+    unlock_impact: "Reinforces recursive comparison patterns used in subtree-check and tree-matching Problems."
+    hints:
+      - "Both nodes null → true; one null → false; values differ → false."
+      - "Recursively check that sameTree(left1, left2) and sameTree(right1, right2) both hold."
 
   - id: 110
     title: "Balanced Binary Tree"
@@ -473,6 +933,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Height-difference check with early termination"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Determine if a binary tree is height-balanced, where the depth of every node's subtrees differs by at most 1."
+    why_now: "Extends Max Depth by adding a global balance condition that requires bottom-up height-difference propagation."
+    unlock_impact: "Solidifies the bottom-up height-return pattern essential for Diameter and Max Path Sum."
+    hints:
+      - "Return the height from each subtree, but return -1 to signal imbalance."
+      - "If leftHeight == -1 or rightHeight == -1 or abs(left - right) > 1, propagate -1."
 
   - id: 543
     title: "Diameter of Binary Tree"
@@ -480,6 +948,14 @@ problems:
     difficulty: easy
     category: "trees"
     prerequisites: [104]
+    practice_focus: "Global-max tracking during depth computation"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Find the diameter (longest path) of a binary tree by tracking max(leftHeight + rightHeight) at each node."
+    why_now: "Builds on Max Depth's height recursion by adding a global path-length maximum updated at each node."
+    unlock_impact: "Unlocks Binary Tree Maximum Path Sum by establishing the height-plus-global-max computation pattern."
+    hints:
+      - "At each node, the potential diameter passing through it is leftHeight + rightHeight."
+      - "Update a global maximum while returning the node's height (1 + max(left, right))."
 
   - id: 124
     title: "Binary Tree Maximum Path Sum"
@@ -487,6 +963,14 @@ problems:
     difficulty: hard
     category: "trees"
     prerequisites: [543]
+    practice_focus: "Path-sum maximization with negative pruning"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find the maximum path sum in a binary tree, where a path can start and end at any node."
+    why_now: "Extends Diameter from path-length to path-sum, adding value-weighted decisions and negative-path pruning."
+    unlock_impact: "Completes the tree track and tests mastery of the bottom-up global-max pattern with value-based optimization."
+    hints:
+      - "At each node, compute its max contribution: value + max(0, leftMax) + max(0, rightMax) for the global answer."
+      - "Return to parent: value + max(0, max(leftMax, rightMax)) since a path cannot split going upward."
 
   - id: 297
     title: "Serialize and Deserialize Binary Tree"
@@ -494,6 +978,14 @@ problems:
     difficulty: hard
     category: "trees"
     prerequisites: [102]
+    practice_focus: "Tree encoding with BFS or preorder markers"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Design an algorithm to serialize a binary tree to a string and deserialize it back to the tree."
+    why_now: "Applies BFS level-order traversal to a system-level serialization problem with null-marker encoding."
+    unlock_impact: "Completes the tree track and teaches the serialization pattern needed for tree transmission and storage."
+    hints:
+      - "Use BFS: serialize by appending node values (or 'null' for missing) to a string separated by delimiters."
+      - "Deserialize by tokenizing the string and using a queue to assign children to nodes sequentially."
 
   # ========== Tries ==========
   - id: 208
@@ -502,6 +994,14 @@ problems:
     difficulty: medium
     category: "tries"
     prerequisites: []
+    practice_focus: "Trie data structure with insert/search/startsWith"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Implement a prefix tree (trie) with insert, search, and startsWith operations using a node-per-character tree."
+    why_now: "Introduces the trie as a specialized tree optimized for prefix operations, a core data structure for string Problems."
+    unlock_impact: "Unlocks Add and Search Words and Word Search II, and the trie pattern used in autocomplete and spell-check."
+    hints:
+      - "Each node has an array/map of 26 children and a boolean flag marking end-of-word."
+      - "search traverses and checks the end flag; startsWith only needs full traversal."
 
   - id: 211
     title: "Design Add and Search Words Data Structure"
@@ -509,6 +1009,14 @@ problems:
     difficulty: medium
     category: "tries"
     prerequisites: [208]
+    practice_focus: "Trie with wildcard-char DFS search"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Extend a trie to support searching with '.' wildcard characters by recursing into all children at wildcard positions."
+    why_now: "Builds on the basic trie by adding wildcard search, introducing backtracking within the trie traversal."
+    unlock_impact: "Unlocks Word Search II and bridges trie with backtracking, preparing for combined trie-DFS Problems."
+    hints:
+      - "For normal characters, follow the child pointer as in search. For '.', try all 26 possible children via DFS."
+      - "Track position in the word and the current trie node; if position == len(word), check the end-of-word flag."
 
   - id: 212
     title: "Word Search II"
@@ -516,6 +1024,14 @@ problems:
     difficulty: hard
     category: "tries"
     prerequisites: [211]
+    practice_focus: "Trie-pruned DFS on a 2D board"
+    problem_time_estimate: "35-45 minutes"
+    summary: "Find all words from a dictionary in a 2D board by using a trie to prune backtracking DFS exploration."
+    why_now: "Combines the wildcard trie with 2D grid DFS backtracking, showing how tries prune the search space efficiently."
+    unlock_impact: "Culminates tries and demonstrates the trie+backtracking synergy — one of the most powerful hybrid patterns."
+    hints:
+      - "Build a trie from all words; DFS from each cell, traversing the trie in parallel with board moves."
+      - "Mark cells as visited during DFS; when a word is found, remove its end flag to avoid duplicates."
 
   # ========== Heap / Priority Queue ==========
   - id: 703
@@ -524,6 +1040,14 @@ problems:
     difficulty: easy
     category: "heap"
     prerequisites: []
+    practice_focus: "Min-heap to maintain top-k elements"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Maintain the Kth largest element in a stream by keeping a min-heap of size K."
+    why_now: "Introduces the min-heap for top-k maintenance, the simplest and most common heap pattern."
+    unlock_impact: "Unlocks all remaining heap Problems by establishing heap-add and heap-remove mechanics."
+    hints:
+      - "Keep a min-heap of at most k elements; the top of the heap is always the k-th largest."
+      - "When adding, push and then pop if size exceeds k."
 
   - id: 1046
     title: "Last Stone Weight"
@@ -531,6 +1055,14 @@ problems:
     difficulty: easy
     category: "heap"
     prerequisites: []
+    practice_focus: "Max-heap for repeated extraction of largest"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Simulate smashing stones by repeatedly extracting the two largest from a max-heap until one or none remains."
+    why_now: "Reinforces max-heap extraction as the tool for repeated largest/smallest operations."
+    unlock_impact: "Strengthens heap mechanics for more complex push-pop-conditional Problems like Task Scheduler."
+    hints:
+      - "Use a max-heap (simulated by storing negatives in a min-heap or using a max-heap library)."
+      - "Pop the two largest; if they differ, push the difference back."
 
   - id: 973
     title: "K Closest Points to Origin"
@@ -538,6 +1070,14 @@ problems:
     difficulty: medium
     category: "heap"
     prerequisites: [703]
+    practice_focus: "Max-heap to maintain k-closest elements"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the K closest points to the origin by keeping a max-heap of size K ordered by distance."
+    why_now: "Applies the min-heap top-k pattern from Kth Largest Stream to a distance-based selection problem."
+    unlock_impact: "Demonstrates how heap ordering criteria can be arbitrary comparators, a pattern for custom priority Problems."
+    hints:
+      - "Use a max-heap based on squared distance; push each point, pop if size > k."
+      - "The heap stores the k closest at all times; when done, return the heap contents."
 
   - id: 215
     title: "Kth Largest Element in an Array"
@@ -545,6 +1085,14 @@ problems:
     difficulty: medium
     category: "heap"
     prerequisites: [703]
+    practice_focus: "Min-heap of size k for k-th largest"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the Kth largest element in an unsorted array by maintaining a min-heap of size K."
+    why_now: "Directly extends Kth Largest Stream from online to batch processing, the same heap pattern."
+    unlock_impact: "Reinforces heap-based selection and contrasts with quickselect, teaching the trade-off between heap and partition."
+    hints:
+      - "Same pattern as Kth Largest Stream: maintain a min-heap of k largest elements seen so far."
+      - "Alternatively, use quickselect for O(n) average time or heapify the whole array."
 
   - id: 621
     title: "Task Scheduler"
@@ -552,6 +1100,14 @@ problems:
     difficulty: medium
     category: "heap"
     prerequisites: [703]
+    practice_focus: "Max-heap with cooling-time scheduling"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the minimum CPU intervals to execute tasks with a cooldown period using a max-heap for most-frequent-first scheduling."
+    why_now: "Applies heap to a scheduling problem with a cooldown constraint, showing heap use for frequency-based ordering."
+    unlock_impact: "Introduces cooldown-aware scheduling that appears in rate-limiting and distributed task-queue Problems."
+    hints:
+      - "Count frequencies first; use a max-heap of frequencies to always pick the task with the highest remaining count."
+      - "Use a queue/counter to track cooldown; after picking a task, hold it for n cycles before re-inserting."
 
   - id: 355
     title: "Design Twitter"
@@ -559,6 +1115,14 @@ problems:
     difficulty: medium
     category: "heap"
     prerequisites: [703]
+    practice_focus: "K-way merge of sorted feeds with heap"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Design a Twitter-like system where the news feed merges the 10 most recent tweets from followed users using a heap."
+    why_now: "Applies k-way merge via heap to a system-design problem, combining data modeling with efficient retrieval."
+    unlock_impact: "Reinforces the heap-for-merge pattern from Merge k Sorted Lists in a real-world system design context."
+    hints:
+      - "Store tweets as a list per user with incrementing timestamps; for getNewsFeed, collect all followees' tweets."
+      - "Use a max-heap based on timestamp to merge the k most recent tweet heads into a top-10 feed."
 
   - id: 295
     title: "Find Median from Data Stream"
@@ -566,6 +1130,14 @@ problems:
     difficulty: hard
     category: "heap"
     prerequisites: [703]
+    practice_focus: "Dual-heap (max + min) for median tracking"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Design a data structure that supports adding numbers and finding the median using a max-heap for the lower half and a min-heap for the upper half."
+    why_now: "Combines two heaps to maintain a sliding median, the classic dual-heap pattern for order statistics."
+    unlock_impact: "Completes the heap track and teaches dual-heap balancing, used in sliding-median and data-stream statistics."
+    hints:
+      - "Maintain a max-heap (lower half) and a min-heap (upper half); balance so sizes differ by at most 1."
+      - "If odd count, median is the top of whichever heap is larger; if even, average of both tops."
 
   # ========== Backtracking ==========
   - id: 78
@@ -574,6 +1146,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: []
+    practice_focus: "Generate all subsets via decision-tree DFS"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Generate all possible subsets of a set using recursive backtracking with include/exclude decisions at each index."
+    why_now: "Introduces the fundamental backtracking decision tree (include/exclude each element), the base for all combinatorial generation."
+    unlock_impact: "Unlocks Combination Sum, Permutations, Subsets II, and nearly every remaining backtracking problem."
+    hints:
+      - "At each index i, decide: include nums[i] in the current subset, then recurse; or skip nums[i] and recurse."
+      - "Add a copy of the current subset at each recursive call, not just at the leaves."
 
   - id: 39
     title: "Combination Sum"
@@ -581,6 +1161,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Backtracking with unlimited reuse and target pruning"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find all unique combinations that sum to a target, where each number can be used multiple times."
+    why_now: "Extends Subsets by adding a target constraint and allowing element reuse, introducing sum-based pruning."
+    unlock_impact: "Unlocks Combination Sum II and teaches the with-reuse vs without-reuse distinction in backtracking."
+    hints:
+      - "At each index, choose nums[i] and recurse with the SAME index (allowing reuse), or skip to the next index."
+      - "Prune: if current sum exceeds target or you've passed all candidates, stop."
 
   - id: 46
     title: "Permutations"
@@ -588,6 +1176,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Permutation generation with used-element tracking"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Generate all permutations of distinct integers by recursively selecting unused elements at each position."
+    why_now: "Extends Subsets from combination (order-independent) to permutation (order-dependent) generation."
+    unlock_impact: "Establishes the permutation template (used-tracking + position-building) for all ordering Problems."
+    hints:
+      - "Maintain a 'used' boolean array; at each position, try every element not yet used."
+      - "Recurse to fill the next position; when all positions are filled, add the permutation."
 
   - id: 90
     title: "Subsets II"
@@ -595,6 +1191,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Deduplication in subset generation with sorting"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Generate all unique subsets with possible duplicates by sorting and skipping duplicate values at each decision level."
+    why_now: "Extends Subsets with duplicate handling, teaching the sort-and-skip pattern essential for deduplication."
+    unlock_impact: "Introduces the deduplication pattern used in Combination Sum II and Palindrome Partitioning."
+    hints:
+      - "Sort the array first so duplicates are adjacent."
+      - "At each index, include the element; when skipping, skip ALL subsequent same-valued elements."
 
   - id: 40
     title: "Combination Sum II"
@@ -602,6 +1206,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [39]
+    practice_focus: "Combination with single-use and duplicate-skip"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find unique combinations summing to target where each number is used at most once, with duplicate elements in the input."
+    why_now: "Combines Combination Sum's target pruning with Subsets II's duplicate-skip pattern into one problem."
+    unlock_impact: "Tests mastery of both backtracking constraints (usage limits + deduplication) simultaneously."
+    hints:
+      - "Sort first; at each index, choose nums[i] and recurse with i+1 (single use)."
+      - "After the recursive call, skip all subsequent elements equal to nums[i] to avoid duplicate combinations."
 
   - id: 17
     title: "Letter Combinations of a Phone Number"
@@ -609,6 +1221,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Cartesian-product generation with digit mapping"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Generate all letter combinations for a phone number by recursing through digits and their mapped letters."
+    why_now: "Applies the Subsets decision-tree pattern to a Cartesian product over fixed-choice sets per position."
+    unlock_impact: "Reinforces the position-by-position building pattern used in iterative and recursive Cartesian product Problems."
+    hints:
+      - "Build a digit-to-letters map; at each digit, iterate over its letters and recurse for the next digit."
+      - "Use a string builder that you grow and shrink (backtrack) as you move through digits."
 
   - id: 79
     title: "Word Search"
@@ -616,6 +1236,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "2D grid DFS with visited-cell backtracking"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Check if a word exists in a 2D board by DFS backtracking from each cell with visited marking."
+    why_now: "Extends backtracking to 2D grid exploration, introducing visited-cell state management."
+    unlock_impact: "Prepares 2D backtracking for Word Search II and flood-fill/connected-components Problems in Graphs."
+    hints:
+      - "DFS from each cell that matches the first character; mark cells visited temporarily during exploration."
+      - "Restore the cell after the recursive call (backtrack) so other paths can reuse it."
 
   - id: 51
     title: "N-Queens"
@@ -623,6 +1251,14 @@ problems:
     difficulty: hard
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Constraint-satisfaction with row-by-row placement"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Place N queens on an NxN chessboard so no two attack each other, using row-by-row backtracking with set-based attack tracking."
+    why_now: "Applies backtracking to a classic constraint-satisfaction problem requiring diagonal-attack hashing."
+    unlock_impact: "Introduces set-based constraint checking, the template for Sudoku solver and other CSP Problems."
+    hints:
+      - "Place one queen per row; track columns, positive diagonals (r+c), and negative diagonals (r-c) in sets."
+      - "Backtrack when no valid column exists for the current row."
 
   - id: 131
     title: "Palindrome Partitioning"
@@ -630,6 +1266,14 @@ problems:
     difficulty: medium
     category: "backtracking"
     prerequisites: [78]
+    practice_focus: "Partitioning with palindrome substring check"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Partition a string into all possible palindrome substrings using backtracking with palindrome precomputation."
+    why_now: "Applies backtracking to string partitioning, combining Subsets' decision-tree with palindrome validation."
+    unlock_impact: "Bridges backtracking with DP precomputation (palindrome table), preparing for hybrid Problems."
+    hints:
+      - "At each position i, try every substring s[i:j] that is a palindrome; if so, add it and recurse from j."
+      - "Precompute a palindrome table (e.g., DP or expand-around-center) for O(1) substring checks during backtracking."
 
   # ========== Graphs ==========
   - id: 200
@@ -638,6 +1282,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: []
+    practice_focus: "Grid DFS/BFS for connected component counting"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Count the number of islands in a 2D grid by performing DFS/BFS from each unvisited land cell to mark the entire island."
+    why_now: "Introduces connected-components on a grid, the simplest and most common graph traversal problem form."
+    unlock_impact: "Unlocks every remaining graph Problem by establishing DFS/BFS grid traversal and component counting."
+    hints:
+      - "Iterate through every cell; when you find unvisited land ('1'), start a DFS and increment the island count."
+      - "Mark cells as visited (e.g., sink to '0' or use a visited set) to avoid revisiting."
 
   - id: 133
     title: "Clone Graph"
@@ -645,6 +1297,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Graph deep copy with visited-node mapping"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Deep copy a graph given a reference node by DFS with a hash map from original to cloned nodes."
+    why_now: "Extends island counting to general graph traversal with a deep-copy objective and cycle handling."
+    unlock_impact: "Teaches the clone-with-visited-map pattern used in any recursive deep-copy of pointer structures."
+    hints:
+      - "DFS from the given node; maintain a map of original → clone to handle cycles."
+      - "For each neighbor, if already cloned, add the reference; otherwise, clone it recursively first."
 
   - id: 695
     title: "Max Area of Island"
@@ -652,6 +1312,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "DFS area computation for grid components"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the maximum area of an island in a 2D grid by tracking area during DFS from each land cell."
+    why_now: "Directly extends Number of Islands to compute per-component metrics, the basis of component analysis."
+    unlock_impact: "Establishes the DFS-with-return-value pattern for component properties (area, perimeter, shape)."
+    hints:
+      - "DFS that returns 1 + sum of DFS from all four directions; count only if the cell is unvisited land."
+      - "Track the global maximum area across all islands."
 
   - id: 417
     title: "Pacific Atlantic Water Flow"
@@ -659,6 +1327,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Reverse-flow DFS from ocean boundaries"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find cells that can flow to both the Pacific and Atlantic oceans by running DFS backward from each ocean's edge."
+    why_now: "Extends grid DFS with the reverse-flow pattern, where you start from sinks (oceans) and move upstream."
+    unlock_impact: "Introduces multi-source BFS/DFS from boundaries, a pattern for maze/flow Problems and reverse-graph analysis."
+    hints:
+      - "Run BFS/DFS from the Pacific edge (top+left) to find cells reachable from Pacific."
+      - "Run BFS/DFS from the Atlantic edge (bottom+right); cells reachable by both are the answer."
 
   - id: 994
     title: "Rotting Oranges"
@@ -666,6 +1342,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Multi-source BFS with time-step tracking"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the minimum time to rot all oranges using multi-source BFS from all initially rotten oranges."
+    why_now: "Extends grid BFS to multi-source propagation with level-tracking (minutes), a common BFS variant."
+    unlock_impact: "Teaches the multi-source BFS pattern used in zombie/wildfire propagation and shortest-distance-from-any-source."
+    hints:
+      - "Initialize the BFS queue with all initially rotten oranges (row, col) at time 0."
+      - "At each BFS level, rot adjacent fresh oranges and increment time; count remaining fresh oranges at the end."
 
   - id: 207
     title: "Course Schedule"
@@ -673,6 +1357,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Cycle detection in directed graph with DFS"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Determine if all courses can be finished by detecting cycles in the prerequisite directed graph."
+    why_now: "Moves from grid-based graphs to arbitrary directed graphs, introducing cycle detection with DFS state coloring."
+    unlock_impact: "Unlocks Course Schedule II, Reconstruct Itinerary, and all topological-sort and DAG Problems."
+    hints:
+      - "Use DFS with three states: 0=unvisited, 1=visiting (in current path), 2=visited (fully processed)."
+      - "If you encounter a node in state 1 during DFS, a cycle exists."
 
   - id: 210
     title: "Course Schedule II"
@@ -680,6 +1372,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [207]
+    practice_focus: "Topological sort with Kahn's or DFS post-order"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Return a valid ordering of courses respecting prerequisites using topological sort (DFS post-order or Kahn's algorithm)."
+    why_now: "Extends cycle detection to order generation, teaching topological sort as the next step after DAG verification."
+    unlock_impact: "Completes the DAG track and provides the topological-sort tool for dependency resolution and build systems."
+    hints:
+      - "DFS: after processing all neighbors, add the node to the result; reverse the result at the end."
+      - "Kahn's: compute indegrees, start with zero-indegree nodes in a queue, and remove edges as you go."
 
   - id: 684
     title: "Redundant Connection"
@@ -687,6 +1387,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Union-Find for cycle detection in edges"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the last edge that creates a cycle in a graph using Union-Find (Disjoint Set Union)."
+    why_now: "Introduces Union-Find as an alternative graph representation for dynamic connectivity and cycle detection."
+    unlock_impact: "Unlocks Union-Find problems including Connected Components, Graph Valid Tree, and Accounts Merge."
+    hints:
+      - "Initialize each node as its own parent; for each edge, if find(u) == find(v), that edge is redundant."
+      - "Otherwise, union(u, v) and continue. Use path compression and union by rank."
 
   - id: 323
     title: "Number of Connected Components in an Undirected Graph"
@@ -694,6 +1402,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Union-Find or DFS for component counting"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Count the number of connected components in an undirected graph using Union-Find or DFS."
+    why_now: "Extends island counting from grids to general graphs, connecting Union-Find with DFS-based component counting."
+    unlock_impact: "Reinforces component-level reasoning across both grid and abstract graph representations."
+    hints:
+      - "Union-Find: process all edges with union; the number of components is the count of unique roots."
+      - "DFS: build an adjacency list from edges, then DFS from each unvisited node counting components."
 
   - id: 261
     title: "Graph Valid Tree"
@@ -701,6 +1417,14 @@ problems:
     difficulty: medium
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "Tree validation via Union-Find + edge count"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Determine if a graph is a valid tree by checking edge count (n-1) and connectivity via Union-Find."
+    why_now: "Applies Union-Find from Redundant Connection to the tree-validation condition (no cycles, fully connected)."
+    unlock_impact: "Synthesizes cycle detection and connectivity checking, a common combination in network/graph validation."
+    hints:
+      - "A tree must have exactly n-1 edges and be fully connected with no cycles."
+      - "Use Union-Find: if adding an edge connects two already-connected nodes, it has a cycle."
 
   - id: 127
     title: "Word Ladder"
@@ -708,6 +1432,14 @@ problems:
     difficulty: hard
     category: "graphs"
     prerequisites: [200]
+    practice_focus: "BFS for shortest transformation sequence"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Find the shortest transformation sequence from beginWord to endWord changing one letter at a time, using BFS."
+    why_now: "Applies BFS to a shortest-path problem on an implicit graph built from word transformations."
+    unlock_impact: "Demonstrates how BFS solves shortest-path on graphs too large to build explicitly, a meta-pattern for word/maze Problems."
+    hints:
+      - "Use BFS from beginWord; at each word, generate all 26 * len(word) possible one-letter variants."
+      - "Check each variant against a wordSet for valid transitions; mark visited words to avoid cycles."
 
   # ========== Advanced Graphs ==========
   - id: 332
@@ -716,6 +1448,14 @@ problems:
     difficulty: hard
     category: "advanced-graphs"
     prerequisites: [207]
+    practice_focus: "Eulerian path with hierarchical ordering"
+    problem_time_estimate: "35-45 minutes"
+    summary: "Reconstruct a valid flight itinerary using all tickets exactly once (Eulerian path) by DFS with lexicographic ordering."
+    why_now: "Applies topological sort concepts to Eulerian path finding, requiring post-order DFS with sorted adjacency lists."
+    unlock_impact: "Introduces Eulerian trail concepts and the Hierholzer algorithm applicable to itinerary/delivery Problems."
+    hints:
+      - "Build adjacency list sorted lexicographically; DFS from JFK, recursively traversing and removing edges."
+      - "Post-order: add the airport to the result AFTER all its edges are traversed, then reverse."
 
   - id: 743
     title: "Network Delay Time"
@@ -723,6 +1463,14 @@ problems:
     difficulty: medium
     category: "advanced-graphs"
     prerequisites: [207]
+    practice_focus: "Dijkstra's shortest path from single source"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the time for all nodes to receive a signal from source K using Dijkstra's algorithm."
+    why_now: "Extends BFS to weighted graphs, introducing Dijkstra's as the weighted shortest-path algorithm."
+    unlock_impact: "Unlocks Cheapest Flights Within K Stops and all weighted-graph shortest-path Problems."
+    hints:
+      - "Use a min-heap keyed by distance; initialize distances to infinity except source = 0."
+      - "Pop the minimum distance node, relax its neighbors: if dist[u] + w < dist[v], update and push."
 
   - id: 778
     title: "Swim in Rising Water"
@@ -730,6 +1478,14 @@ problems:
     difficulty: hard
     category: "advanced-graphs"
     prerequisites: [207]
+    practice_focus: "Dijkstra variant on elevation/time grid"
+    problem_time_estimate: "30-45 minutes"
+    summary: "Find the minimum time to swim from top-left to bottom-right in a grid where water rises, using a priority-queue Dijkstra."
+    why_now: "Applies Dijkstra's to a grid where the 'distance' is the max elevation encountered, not cumulative sum."
+    unlock_impact: "Shows how Dijkstra adapts to minimax criteria, a pattern for path-with-threshold Problems."
+    hints:
+      - "Use a min-heap keyed by the max elevation encountered so far; start from (0,0) with grid[0][0]."
+      - "At each step, the cost to a neighbor is max(currentMax, grid[nr][nc]); push if it improves the neighbor's result."
 
   - id: 787
     title: "Cheapest Flights Within K Stops"
@@ -737,6 +1493,14 @@ problems:
     difficulty: medium
     category: "advanced-graphs"
     prerequisites: [743]
+    practice_focus: "Bellman-Ford or Dijkstra with stop constraint"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find the cheapest flight from src to dst with at most K stops using Bellman-Ford or BFS with cost tracking."
+    why_now: "Extends Dijkstra's from Network Delay Time to a constrained-distance problem requiring stop-count limits."
+    unlock_impact: "Introduces Bellman-Ford and the hop-constrained shortest path concept used in routing and network Problems."
+    hints:
+      - "Bellman-Ford: relax all edges K+1 times; each iteration represents one additional stop."
+      - "Keep a temp array to ensure each iteration only uses the previous iteration's costs (preventing multi-hop in one iteration)."
 
   # ========== Dynamic Programming ==========
   - id: 70
@@ -745,6 +1509,14 @@ problems:
     difficulty: easy
     category: "dynamic-programming"
     prerequisites: []
+    practice_focus: "Fibonacci-style linear DP recurrence"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Count ways to climb n stairs taking 1 or 2 steps at a time using the Fibonacci recurrence dp[n] = dp[n-1] + dp[n-2]."
+    why_now: "Introduces the simplest 1D DP recurrence, the starting point for all bottom-up dynamic programming thinking."
+    unlock_impact: "Unlocks House Robber, Decode Ways, Coin Change, and the entire DP track."
+    hints:
+      - "dp[i] = dp[i-1] + dp[i-2]; you can optimize space to two variables."
+      - "Base cases: dp[0] = 1 (one way to climb 0 stairs), dp[1] = 1."
 
   - id: 198
     title: "House Robber"
@@ -752,6 +1524,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "1D DP with skip-one constraint"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Maximize the amount robbed from non-adjacent houses using dp[i] = max(dp[i-1], dp[i-2] + nums[i])."
+    why_now: "Extends Climbing Stairs' recurrence with a max-choice pattern, introducing value-based optimization in DP."
+    unlock_impact: "Unlocks House Robber II and establishes the rob-or-skip decision template for sequential DP."
+    hints:
+      - "At each house i, decide: rob it (nums[i] + dp[i-2]) or skip it (dp[i-1])."
+      - "dp[i] stores the max robbable amount up to house i."
 
   - id: 213
     title: "House Robber II"
@@ -759,6 +1539,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [198]
+    practice_focus: "Circular DP via two-range decomposition"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Extend House Robber to circular houses by solving two subproblems: exclude first or exclude last house."
+    why_now: "Applies House Robber's DP with the circular-to-linear decomposition trick, a common DP meta-technique."
+    unlock_impact: "Teaches the range-decomposition pattern used in pizza-slices and any circular-array DP."
+    hints:
+      - "Solve House Robber on nums[0:n-1] (exclude last) and nums[1:n] (exclude first)."
+      - "Return max of both results."
 
   - id: 5
     title: "Longest Palindromic Substring"
@@ -766,6 +1554,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "2D DP for palindrome expansion"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the longest palindromic substring using expand-around-center or a 2D DP table."
+    why_now: "Extends DP to 2D substring tables, introducing the palindrome-state recurrence dp[i][j] = dp[i+1][j-1] && s[i]==s[j]."
+    unlock_impact: "Unlocks Palindromic Substrings and establishes the substring-DP template for all interval-based DP."
+    hints:
+      - "Expand around each center (odd and even length): for each i, grow while s[i-l]==s[i+l] (or i and i+1 for even)."
+      - "2D DP: iterate length from 1 to n; dp[i][j] is a palindrome if ends match and the inner substring is also one."
 
   - id: 647
     title: "Palindromic Substrings"
@@ -773,6 +1569,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [5]
+    practice_focus: "Counting palindromes via expand or 2D DP"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Count all palindromic substrings in a string using the same expansion logic as Longest Palindromic Substring."
+    why_now: "Directly extends Longest Palindromic Substring from finding the longest to counting all occurrences."
+    unlock_impact: "Reinforces the palindrome DP table pattern and shows how the same structure answers multiple query types."
+    hints:
+      - "Same expand-around-center approach: count the palindrome each time the two characters match."
+      - "For each center, expand outward and increment count for each valid palindrome found."
 
   - id: 91
     title: "Decode Ways"
@@ -780,6 +1584,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "1D DP with single/double digit conditionals"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Count ways to decode a digit string into letters (1→A, 26→Z) using dp[i] = dp[i-1] (if valid 1-digit) + dp[i-2] (if valid 2-digit)."
+    why_now: "Extends Climbing Stairs with conditional recurrence branches, showing DP with input-dependent state transitions."
+    unlock_impact: "Teaches conditional state transitions that reappear in number-of-ways Problems and string-decoding DP."
+    hints:
+      - "dp[i] = 0; if s[i-1] != '0', add dp[i-1]; if s[i-2]s[i-1] is between 10-26, add dp[i-2]."
+      - "Watch out for leading zeros ('0' alone is invalid)."
 
   - id: 322
     title: "Coin Change"
@@ -787,6 +1599,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "1D DP with min-over-choices unbounded knapsack"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the fewest coins to make a given amount using dp[amount] = min(dp[amount - coin] + 1) for each coin."
+    why_now: "Introduces unbounded knapsack DP with the min-over-choices pattern, the most common DP interview template."
+    unlock_impact: "Unlocks Coin Change II and the knapsack family (0/1, unbounded, bounded) of DP Problems."
+    hints:
+      - "dp[amount] = min(1 + dp[amount - coin]) over all coins where amount - coin >= 0."
+      - "Initialize dp[0] = 0 and all others to a large sentinel value."
 
   - id: 152
     title: "Maximum Product Subarray"
@@ -794,6 +1614,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "DP with min/max state tracking for negatives"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the maximum product contiguous subarray by tracking both max and min products due to sign flips."
+    why_now: "Extends 1D DP to require dual-state tracking because negative numbers can turn a minimum into a maximum."
+    unlock_impact: "Teaches the min/max dual-state DP pattern used in stock Problems with multiple states and sign-dependent Problems."
+    hints:
+      - "At each position, track curMax and curMin; curMax = max(num, num * prevMax, num * prevMin)."
+      - "The product of two negatives is positive, so the min could become the new max."
 
   - id: 139
     title: "Word Break"
@@ -801,6 +1629,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "1D DP with dictionary substring matching"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Determine if a string can be segmented into dictionary words using dp[i] = any(dp[j] && s[j:i] in wordSet)."
+    why_now: "Applies the 1D DP recurrence to substring checking, combining DP logic with hash-set lookups."
+    unlock_impact: "Introduces the string-segmentation DP pattern that appears in word-break II and dictionary problems."
+    hints:
+      - "dp[i] = true if there exists j < i where dp[j] is true and s[j:i] is in the word dictionary."
+      - "Optimize by iterating only over word lengths present in the dictionary, not all j values."
 
   - id: 300
     title: "Longest Increasing Subsequence"
@@ -808,6 +1644,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "1D DP or patience sorting for LIS"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the length of the longest strictly increasing subsequence using dp[i] = 1 + max(dp[j]) for j < i where nums[j] < nums[i]."
+    why_now: "Introduces the classic LIS DP recurrence and its patience-sorting optimization, a foundational DP pattern."
+    unlock_impact: "Unlocks Russian Doll Envelopes and any subsequence/sequence optimization Problems."
+    hints:
+      - "O(n²) DP: dp[i] = 1 + max(dp[j]) for all j < i with nums[j] < nums[i]."
+      - "O(n log n): maintain a tails array using binary search insertions (patience sorting)."
 
   - id: 416
     title: "Partition Equal Subset Sum"
@@ -815,6 +1659,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "0/1 knapsack DP for subset sum"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Determine if a set can be partitioned into two subsets of equal sum using subset-sum DP."
+    why_now: "Introduces 0/1 knapsack DP with the subset-sum recurrence, the most common NP-complete-in-theory but DP-in-practice problem."
+    unlock_impact: "Unlocks Target Sum and the subset-sum family, one of the most frequently asked DP categories."
+    hints:
+      - "Target = totalSum / 2; dp[i][sum] = dp[i-1][sum] || dp[i-1][sum - nums[i]]."
+      - "Optimize to 1D: dp[sum] = dp[sum] || dp[sum - num], iterating sum backwards."
 
   - id: 309
     title: "Best Time to Buy and Sell Stock with Cooldown"
@@ -822,6 +1674,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [121]
+    practice_focus: "State-machine DP with buy/sell/cooldown states"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Maximize profit with unlimited transactions and a 1-day cooldown using a state-machine DP with buy, sell, and cooldown states."
+    why_now: "Extends Best Time to Buy and Sell Stock's single-transaction to a state-machine DP for unlimited transactions."
+    unlock_impact: "Introduces the state-machine DP pattern used in buy-sell-stock III/IV and any multi-state transaction DP."
+    hints:
+      - "Define states: held (owning stock), sold (just sold), reset (ready to buy). Draw the state transition diagram."
+      - "dp[i][held] = max(dp[i-1][held], dp[i-1][reset] - prices[i]); dp[i][sold] = dp[i-1][held] + prices[i]."
 
   - id: 494
     title: "Target Sum"
@@ -829,6 +1689,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "Subset-sum DP with sign-assignment counting"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Count ways to assign + and - signs to make an expression sum to target, reduced to subset-sum counting."
+    why_now: "Applies the subset-sum DP from Partition Equal Subset Sum to a counting variant with sign-assignment reduction."
+    unlock_impact: "Deepens the subset-sum DP with counting and the sign-reduction trick (P - N = target => P = (total + target)/2)."
+    hints:
+      - "Let P be the sum of positive numbers: P - (total - P) = target, so P = (total + target) / 2."
+      - "Now it's a subset-sum counting problem: count subsets summing to P."
 
   - id: 1143
     title: "Longest Common Subsequence"
@@ -836,6 +1704,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [70]
+    practice_focus: "2D DP for string alignment/comparison"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the longest common subsequence of two strings using 2D DP: if chars match, dp[i][j] = 1 + dp[i-1][j-1]; else max(dp[i-1][j], dp[i][j-1])."
+    why_now: "Introduces 2D string-alignment DP, the foundation for sequence comparison and edit-distance Problems."
+    unlock_impact: "Unlocks Edit Distance and serves as the base pattern for diff algorithms and string similarity."
+    hints:
+      - "dp[i][j] is LCS of text1[0:i] and text2[0:j]. If chars match, extend; else take the max of skip-one from either."
+      - "The DP table dimensions are (len1+1) x (len2+1); iterate i and j from 1."
 
   - id: 72
     title: "Edit Distance"
@@ -843,6 +1719,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [1143]
+    practice_focus: "2D DP with insert/delete/replace operations"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Find the minimum edit distance between two strings using dp[i][j] = min(delete, insert, replace) depending on character match."
+    why_now: "Extends LCS from sequence-length to operation-count, introducing the three-operation DP template."
+    unlock_impact: "Completes the string-alignment DP track and teaches the edit-distance pattern used in spell-check and DNA alignment."
+    hints:
+      - "If chars match: dp[i][j] = dp[i-1][j-1]; else: 1 + min(dp[i-1][j] (delete), dp[i][j-1] (insert), dp[i-1][j-1] (replace))."
+      - "dp[i][j] is edit distance between word1[0:i] and word2[0:j]."
 
   - id: 518
     title: "Coin Change II"
@@ -850,6 +1734,14 @@ problems:
     difficulty: medium
     category: "dynamic-programming"
     prerequisites: [322]
+    practice_focus: "Unbounded knapsack DP for counting ways"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Count the number of combinations that make up a given amount using unbounded coins, iterating coins outer and amount inner."
+    why_now: "Extends Coin Change from min-coins to count-combinations, teaching the coin-in-outer-loop invariant for combinations."
+    unlock_impact: "Solidifies the knapsack DP with counting, completing the Coin Change path from optimization to counting."
+    hints:
+      - "Loop coins first, then amount from coin to target: dp[amount] += dp[amount - coin]."
+      - "The outer-loop-on-coins ensures combinations (not permutations), because each coin is considered only once."
 
   # ========== Greedy ==========
   - id: 53
@@ -858,6 +1750,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: []
+    practice_focus: "Kadane's algorithm for max subarray sum"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the contiguous subarray with the maximum sum using Kadane's algorithm: keep a running sum and reset when it becomes negative."
+    why_now: "Introduces Kadane's, the simplest yet most impactful greedy decision rule (restart when cumulative drops below zero)."
+    unlock_impact: "Unlocks Jump Game, Gas Station, and the entire greedy track by establishing the running-decision pattern."
+    hints:
+      - "Maintain curSum as the max subarray sum ending at position i; reset to 0 if curSum goes negative."
+      - "The global maximum is updated as max(globalMax, curSum) at each step."
 
   - id: 55
     title: "Jump Game"
@@ -865,6 +1765,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [53]
+    practice_focus: "Greedy reachability with running max index"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Determine if you can reach the last index by tracking the farthest reachable index at each step."
+    why_now: "Extends Kadane's running-max mindset from sums to index reachability, a natural greedy progression."
+    unlock_impact: "Unlocks Jump Game II and teaches the greedy farthest-reach pattern for interval Problems."
+    hints:
+      - "Track farthest = max(farthest, i + nums[i]) as you iterate; if i > farthest, you're stuck."
+      - "If farthest reaches the last index, return true."
 
   - id: 45
     title: "Jump Game II"
@@ -872,6 +1780,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [55]
+    practice_focus: "Greedy min-jumps with BFS-like level counting"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the minimum number of jumps to reach the last index by counting level boundaries in a greedy BFS-like scan."
+    why_now: "Extends Jump Game from boolean reachability to minimum-jumps optimization using level-boundary tracking."
+    unlock_impact: "Teaches the BFS-on-implicit-graph greedy pattern, applicable to word ladder and shortest-path-in-steps Problems."
+    hints:
+      - "Track currentEnd (boundary of current jump range); when i reaches currentEnd, increment jumps and set new end."
+      - "curFarthest = max(curFarthest, i + nums[i]) at each step determines the next boundary."
 
   - id: 134
     title: "Gas Station"
@@ -879,6 +1795,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [53]
+    practice_focus: "Greedy circular-tour with deficit tracking"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the starting gas station that completes a circuit by tracking running surplus and resetting when it goes negative."
+    why_now: "Applies Kadane's reset-on-negative pattern to a circular resource-accumulation problem."
+    unlock_impact: "Reinforces the greedy reset pattern and shows how circularity can be handled with a linear scan."
+    hints:
+      - "Track totalSurplus and currentSurplus; reset start= i+1 when currentSurplus < 0."
+      - "If totalSurplus >= 0, a valid start exists; otherwise return -1."
 
   - id: 846
     title: "Hand of Straights"
@@ -886,6 +1810,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [53]
+    practice_focus: "Greedy frequency-based group construction"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Divide cards into groups of consecutive cards using a sorted frequency map and greedy group completion."
+    why_now: "Applies the greedy smallest-first mindset to group formation, a pattern for partition-by-property Problems."
+    unlock_impact: "Teaches frequency-map + greedy-construction for group/partition Problems like array-of-doubled-pairs."
+    hints:
+      - "Sort keys and use a frequency count map; for each card, try to form a group of k consecutive cards."
+      - "Decrement frequencies greedily; if any group can't be completed, return false."
 
   - id: 1899
     title: "Merge Triplets to Form Target Triplet"
@@ -893,6 +1825,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [53]
+    practice_focus: "Greedy per-dimension feasibility check"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Determine if target triplet can be formed by merging triplets, checking each dimension against the max of eligible triplets."
+    why_now: "Applies greedy dimension-by-dimension reasoning, showing how independent per-dimension max checks prove feasibility."
+    unlock_impact: "Teaches the per-dimension greedy check pattern for coordinate-wise optimization Problems."
+    hints:
+      - "A triplet is usable only if none of its dimensions exceed the target; filter these first."
+      - "Check if the max of each dimension across eligible triplets equals the target dimension."
 
   - id: 678
     title: "Valid Parenthesis String"
@@ -900,6 +1840,14 @@ problems:
     difficulty: medium
     category: "greedy"
     prerequisites: [20]
+    practice_focus: "Greedy range-tracking with min/max balance"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Validate a string with '(' , ')' and '*' (wildcard) by tracking the possible range of open-bracket counts."
+    why_now: "Combines stack validation logic from Valid Parentheses with greedy range-tracking for unknown characters."
+    unlock_impact: "Introduces the range-tracking greedy pattern for flexible-constraint Problems with wildcards."
+    hints:
+      - "Track minOpen (treat '*' as ')') and maxOpen (treat '*' as '('); keep minOpen >= 0."
+      - "If maxOpen ever goes below 0, the string is invalid. At the end, minOpen must be 0."
 
   # ========== Intervals ==========
   - id: 56
@@ -908,6 +1856,14 @@ problems:
     difficulty: medium
     category: "intervals"
     prerequisites: []
+    practice_focus: "Sort and merge overlapping intervals"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Merge all overlapping intervals by sorting by start time and extending the current merged interval when overlap is detected."
+    why_now: "Introduces the sort-then-merge pattern, the fundamental operation for all interval Problems."
+    unlock_impact: "Unlocks Insert Interval, Non-overlapping Intervals, Meeting Rooms II, and Interval Intersections."
+    hints:
+      - "Sort by start time; iterate and merge when current.start <= previous.end."
+      - "Overlap condition: current.start <= last.end; merged end = max(last.end, current.end)."
 
   - id: 57
     title: "Insert Interval"
@@ -915,6 +1871,14 @@ problems:
     difficulty: medium
     category: "intervals"
     prerequisites: [56]
+    practice_focus: "Linear insert-into-sorted-intervals with merge"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Insert a new interval into a sorted non-overlapping list, merging as needed in a single pass."
+    why_now: "Extends Merge Intervals to real-time insertion, showing how to handle a single new element in a sorted list."
+    unlock_impact: "Reinforces the three-phase pattern (before-overlap, overlap, after-overlap) for insert-and-merge Problems."
+    hints:
+      - "Three phases: add all intervals before the new one, merge overlapping ones, then add all intervals after."
+      - "Overlap condition: new.start <= interval.end AND new.end >= interval.start."
 
   - id: 435
     title: "Non-overlapping Intervals"
@@ -922,6 +1886,14 @@ problems:
     difficulty: medium
     category: "intervals"
     prerequisites: [56]
+    practice_focus: "Greedy removal of overlapping intervals"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the minimum intervals to remove to make the rest non-overlapping by sorting by end time and greedily selecting."
+    why_now: "Applies interval sorting with a greedy selection/removal decision, distinct from pure merging."
+    unlock_impact: "Teaches the greedy-end-selection pattern that appears in activity-selection and scheduling Problems."
+    hints:
+      - "Sort by end time; keep the interval with the earliest end when conflict arises."
+      - "Track the last end time; if current.start < lastEnd, it overlaps — increment removal count."
 
   - id: 252
     title: "Meeting Rooms"
@@ -929,6 +1901,14 @@ problems:
     difficulty: easy
     category: "intervals"
     prerequisites: []
+    practice_focus: "Sort and detect any overlap"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Determine if a person can attend all meetings by sorting by start time and checking for any overlap."
+    why_now: "Introduces the simplest interval check: sort by start and verify no adjacent overlap."
+    unlock_impact: "Unlocks Meeting Rooms II and establishes the basic overlap-check template."
+    hints:
+      - "Sort by start time; if any interval's start < previous interval's end, there's a conflict."
+      - "Return true only if all are non-overlapping."
 
   - id: 253
     title: "Meeting Rooms II"
@@ -936,6 +1916,14 @@ problems:
     difficulty: medium
     category: "intervals"
     prerequisites: [252, 56]
+    practice_focus: "Min-heap for concurrent room counting"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Find the minimum number of meeting rooms needed by sorting by start and using a min-heap of end times."
+    why_now: "Combines interval sorting with heap-based end-time tracking, the classic min-resources-needed pattern."
+    unlock_impact: "Teaches the sweeping-line + min-heap pattern used for maximum-concurrency and resource-allocation Problems."
+    hints:
+      - "Sort by start time; use a min-heap of end times; push the first meeting's end."
+      - "For each meeting: if its start >= heap's min end, pop (reuse room); push its end. The heap size is the room count."
 
   - id: 986
     title: "Interval List Intersections"
@@ -943,6 +1931,14 @@ problems:
     difficulty: medium
     category: "intervals"
     prerequisites: [56]
+    practice_focus: "Two-pointer intersection computation"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Find the intersections of two lists of sorted intervals using two pointers and intersection formula."
+    why_now: "Extends Merge Intervals to computing pairwise intersections between two sorted lists."
+    unlock_impact: "Teaches the two-list two-pointer pattern that appears in array-intersection and list-comparison Problems."
+    hints:
+      - "Intersection of [a_start, a_end] and [b_start, b_end] is [max(a_start, b_start), min(a_end, b_end)] if start <= end."
+      - "Advance the pointer of whichever interval ends first."
 
   # ========== Math & Geometry ==========
   - id: 48
@@ -951,6 +1947,14 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: []
+    practice_focus: "In-place matrix rotation with four-way swap"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Rotate an NxN matrix 90 degrees clockwise in-place by swapping elements in four-way cycles."
+    why_now: "Introduces in-place matrix manipulation, combining spatial reasoning with careful index arithmetic."
+    unlock_impact: "Unlocks Spiral Matrix and establishes the 2D index-manipulation pattern for matrix Problems."
+    hints:
+      - "Rotate layer by layer: for each ring from outer to inner, swap four elements per iteration."
+      - "For position (i, j) in an n x n matrix: rotate to (j, n-1-i), then (n-1-i, n-1-j), then (n-1-j, i)."
 
   - id: 54
     title: "Spiral Matrix"
@@ -958,6 +1962,14 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: [48]
+    practice_focus: "Spiral order traversal with boundary shrinking"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Return elements of a matrix in spiral order by maintaining four boundaries (top, bottom, left, right) and shrinking inward."
+    why_now: "Extends Rotate Image's boundary-walking to a full traversal pattern with dynamic boundary management."
+    unlock_impact: "Completes the 2D traversal track and provides the template for diagonal and zigzag traversals."
+    hints:
+      - "Maintain top, bottom, left, right boundaries; traverse top row, right column, bottom row, left column in order."
+      - "After each traversal, shrink the corresponding boundary and check if boundaries have crossed."
 
   - id: 73
     title: "Set Matrix Zeroes"
@@ -965,6 +1977,14 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: []
+    practice_focus: "In-place row/col zero marking with O(1) space"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Set entire rows and columns to zero if they contain a zero, using the first row and column as markers."
+    why_now: "Introduces in-place marking using the matrix's own cells as flags, an O(1)-space optimization pattern."
+    unlock_impact: "Teaches the first-row/col-as-flag technique used in game-of-life and image-processing Problems."
+    hints:
+      - "Use the first cell of each row and column to mark whether that row/col should be zeroed."
+      - "Handle the (0,0) cell specially; use a separate flag for the first column to avoid ambiguity."
 
   - id: 202
     title: "Happy Number"
@@ -972,6 +1992,14 @@ problems:
     difficulty: easy
     category: "math-geometry"
     prerequisites: []
+    practice_focus: "Cycle detection in digit-square-sum sequence"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Determine if a number is happy by repeatedly summing squared digits and detecting cycles using Floyd's algorithm or a set."
+    why_now: "Applies Linked List Cycle's fast/slow detection to a number theory sequence, showing cross-domain cycle detection."
+    unlock_impact: "Reinforces Floyd's cycle detection in a non-pointer context, strengthening pattern-transfer skills."
+    hints:
+      - "Compute the sum of squared digits repeatedly; use a set to detect cycles."
+      - "Alternatively, use Floyd's cycle detection: slow = f(n), fast = f(f(n))."
 
   - id: 66
     title: "Plus One"
@@ -979,6 +2007,14 @@ problems:
     difficulty: easy
     category: "math-geometry"
     prerequisites: []
+    practice_focus: "Array-based digit addition with carry"
+    problem_time_estimate: "10-15 minutes"
+    summary: "Increment a large integer represented as an array of digits by one, propagating carry."
+    why_now: "Introduces array-based arithmetic with carry propagation, the simplest digit-manipulation problem."
+    unlock_impact: "Unlocks Multiply Strings and establishes the carry-propagation pattern for big-integer arithmetic."
+    hints:
+      - "Start from the least significant digit (end of array); if it's 9, set to 0 and carry to the next."
+      - "If all digits become 0, prepend a 1 to the array."
 
   - id: 50
     title: "Pow(x, n)"
@@ -986,6 +2022,14 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: []
+    practice_focus: "Binary exponentiation (fast power)"
+    problem_time_estimate: "15-20 minutes"
+    summary: "Compute x^n efficiently using binary exponentiation: repeatedly square x and halve n."
+    why_now: "Introduces binary exponentiation, the divide-and-conquer pattern for power computation in O(log n)."
+    unlock_impact: "Teaches the exponentiation-by-squaring technique used in modular arithmetic, matrix exponentiation, and DP."
+    hints:
+      - "If n is even: pow(x, n) = pow(x*x, n/2); if n is odd: pow(x, n) = x * pow(x*x, (n-1)/2)."
+      - "Handle negative n by computing 1 / pow(x, -n)."
 
   - id: 43
     title: "Multiply Strings"
@@ -993,6 +2037,14 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: [66]
+    practice_focus: "Grade-school multiplication with digit arrays"
+    problem_time_estimate: "25-35 minutes"
+    summary: "Multiply two numbers represented as strings by simulating grade-school multiplication with an array of digit products."
+    why_now: "Extends Plus One from simple addition to full multiplication, requiring multi-digit result management."
+    unlock_impact: "Completes the big-integer arithmetic track and prepares for division and factorial string Problems."
+    hints:
+      - "Create a result array of size len(num1) + len(num2); for digits i and j, result[i+j+1] += d1 * d2."
+      - "After filling, propagate carries from right to left, then convert to string skipping leading zeros."
 
   - id: 286
     title: "Walls and Gates"
@@ -1000,3 +2052,11 @@ problems:
     difficulty: medium
     category: "math-geometry"
     prerequisites: [200]
+    practice_focus: "Multi-source BFS for grid distance fill"
+    problem_time_estimate: "20-30 minutes"
+    summary: "Fill each empty room with the distance to the nearest gate using multi-source BFS from all gates simultaneously."
+    why_now: "Extends Number of Islands' grid traversal to multi-source BFS for distance computation on a grid."
+    unlock_impact: "Reinforces multi-source BFS and the matrix-fill-from-sources pattern used in shortest-path and flood-fill Problems."
+    hints:
+      - "Initialize BFS queue with all gate positions; BFS outward, setting distance = level for each visited empty room."
+      - "Walls and already-visited rooms are skipped; gates are distance 0."

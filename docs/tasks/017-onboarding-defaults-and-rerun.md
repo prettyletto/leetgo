@@ -48,7 +48,7 @@ If adding only one path, prefer the CLI command because it is discoverable in he
 Expected behavior for rerun:
 
 - Opens Onboarding with current Profile and Practice Preferences prefilled.
-- Does not delete SQLite progress, Solve Logs, XP, Streaks, or Achievements.
+- Does not delete SQLite progress, Practice Logs, XP, Streaks, or Achievements.
 - Saving Onboarding updates `config.toml` and returns to Dashboard.
 - Quitting Onboarding without completion should not corrupt the existing config.
 

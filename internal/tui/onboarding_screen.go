@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,8 +9,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/prettyletto/leetgo/internal/catalog"
 	"github.com/prettyletto/leetgo/internal/config"
+	"github.com/prettyletto/leetgo/internal/generator"
+	"github.com/prettyletto/leetgo/internal/recommendation"
 	"github.com/prettyletto/leetgo/internal/roadmap"
+	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/prettyletto/leetgo/internal/tui/views"
+	"github.com/prettyletto/leetgo/internal/workspace"
 )
 
 type onboardingStep int
@@ -20,6 +27,8 @@ const (
 	stepWorkspaceLang
 	stepRoadmapCarousel
 	stepThemeSelection
+	stepSession
+	stepCompletion
 )
 
 var onboardingTitleStyle = lipgloss.NewStyle().
@@ -89,6 +98,7 @@ type OnboardingScreen struct {
 	languages []string
 	roadmaps  []*roadmap.Roadmap
 	theme     *Theme
+	db        store.Store
 
 	displayNameInput string
 
@@ -103,9 +113,14 @@ type OnboardingScreen struct {
 	themeFocus int
 	width      int
 	height     int
+
+	sessionChoice int
+
+	nextAction     *recommendation.NextAction
+	onboardingDone bool
 }
 
-func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roadmap.Roadmap, themes ...*Theme) *OnboardingScreen {
+func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roadmap.Roadmap, db store.Store, activeRoadmap *roadmap.Roadmap, themes ...*Theme) *OnboardingScreen {
 	theme := firstTheme(themes)
 	workspaceInput := onboardingWorkspaceDefault(cfg.Workspace)
 	s := &OnboardingScreen{
@@ -114,10 +129,12 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 		languages:        languages,
 		roadmaps:         roadmaps,
 		theme:            theme,
+		db:               db,
 		displayNameInput: cfg.DisplayName,
 		workspaceInput:   workspaceInput,
 		roadmapFocus:     0,
 		themeFocus:       0,
+		sessionChoice:    1,
 		width:            100,
 		height:           30,
 	}
@@ -231,6 +248,10 @@ func (s *OnboardingScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			s.handleRoadmapKey(msg)
 		case stepThemeSelection:
 			s.handleThemeKey(msg)
+		case stepSession:
+			s.handleSessionKey(msg)
+		case stepCompletion:
+			s.handleCompletionKey(msg)
 		}
 		return s, nil
 	}
@@ -243,6 +264,8 @@ func (s *OnboardingScreen) canQuitWithQ() bool {
 		return false
 	case stepGitExport:
 		return s.gitExportChoice != 0
+	case stepCompletion:
+		return s.onboardingDone
 	default:
 		return true
 	}
@@ -305,6 +328,17 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 		s.step = stepThemeSelection
 	case stepThemeSelection:
 		s.cfg.Theme = config.ValidThemes[s.themeFocus]
+		s.cfg.ApplyDefaults()
+		s.step = stepSession
+	case stepSession:
+		s.step = stepCompletion
+		s.calculateNextAction()
+	case stepCompletion:
+		if s.onboardingDone {
+			return nil, func() tea.Msg {
+				return NavigateMsg{ScreenID: ScreenDashboard}
+			}
+		}
 		s.cfg.OnboardingComplete = true
 		s.cfg.OnboardingVersion = config.CurrentOnboardingVersion
 		if err := s.cfg.Validate(s.languages, s.roadmapIDs()); err != nil {
@@ -319,11 +353,27 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 			s.errorMsg = fmt.Sprintf("Failed to save config: %v", err)
 			return s, nil
 		}
-		return nil, func() tea.Msg {
-			return NavigateMsg{ScreenID: ScreenDashboard}
-		}
+		s.onboardingDone = true
 	}
 	return s, nil
+}
+
+func (s *OnboardingScreen) calculateNextAction() {
+	if s.db == nil {
+		return
+	}
+	rm, err := catalog.LoadRoadmap(s.cfg.Roadmap)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	calc := recommendation.NewCalculator(s.db, rm)
+	actions, err := calc.Calculate(ctx)
+	if err != nil || len(actions) == 0 {
+		return
+	}
+	a := actions[0]
+	s.nextAction = &a
 }
 
 func (s *OnboardingScreen) handleDisplayNameKey(msg tea.KeyMsg) {
@@ -421,6 +471,12 @@ func (s *OnboardingScreen) handleThemeKey(msg tea.KeyMsg) {
 		if s.themeFocus < len(config.ValidThemes)-1 {
 			s.themeFocus++
 		}
+	case "p":
+		if s.cfg.SymbolMode == "plain" {
+			s.cfg.SymbolMode = "rich"
+		} else {
+			s.cfg.SymbolMode = "plain"
+		}
 	}
 }
 
@@ -428,15 +484,19 @@ func (s *OnboardingScreen) View() string {
 	var title string
 	switch s.step {
 	case stepDisplayName:
-		title = "Step 1/5: Who are you, challenger?"
+		title = "Step 1/7: Who are you, challenger?"
 	case stepGitExport:
-		title = "Step 2/5: Git Export Backup"
+		title = "Step 2/7: Git Export Backup"
 	case stepWorkspaceLang:
-		title = "Step 3/5: Workspace & Language"
+		title = "Step 3/7: Workspace & Language"
 	case stepRoadmapCarousel:
-		title = "Step 4/5: Choose Your Roadmap"
+		title = "Step 4/7: Choose Your Roadmap"
 	case stepThemeSelection:
-		title = "Step 5/5: Pick a Theme"
+		title = "Step 5/7: Pick a Theme"
+	case stepSession:
+		title = "Step 6/7: LeetCode Session"
+	case stepCompletion:
+		title = "Step 7/7: Ready to Start"
 	}
 
 	contentWidth := s.contentWidth()
@@ -453,6 +513,10 @@ func (s *OnboardingScreen) View() string {
 		content += s.renderRoadmapCarousel()
 	case stepThemeSelection:
 		content += s.renderThemeSelection()
+	case stepSession:
+		content += s.renderSession()
+	case stepCompletion:
+		content += s.renderCompletion()
 	}
 
 	if s.errorMsg != "" {
@@ -657,7 +721,39 @@ func (s *OnboardingScreen) renderThemeSelection() string {
 		lines = append(lines, lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, wrapText(line, s.formWidth())))
 	}
 
+	lines = append(lines, "")
+	lines = append(lines, s.renderThemePreview(config.ValidThemes[s.themeFocus]))
+
 	return strings.Join(lines, "\n")
+}
+
+func (s *OnboardingScreen) renderThemePreview(themeID string) string {
+	previewTheme, err := LookupTheme(themeID)
+	if err != nil {
+		previewTheme = s.theme
+	}
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	statusLine := strings.Join([]string{
+		renderStatusPill(previewTheme, symbols, roadmap.StatusAvailable),
+		renderStatusPill(previewTheme, symbols, roadmap.StatusVerified),
+		renderStatusPill(previewTheme, symbols, roadmap.StatusLocked),
+	}, "  ")
+	progress := views.ProgressBar(3, 5, 10, "█", "░")
+	body := strings.Join([]string{
+		previewTheme.Key.Render(previewTheme.Labels.PreviewAction) + "  Start Two Sum",
+		"Why: learn complement lookup",
+		"",
+		"Status Preview",
+		statusLine,
+		"",
+		"Progress  [" + lipgloss.NewStyle().Foreground(previewTheme.XP).Render(progress) + "]",
+		"",
+		"Can you see these symbols?",
+		fmt.Sprintf("%s %s %s %s %s", symbols.Solved, symbols.Verified, symbols.Locked, symbols.XP, symbols.Review),
+		"Symbol mode: " + s.cfg.SymbolMode,
+		views.KeytipFooter(map[string]string{"p": "plain/rich", "enter": "select"}, []string{"p", "enter"}, viewPalette(previewTheme)),
+	}, "\n")
+	return lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, renderThemedPanel(previewTheme, "Theme Preview", body, false))
 }
 
 func (s *OnboardingScreen) renderFooter() string {
@@ -690,6 +786,7 @@ func (s *OnboardingScreen) renderFooter() string {
 	case stepThemeSelection:
 		items = []string{
 			s.theme.Key.Render("left/right") + " browse",
+			s.theme.Key.Render("p") + " plain/rich symbols",
 			s.theme.Key.Render("enter") + " finish",
 		}
 	}
@@ -767,4 +864,166 @@ func wrapText(text string, width int) string {
 	}
 	lines = append(lines, line)
 	return strings.Join(lines, "\n")
+}
+
+func (s *OnboardingScreen) handleSessionKey(msg tea.KeyMsg) {
+	switch msg.String() {
+	case "up", "ctrl+p", "k":
+		if s.sessionChoice > 0 {
+			s.sessionChoice--
+		}
+	case "down", "ctrl+n", "j":
+		if s.sessionChoice < 1 {
+			s.sessionChoice++
+		}
+	}
+}
+
+func (s *OnboardingScreen) handleCompletionKey(msg tea.KeyMsg) {
+	if !s.onboardingDone {
+		return
+	}
+	switch msg.String() {
+	case "up", "ctrl+p", "k":
+		if s.sessionChoice > 0 {
+			s.sessionChoice--
+		}
+	case "down", "ctrl+n", "j":
+		if s.sessionChoice < 1 {
+			s.sessionChoice++
+		}
+	case "enter":
+		if s.sessionChoice == 0 && s.nextAction != nil && s.nextAction.Kind == recommendation.KindStart {
+			s.calcAndStart()
+		} else {
+			s.sessionChoice = 1
+		}
+	}
+}
+
+func (s *OnboardingScreen) renderSession() string {
+	var content strings.Builder
+
+	content.WriteString(s.promptStyle().Render("Accepted Submissions unlock Roadmap progress and XP."))
+	content.WriteString("\n")
+	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("You can skip and use Manual Solve, but Manual Solve earns no XP."))
+	content.WriteString("\n\n")
+
+	choices := []string{"Connect now", "Skip for now"}
+	for i, choice := range choices {
+		marker := "  "
+		style := lipgloss.NewStyle()
+		if i == s.sessionChoice {
+			marker = "> "
+			style = lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true)
+		}
+		content.WriteString(style.Render(marker + choice))
+		content.WriteString("\n")
+	}
+
+	if s.errorMsg != "" {
+		content.WriteString("\n" + lipgloss.NewStyle().Foreground(s.theme.Danger).Align(lipgloss.Center).Render(s.errorMsg))
+	}
+
+	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+}
+
+func (s *OnboardingScreen) renderCompletion() string {
+	if s.onboardingDone {
+		return s.renderCompletionDone()
+	}
+
+	var content strings.Builder
+	content.WriteString(s.promptStyle().Render("You're all set!"))
+	content.WriteString("\n")
+	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render(fmt.Sprintf("Roadmap: %s", s.cfg.Roadmap)))
+	content.WriteString("\n")
+	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render(fmt.Sprintf("Language: %s", s.cfg.Language)))
+	content.WriteString("\n\n")
+
+	if s.nextAction != nil {
+		content.WriteString(s.promptStyle().Render("Recommended First Action"))
+		content.WriteString("\n")
+		label := formatActionLabel(s.nextAction.Kind)
+		content.WriteString(lipgloss.NewStyle().Bold(true).Align(lipgloss.Center).Render(fmt.Sprintf("  %s: %s", label, s.nextAction.Title)))
+		content.WriteString("\n")
+		reason := s.nextAction.Reason
+		if len(reason) > 60 {
+			reason = reason[:57] + "..."
+		}
+		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Align(lipgloss.Center).Render(fmt.Sprintf("  %s", reason)))
+	}
+
+	content.WriteString("\n\n")
+	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("Press enter to save and continue."))
+
+	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+}
+
+func (s *OnboardingScreen) renderCompletionDone() string {
+	var content strings.Builder
+
+	content.WriteString(s.promptStyle().Render("Setup complete!"))
+
+	if s.nextAction != nil {
+		content.WriteString("\n\n")
+		content.WriteString(s.promptStyle().Render(fmt.Sprintf("Recommended: %s", s.nextAction.Title)))
+		content.WriteString("\n")
+		reason := s.nextAction.Reason
+		if len(reason) > 60 {
+			reason = reason[:57] + "..."
+		}
+		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Align(lipgloss.Center).Width(s.contentWidth()).Render(reason))
+		content.WriteString("\n\n")
+
+		choices := []string{"Start now", "Go to Dashboard"}
+		for i, choice := range choices {
+			marker := "  "
+			style := lipgloss.NewStyle()
+			if i == s.sessionChoice {
+				marker = "> "
+				style = lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true)
+			}
+			content.WriteString(style.Render(marker + choice))
+			content.WriteString("\n")
+		}
+	} else {
+		content.WriteString("\n\n")
+		content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("Press enter to go to the Dashboard."))
+	}
+
+	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+}
+
+func (s *OnboardingScreen) calcAndStart() {
+	if s.nextAction == nil || s.db == nil {
+		return
+	}
+	rm, err := catalog.LoadRoadmap(s.cfg.Roadmap)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	problem, ok := rm.Graph.Problems[s.nextAction.ProblemID]
+	if !ok {
+		return
+	}
+	manager := workspace.New(s.cfg.Workspace, generator.New())
+	dir := manager.ProblemDir(problem)
+	workspace.EnsureManifestWritable(dir, problem.ID)
+	s.db.SetProgress(ctx, problem.ID, roadmap.StatusInProgress)
+	stubPath, testPath, _ := manager.Generate(problem, generator.Language(s.cfg.Language))
+	stage := problem.Stage
+	if stage == "" {
+		stage = string(problem.Category)
+	}
+	workspace.WriteManifest(dir, &workspace.Manifest{
+		ProblemID:     problem.ID,
+		Slug:          problem.Slug,
+		Roadmap:       s.cfg.Roadmap,
+		Stage:         stage,
+		Language:      s.cfg.Language,
+		StubPath:      filepath.Base(stubPath),
+		TestsuitePath: filepath.Base(testPath),
+	})
 }

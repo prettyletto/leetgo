@@ -53,6 +53,65 @@ func TestProblemDetail_ViewShowsTitle(t *testing.T) {
 	assert.Contains(t, view, "#1 Two Sum")
 }
 
+func TestProblemDetail_RPGSkillTileLabels(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.width = 120
+
+	view := pd.View()
+	assert.Contains(t, view, "Skill Tile")
+	assert.Contains(t, view, "Status Tile")
+	assert.Contains(t, view, "Training Notes")
+	assert.Contains(t, view, "Training Files")
+}
+
+func TestProblemDetail_VerifiedMakesSubmitPrimary(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusVerified
+	pd.width = 120
+
+	view := pd.View()
+	assert.Contains(t, view, "Primary: Submit")
+	assert.Contains(t, view, "Manual Solve")
+	assert.Contains(t, view, "enter submit (primary)")
+}
+
+func TestProblemDetail_MotionOffUsesStaticSubmittingText(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.cfg.MotionPreference = "off"
+	pd.submitting = true
+	pd.width = 120
+
+	view := pd.View()
+	assert.Contains(t, view, "Submitting to LeetCode")
+	assert.NotContains(t, view, "⣾")
+	assert.False(t, pd.allowsSpinnerMotion())
+}
+
+func TestProblemDetail_CleanThemeLabels(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.cfg.Theme = "clean-productivity"
+	theme, err := LookupTheme(pd.cfg.Theme)
+	require.NoError(t, err)
+	pd.theme = theme
+	pd.width = 120
+
+	view := pd.View()
+	assert.Contains(t, view, "Problem Detail")
+	assert.Contains(t, view, "Problem Brief")
+	assert.Contains(t, view, "Files")
+	assert.NotContains(t, view, "Skill Tile")
+}
+
+func TestProblemDetail_PlainSymbolsPreserveStatusMeaning(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.cfg.SymbolMode = "plain"
+	pd.width = 120
+
+	view := pd.View()
+	assert.Contains(t, view, "[READY]")
+	assert.NotContains(t, view, "◆")
+}
+
 func TestProblemDetail_ViewShowsDifficultyCategory(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 	pd.width = 120
@@ -107,7 +166,7 @@ func TestProblemDetail_ViewShowsBlockers(t *testing.T) {
 	assert.Contains(t, view, "LOCKED")
 }
 
-func TestProblemDetail_VerifiedPrerequisitesAreNotBlockers(t *testing.T) {
+func TestProblemDetail_VerifiedPrerequisitesAreBlockers(t *testing.T) {
 	pd, db := newTestProblemDetail(t, 15)
 	ctx := context.Background()
 
@@ -116,12 +175,11 @@ func TestProblemDetail_VerifiedPrerequisitesAreNotBlockers(t *testing.T) {
 	pd.width = 120
 
 	missing := pd.missingPrerequisites()
-	assert.NotContains(t, missing, "#1 Two Sum")
+	assert.Contains(t, missing, "#1 Two Sum")
 	assert.Contains(t, missing, "#167 Two Sum II")
 
 	view := pd.View()
 	assert.Contains(t, view, "Blocked by")
-	assert.Contains(t, view, "#167 Two Sum II")
 }
 
 func TestProblemDetail_ViewShowsFilePaths(t *testing.T) {
@@ -245,14 +303,64 @@ func TestProblemDetail_MarkSolved(t *testing.T) {
 	assert.Equal(t, "SOLVE", pd.manualSolveInput)
 
 	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.Equal(t, "note", pd.manualSolvePhase)
+
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	assert.False(t, pd.manualSolveMode)
 	assert.Equal(t, roadmap.StatusSolved, pd.status)
 	assert.Contains(t, pd.errorMsg, "Manually marked Solved")
+	assert.Contains(t, pd.errorMsg, "Reward")
 	assert.Contains(t, pd.errorMsg, "No XP awarded")
 	stats, err := pd.db.GetStats(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, initialXP.TotalXP, stats.TotalXP)
+
+	sp, err := pd.db.GetSolveProvenance(context.Background(), 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "manual", sp.Kind)
+}
+
+func TestProblemDetail_AcceptedSolveRewardMoment(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusVerified
+
+	pd.handleSubmitResult(submitResultMsg{
+		problemID: 1,
+		slug:      "two-sum",
+		language:  "golang",
+		result: &leetcode.SubmissionResult{
+			Status:      "Accepted",
+			StatusCode:  10,
+			Runtime:     "1 ms",
+			Memory:      "2 MB",
+			PassedTests: 63,
+			TotalTests:  63,
+		},
+		duration: 2 * time.Second,
+	})
+
+	assert.Equal(t, roadmap.StatusSolved, pd.status)
+	assert.Contains(t, pd.errorMsg, "Problem Solved")
+	assert.Contains(t, pd.errorMsg, "Accepted by LeetCode")
+	assert.Contains(t, pd.errorMsg, "Duration: 2s")
+	assert.Contains(t, pd.errorMsg, "Actions")
+}
+
+func TestProblemDetail_ReviewCompletionRewardMoment(t *testing.T) {
+	pd, db := newTestProblemDetail(t, 1)
+	ctx := context.Background()
+	pd.status = roadmap.StatusSolved
+	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
+
+	_, cmd := pd.handleTestRunResult(testRunResultMsg{problemID: 1, difficulty: roadmap.DifficultyEasy, output: "ok", passed: true, duration: time.Second})
+	require.NotNil(t, cmd)
+	notif, ok := cmd().(GlobalNotificationMsg)
+	require.True(t, ok)
+	assert.Contains(t, notif.Message, "Review Complete")
+	assert.Contains(t, notif.Message, "Tests passed")
+	assert.Contains(t, notif.Message, "+5 XP")
 }
 
 func TestProblemDetail_DoubleMarkSolved(t *testing.T) {
@@ -309,7 +417,7 @@ func TestProblemDetail_ManualSolveViewShowsPrompt(t *testing.T) {
 	pd.handleMarkSolved()
 	view := pd.View()
 
-	assert.Contains(t, view, "Manual Solve bypasses verification")
+	assert.Contains(t, view, "will not earn XP unless LeetCode accepts")
 	assert.Contains(t, view, "Type SOLVE to confirm")
 	assert.Contains(t, view, "esc")
 }
@@ -589,10 +697,11 @@ func TestProblemDetail_SubmitResultError(t *testing.T) {
 	assert.Contains(t, pd2.errorMsg, "Submit failed")
 }
 
-func TestProblemDetail_ViewShowsSolveLogs(t *testing.T) {
-	pd, _ := newTestProblemDetail(t, 1)
+func TestProblemDetail_ViewShowsPracticeLog(t *testing.T) {
+	pd, db := newTestProblemDetail(t, 1)
+	ctx := context.Background()
 	solveAt := time.Now().Add(-1 * time.Hour)
-	solveLog := &store.SolveLogRecord{
+	require.NoError(t, db.RecordSolveLog(ctx, &store.SolveLogRecord{
 		ProblemID:   1,
 		Slug:        "two-sum",
 		Language:    "golang",
@@ -603,13 +712,11 @@ func TestProblemDetail_ViewShowsSolveLogs(t *testing.T) {
 		TotalTests:  63,
 		PassedTests: 63,
 		SubmittedAt: solveAt,
-	}
-	pd.solveLogs = []*store.SolveLogRecord{solveLog}
+	}))
 	pd.width = 120
 
 	view := pd.View()
-	assert.Contains(t, view, "Solve Log")
-	assert.Contains(t, view, "Accepted")
+	assert.Contains(t, view, "Practice Log")
 }
 
 func TestProblemDetail_SpinnerWhileSubmitting(t *testing.T) {
@@ -858,7 +965,7 @@ func TestProblemDetail_TestRunResultSolvedWithoutRewardDoesNotDowngrade(t *testi
 	notifMsg := cmd()
 	notif, ok := notifMsg.(GlobalNotificationMsg)
 	require.True(t, ok)
-	assert.Contains(t, notif.Message, "already claimed")
+	assert.Contains(t, notif.Message, "Tests passed")
 
 	hasVerify, err := pd2.db.HasRewardEvent(ctx, 1, "verify")
 	require.NoError(t, err)
@@ -930,4 +1037,271 @@ func TestProblemDetail_TestRunResultFailDoesNotChangeStatus(t *testing.T) {
 	if initialXP != nil {
 		assert.Equal(t, initialXP.TotalXP, stats.TotalXP)
 	}
+}
+
+func TestProblemDetail_SubmitLocalTestFailureStopsBeforeSubmission(t *testing.T) {
+	ctx := context.Background()
+	pd, db := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+
+	msg := submitResultMsg{
+		problemID:       1,
+		slug:            "two-sum",
+		language:        "golang",
+		err:             assert.AnError,
+		localTestRan:    true,
+		localTestPassed: false,
+		localTestOutput: "FAIL",
+	}
+
+	sc, cmd := pd.Update(msg)
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	require.NotNil(t, cmd)
+	assert.Equal(t, roadmap.StatusInProgress, pd2.status)
+	assert.Contains(t, pd2.errorMsg, "Local TestSuite failed")
+	assert.True(t, pd2.submitAnywayMode)
+
+	logs, err := db.GetSolveLogsForProblem(ctx, 1)
+	require.NoError(t, err)
+	assert.Empty(t, logs, "local test failure should not create a Submission Practice Log entry")
+
+	attempts, err := db.GetAttempts(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, attempts, 1)
+	assert.False(t, attempts[0].Passed)
+}
+
+func TestProblemDetail_SubmitAnywayConfirmationRenders(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.submitAnywayMode = true
+	pd.submitAnywayInput = "SUB"
+
+	view := pd.View()
+	assert.Contains(t, view, "Submit Anyway")
+	assert.Contains(t, view, "Local TestSuite failed")
+	assert.Contains(t, view, "SUB")
+}
+
+func TestProblemDetail_SubmitAnywayEscCancels(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.submitAnywayMode = true
+	pd.submitAnywayInput = "SUBMIT"
+
+	sc, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	assert.Nil(t, cmd)
+	assert.False(t, pd2.submitAnywayMode)
+	assert.Empty(t, pd2.submitAnywayInput)
+	assert.Contains(t, pd2.errorMsg, "cancelled")
+}
+
+func TestProblemDetail_SubmitAnywayRequiresTypedConfirmation(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.submitAnywayMode = true
+	pd.submitAnywayInput = "NOPE"
+
+	sc, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	assert.Nil(t, cmd)
+	assert.True(t, pd2.submitAnywayMode)
+}
+
+func TestProblemDetail_ManualSolveWithNote(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+
+	pd.handleMarkSolved()
+	assert.True(t, pd.manualSolveMode)
+	assert.Equal(t, "", pd.manualSolvePhase)
+
+	for _, r := range "SOLVE" {
+		pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.Equal(t, "note", pd.manualSolvePhase)
+
+	noteText := "Solved in browser"
+	for _, r := range noteText {
+		pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	assert.Equal(t, noteText, pd.manualSolveNote)
+
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.False(t, pd.manualSolveMode)
+	assert.Equal(t, roadmap.StatusSolved, pd.status)
+
+	sp, err := pd.db.GetSolveProvenance(context.Background(), 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "manual", sp.Kind)
+	assert.Equal(t, noteText, sp.Note)
+}
+
+func TestProblemDetail_ManualSolveNotePhaseView(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.width = 80
+
+	pd.handleMarkSolved()
+	for _, r := range "SOLVE" {
+		pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.Equal(t, "note", pd.manualSolvePhase)
+
+	view := pd.View()
+	assert.Contains(t, view, "Optional note")
+	assert.Contains(t, view, "enter")
+}
+
+func TestProblemDetail_ManualSolveNoteEscCancels(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+
+	pd.handleMarkSolved()
+	for _, r := range "SOLVE" {
+		pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.Equal(t, "note", pd.manualSolvePhase)
+
+	pd.handleManualSolveKey(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.False(t, pd.manualSolveMode)
+	assert.Equal(t, "", pd.manualSolvePhase)
+}
+
+func TestProblemDetail_ManualSolveNoteBackspace(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+
+	pd.handleMarkSolved()
+	for _, r := range "SOLVE" {
+		pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	pd.manualSolveNote = "abc"
+	pd.handleManualSolveKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	assert.Equal(t, "ab", pd.manualSolveNote)
+}
+
+func TestProblemDetail_SubmitAcceptedRecordsProvenance(t *testing.T) {
+	ctx := context.Background()
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusVerified
+
+	sd := submitResultMsg{
+		problemID: 1,
+		slug:      "two-sum",
+		language:  "golang",
+		result: &leetcode.SubmissionResult{
+			Status:      "Accepted",
+			StatusCode:  10,
+			Runtime:     "1 ms",
+			Memory:      "2 MB",
+			TotalTests:  63,
+			PassedTests: 63,
+		},
+	}
+
+	sc, _ := pd.Update(sd)
+	pd2, _ := sc.(*ProblemDetailScreen)
+
+	assert.Equal(t, roadmap.StatusSolved, pd2.status)
+
+	sp, err := pd2.db.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "accepted", sp.Kind)
+	assert.NotNil(t, sp.SolveLogID)
+}
+
+func TestProblemDetail_AcceptedUpgradesManualSolve(t *testing.T) {
+	ctx := context.Background()
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusSolved
+
+	require.NoError(t, pd.db.RecordSolveProvenance(ctx, &store.SolveProvenance{
+		ProblemID: 1,
+		Kind:      "manual",
+		Note:      "temp solve",
+	}))
+
+	sd := submitResultMsg{
+		problemID: 1,
+		slug:      "two-sum",
+		language:  "golang",
+		result: &leetcode.SubmissionResult{
+			Status:      "Accepted",
+			StatusCode:  10,
+			Runtime:     "1 ms",
+			Memory:      "2 MB",
+			TotalTests:  63,
+			PassedTests: 63,
+		},
+	}
+
+	sc, _ := pd.Update(sd)
+	pd2, _ := sc.(*ProblemDetailScreen)
+
+	assert.Equal(t, roadmap.StatusSolved, pd2.status)
+
+	sp, err := pd2.db.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "accepted", sp.Kind)
+	assert.Equal(t, "temp solve", sp.Note)
+}
+
+func TestProblemDetail_BuildPracticeLog(t *testing.T) {
+	pd, db := newTestProblemDetail(t, 1)
+	ctx := context.Background()
+
+	require.NoError(t, db.RecordAttempt(ctx, &store.AttemptRecord{
+		ProblemID: 1,
+		Timestamp: time.Now().Add(-2 * time.Hour),
+		Duration:  5 * time.Minute,
+		Passed:    false,
+	}))
+	require.NoError(t, db.RecordAttempt(ctx, &store.AttemptRecord{
+		ProblemID: 1,
+		Timestamp: time.Now().Add(-1 * time.Hour),
+		Duration:  3 * time.Minute,
+		Passed:    true,
+	}))
+	require.NoError(t, db.RecordSolveLog(ctx, &store.SolveLogRecord{
+		ProblemID:   1,
+		Slug:        "two-sum",
+		Language:    "golang",
+		Status:      "Accepted",
+		StatusCode:  10,
+		Runtime:     "1 ms",
+		Memory:      "2 MB",
+		TotalTests:  63,
+		PassedTests: 63,
+		SubmittedAt: time.Now(),
+	}))
+	require.NoError(t, db.RecordSolveProvenance(ctx, &store.SolveProvenance{
+		ProblemID: 1,
+		Kind:      "accepted",
+	}))
+
+	entries := BuildPracticeLog(db, 1)
+	assert.NotEmpty(t, entries)
+
+	hasAcceptedSolve := false
+	hasLocalAttempt := false
+	for _, e := range entries {
+		if e.Kind == "Accepted Solve" {
+			hasAcceptedSolve = true
+		}
+		if e.Kind == "Local Attempt passed" || e.Kind == "Local Attempt failed" {
+			hasLocalAttempt = true
+		}
+	}
+	assert.True(t, hasAcceptedSolve, "practice log should include accepted solve entry")
+	assert.True(t, hasLocalAttempt, "practice log should include local attempt entries")
+
+	pd.width = 120
+	view := pd.View()
+	assert.Contains(t, view, "Practice Log")
 }

@@ -14,8 +14,10 @@ import (
 	"github.com/prettyletto/leetgo/internal/config"
 	"github.com/prettyletto/leetgo/internal/generator"
 	"github.com/prettyletto/leetgo/internal/leetcode"
+	"github.com/prettyletto/leetgo/internal/recommendation"
 	"github.com/prettyletto/leetgo/internal/roadmap"
 	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/prettyletto/leetgo/internal/tui/views"
 	"github.com/prettyletto/leetgo/internal/workspace"
 )
 
@@ -38,6 +40,11 @@ type ProblemDetailScreen struct {
 
 	manualSolveMode  bool
 	manualSolveInput string
+	manualSolveNote  string
+	manualSolvePhase string // "" = confirm code, "note" = optional note
+
+	submitAnywayMode  bool
+	submitAnywayInput string
 
 	width  int
 	height int
@@ -108,7 +115,7 @@ func (s *ProblemDetailScreen) effectiveStatus() {
 	}
 
 	for _, prereq := range s.problem.Prerequisites {
-		if progress[prereq] != roadmap.StatusSolved && progress[prereq] != roadmap.StatusVerified {
+		if progress[prereq] != roadmap.StatusSolved {
 			s.status = roadmap.StatusLocked
 			return
 		}
@@ -132,7 +139,7 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s.handleTestRunResult(msg)
 
 	case spinnerTickMsg:
-		if s.submitting {
+		if s.submitting && s.allowsSpinnerMotion() {
 			s.spinnerFrame = (s.spinnerFrame + 1) % len(spinnerFrames)
 			return s, spinnerTickCmd()
 		}
@@ -144,6 +151,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		if s.submitAnywayMode {
+			return s.handleSubmitAnywayKey(msg)
+		}
 		if s.manualSolveMode {
 			return s.handleManualSolveKey(msg)
 		}
@@ -294,7 +304,9 @@ func (s *ProblemDetailScreen) handleRunTests() (Screen, tea.Cmd) {
 	problemID := s.problem.ID
 	cmd := s.testCommand()
 	return s, func() tea.Msg {
+		startedAt := time.Now()
 		output, err := cmd.CombinedOutput()
+		duration := time.Since(startedAt)
 		result := strings.TrimSpace(string(output))
 		passed := err == nil
 		if err != nil {
@@ -305,11 +317,16 @@ func (s *ProblemDetailScreen) handleRunTests() (Screen, tea.Cmd) {
 			difficulty: difficulty,
 			output:     result,
 			passed:     passed,
+			duration:   duration,
 		}
 	}
 }
 
 func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
+	return s.handleSubmitWithLocalTests(true)
+}
+
+func (s *ProblemDetailScreen) handleSubmitWithLocalTests(runLocalTests bool) (Screen, tea.Cmd) {
 	if s.status != roadmap.StatusInProgress && s.status != roadmap.StatusVerified && s.status != roadmap.StatusSolved {
 		s.errorMsg = "Start the problem first."
 		return s, nil
@@ -321,30 +338,108 @@ func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
 	}
 
 	stubPath, _ := s.stubPaths()
-	code, err := os.ReadFile(stubPath)
-	if err != nil {
-		s.errorMsg = fmt.Sprintf("Could not read solution file: %v", err)
-		return s, nil
-	}
 
 	s.submitting = true
-	s.errorMsg = "Submitting to LeetCode..."
+	if runLocalTests {
+		s.errorMsg = "Running local TestSuite before Submission..."
+	} else {
+		s.errorMsg = "Submitting to LeetCode without local TestSuite..."
+	}
+	s.submitAnywayMode = false
+	s.submitAnywayInput = ""
 
 	lang := leetcodeLang(s.cfg.Language)
 	slug := s.problem.Slug
 	client := s.leetcode
+	var testCmd *exec.Cmd
+	if runLocalTests {
+		testCmd = s.testCommand()
+	}
 
-	return s, tea.Batch(
-		spinnerTickCmd(),
+	cmds := []tea.Cmd{
 		func() tea.Msg {
+			var localOutput string
+			var localDuration time.Duration
+			if runLocalTests {
+				localStartedAt := time.Now()
+				output, testErr := testCmd.CombinedOutput()
+				localDuration = time.Since(localStartedAt)
+				localOutput = strings.TrimSpace(string(output))
+				if testErr != nil {
+					if localOutput != "" {
+						localOutput += "\n"
+					}
+					localOutput += fmt.Sprintf("TestSuite error: %v", testErr)
+					return submitResultMsg{
+						problemID:         s.problem.ID,
+						slug:              slug,
+						language:          lang,
+						err:               testErr,
+						localTestRan:      true,
+						localTestPassed:   false,
+						localTestOutput:   localOutput,
+						localTestDuration: localDuration,
+					}
+				}
+			}
+
+			code, err := os.ReadFile(stubPath)
+			if err != nil {
+				return submitResultMsg{
+					problemID:         s.problem.ID,
+					slug:              slug,
+					language:          lang,
+					err:               err,
+					localTestRan:      runLocalTests,
+					localTestPassed:   runLocalTests,
+					localTestOutput:   localOutput,
+					localTestDuration: localDuration,
+				}
+			}
+			startedAt := time.Now()
 			result, err := client.Submit(context.Background(), s.problem.ID, slug, lang, string(code))
-			return submitResultMsg{problemID: s.problem.ID, slug: slug, language: lang, result: result, err: err}
+			return submitResultMsg{
+				problemID:         s.problem.ID,
+				slug:              slug,
+				language:          lang,
+				result:            result,
+				err:               err,
+				duration:          time.Since(startedAt),
+				localTestRan:      runLocalTests,
+				localTestPassed:   runLocalTests,
+				localTestOutput:   localOutput,
+				localTestDuration: localDuration,
+			}
 		},
-	)
+	}
+	if s.allowsSpinnerMotion() {
+		cmds = append([]tea.Cmd{spinnerTickCmd()}, cmds...)
+	}
+	return s, tea.Batch(cmds...)
+}
+
+func (s *ProblemDetailScreen) allowsSpinnerMotion() bool {
+	return s.cfg.MotionPreference != "off"
 }
 
 func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, tea.Cmd) {
 	s.submitting = false
+	if msg.localTestRan {
+		s.recordSubmitLocalAttempt(msg)
+		if !msg.localTestPassed {
+			s.errorMsg = "Local TestSuite failed. Fix your solution before Submission, or type SUBMIT to submit anyway."
+			s.submitAnywayMode = true
+			s.submitAnywayInput = ""
+			if msg.localTestOutput != "" {
+				return s, func() tea.Msg { return GlobalNotificationMsg{Message: msg.localTestOutput} }
+			}
+			return s, nil
+		}
+		if err := s.markVerifiedFromSubmitPrecheck(msg); err != nil {
+			s.errorMsg = err.Error()
+			return s, nil
+		}
+	}
 
 	if msg.err != nil {
 		s.errorMsg = fmt.Sprintf("Submit failed: %v", msg.err)
@@ -354,7 +449,7 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 	s.recordSolveLog(msg)
 
 	if msg.result.StatusCode == 10 {
-		s.markAcceptedSubmission(msg.problemID)
+		s.markAcceptedSubmission(msg.problemID, msg.duration)
 		if s.errorMsg == "" {
 			s.errorMsg = acceptedMessage(msg.result)
 		}
@@ -366,6 +461,71 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 	}
 
 	return s, nil
+}
+
+func (s *ProblemDetailScreen) handleSubmitAnywayKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		s.submitAnywayMode = false
+		s.submitAnywayInput = ""
+		s.errorMsg = "Submit anyway cancelled."
+		return s, nil
+	case tea.KeyEnter:
+		if s.submitAnywayInput == "SUBMIT" {
+			return s.handleSubmitWithLocalTests(false)
+		}
+		return s, nil
+	case tea.KeyBackspace:
+		if len(s.submitAnywayInput) > 0 {
+			s.submitAnywayInput = s.submitAnywayInput[:len(s.submitAnywayInput)-1]
+		}
+		return s, nil
+	case tea.KeyRunes:
+		s.submitAnywayInput += string(msg.Runes)
+		return s, nil
+	default:
+		return s, nil
+	}
+}
+
+func (s *ProblemDetailScreen) recordSubmitLocalAttempt(msg submitResultMsg) {
+	duration := msg.localTestDuration
+	if duration < 0 {
+		duration = 0
+	}
+	_ = s.db.RecordAttempt(context.Background(), &store.AttemptRecord{
+		ProblemID: msg.problemID,
+		Timestamp: time.Now().Add(-duration),
+		Duration:  duration,
+		Passed:    msg.localTestPassed,
+	})
+}
+
+func (s *ProblemDetailScreen) markVerifiedFromSubmitPrecheck(msg submitResultMsg) error {
+	ctx := context.Background()
+	if s.status == roadmap.StatusSolved {
+		return nil
+	}
+	claimed, err := s.db.HasRewardEvent(ctx, msg.problemID, "verify")
+	if err != nil {
+		return fmt.Errorf("failed to check verify reward: %w", err)
+	}
+	if !claimed {
+		xp := store.XPForDifficulty(s.problem.Difficulty) * 70 / 100
+		if xp > 0 {
+			if err := s.db.AddXP(ctx, xp); err != nil {
+				return fmt.Errorf("failed to add verify XP: %w", err)
+			}
+		}
+		if err := s.db.RecordRewardEvent(ctx, &store.RewardEvent{ProblemID: msg.problemID, Kind: "verify", XP: xp}); err != nil {
+			return fmt.Errorf("failed to record verify reward: %w", err)
+		}
+	}
+	if err := s.db.SetProgress(ctx, msg.problemID, roadmap.StatusVerified); err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
+	}
+	s.status = roadmap.StatusVerified
+	return nil
 }
 
 func acceptedMessage(result *leetcode.SubmissionResult) string {
@@ -380,20 +540,26 @@ func acceptedMessage(result *leetcode.SubmissionResult) string {
 }
 
 func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen, tea.Cmd) {
+	ctx := context.Background()
+	s.recordLocalAttempt(ctx, msg)
+
 	if !msg.passed {
 		return s, func() tea.Msg {
 			return GlobalNotificationMsg{Message: msg.output}
 		}
 	}
 
-	if s.status == roadmap.StatusVerified || s.status == roadmap.StatusSolved {
+	if s.status == roadmap.StatusSolved {
+		return s.handleReviewTestPass(ctx, msg)
+	}
+
+	if s.status == roadmap.StatusVerified {
 		return s, func() tea.Msg {
 			result := msg.output + "\n\nTests passed. Reward already claimed."
 			return GlobalNotificationMsg{Message: result}
 		}
 	}
 
-	ctx := context.Background()
 	alreadyClaimed, err := s.db.HasRewardEvent(ctx, msg.problemID, "verify")
 	if err != nil {
 		s.errorMsg = fmt.Sprintf("Failed to check verify reward: %v", err)
@@ -445,10 +611,83 @@ func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen,
 	}
 }
 
+func (s *ProblemDetailScreen) recordLocalAttempt(ctx context.Context, msg testRunResultMsg) {
+	duration := msg.duration
+	if duration < 0 {
+		duration = 0
+	}
+	_ = s.db.RecordAttempt(ctx, &store.AttemptRecord{
+		ProblemID: msg.problemID,
+		Timestamp: time.Now().Add(-duration),
+		Duration:  duration,
+		Passed:    msg.passed,
+	})
+}
+
+func (s *ProblemDetailScreen) handleReviewTestPass(ctx context.Context, msg testRunResultMsg) (Screen, tea.Cmd) {
+	cycles, err := s.db.GetReviewCyclesForProblem(ctx, msg.problemID)
+	if err != nil || len(cycles) == 0 {
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: msg.output + "\n\nTests passed."}
+		}
+	}
+
+	var completedCount int
+	var rewardedXP int
+	for _, rc := range cycles {
+		if rc.CompletedAt != nil {
+			continue
+		}
+		if err := s.db.CompleteReviewCycle(ctx, rc.ID); err != nil {
+			continue
+		}
+		completedCount++
+
+		if rc.RewardedAt != nil {
+			continue
+		}
+		reviewXP := 5
+		if err := s.db.AddXP(ctx, reviewXP); err != nil {
+			continue
+		}
+		rewardedXP += reviewXP
+		if err := s.db.RewardReviewCycle(ctx, rc.ID); err != nil {
+			continue
+		}
+	}
+
+	if completedCount == 0 {
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: msg.output + "\n\nTests passed. Review already completed."}
+		}
+	}
+
+	result := views.RenderRewardMoment(views.RewardMoment{
+		Title:   "Review Complete",
+		Subject: fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title),
+		XP:      rewardedXP,
+		Reward:  fmt.Sprintf("Tests passed. %d Review Cycle(s) completed", completedCount),
+		Next:    s.nextRecommendationTitle(ctx),
+		Actions: []string{"enter open", "x run tests", "s submit"},
+	}, viewPalette(s.theme))
+	if msg.output != "" {
+		result = msg.output + "\n\n" + result
+	}
+	return s, func() tea.Msg {
+		return GlobalNotificationMsg{Message: result}
+	}
+}
+
 func (s *ProblemDetailScreen) recordSolveLog(msg submitResultMsg) {
 	if msg.result == nil {
 		return
 	}
+	_ = s.db.RecordAttempt(context.Background(), &store.AttemptRecord{
+		ProblemID: msg.problemID,
+		Timestamp: time.Now().Add(-msg.duration),
+		Duration:  msg.duration,
+		Passed:    msg.result.StatusCode == 10,
+	})
 	log := &store.SolveLogRecord{
 		ProblemID:   msg.problemID,
 		Slug:        msg.slug,
@@ -467,7 +706,7 @@ func (s *ProblemDetailScreen) recordSolveLog(msg submitResultMsg) {
 	}
 }
 
-func (s *ProblemDetailScreen) markAcceptedSubmission(problemID int) {
+func (s *ProblemDetailScreen) markAcceptedSubmission(problemID int, duration time.Duration) {
 	ctx := context.Background()
 
 	alreadyClaimed, err := s.db.HasRewardEvent(ctx, problemID, "submit")
@@ -480,8 +719,18 @@ func (s *ProblemDetailScreen) markAcceptedSubmission(problemID int) {
 	}
 	s.status = roadmap.StatusSolved
 
+	s.recordAcceptedProvenance(ctx, problemID)
+
 	if alreadyClaimed {
-		s.errorMsg = "Accepted by LeetCode. Reward already claimed."
+		s.errorMsg = views.RenderRewardMoment(views.RewardMoment{
+			Title:    "Problem Solved",
+			Subject:  fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title),
+			Reward:   "Accepted by LeetCode. Reward already claimed.",
+			Duration: duration,
+			Next:     s.nextRecommendationTitle(ctx),
+			Reason:   "Accepted Solve is trusted completion.",
+			Actions:  []string{"esc back", "s practice log"},
+		}, viewPalette(s.theme))
 		return
 	}
 
@@ -528,7 +777,57 @@ func (s *ProblemDetailScreen) markAcceptedSubmission(problemID int) {
 	if err := s.db.UpdateStreak(ctx); err != nil {
 		return
 	}
-	s.errorMsg = fmt.Sprintf("Accepted by LeetCode. +%d XP.", totalXP)
+	s.errorMsg = views.RenderRewardMoment(views.RewardMoment{
+		Title:    "Problem Solved",
+		Subject:  fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title),
+		XP:       totalXP,
+		Reward:   "Accepted by LeetCode",
+		Duration: duration,
+		Unlocked: s.directUnlockLabels(),
+		Next:     s.nextRecommendationTitle(ctx),
+		Reason:   "Accepted Solve unlocks dependent Problems and counts toward Roadmap completion.",
+		Actions:  []string{"esc back", "s practice log", "r roadmap"},
+	}, viewPalette(s.theme))
+}
+
+func (s *ProblemDetailScreen) recordAcceptedProvenance(ctx context.Context, problemID int) {
+	sp, err := s.db.GetSolveProvenance(ctx, problemID)
+	if err != nil {
+		return
+	}
+
+	logs, err := s.db.GetSolveLogsForProblem(ctx, problemID)
+	var logID *int
+	if err == nil && len(logs) > 0 {
+		latestAccepted := -1
+		for _, l := range logs {
+			if l.StatusCode == 10 && l.ID > latestAccepted {
+				latestAccepted = l.ID
+			}
+		}
+		if latestAccepted > 0 {
+			logID = &latestAccepted
+		}
+	}
+
+	if sp != nil && sp.Kind == "manual" {
+		if err := s.db.RecordSolveProvenance(ctx, &store.SolveProvenance{
+			ProblemID:  problemID,
+			Kind:       "accepted",
+			Note:       sp.Note,
+			SolveLogID: logID,
+		}); err != nil {
+			return
+		}
+	} else {
+		if err := s.db.RecordSolveProvenance(ctx, &store.SolveProvenance{
+			ProblemID:  problemID,
+			Kind:       "accepted",
+			SolveLogID: logID,
+		}); err != nil {
+			return
+		}
+	}
 }
 
 func (s *ProblemDetailScreen) handleMarkSolved() (Screen, tea.Cmd) {
@@ -543,21 +842,51 @@ func (s *ProblemDetailScreen) handleMarkSolved() (Screen, tea.Cmd) {
 
 	s.manualSolveMode = true
 	s.manualSolveInput = ""
+	s.manualSolveNote = ""
+	s.manualSolvePhase = ""
 	s.errorMsg = ""
 
 	return s, nil
 }
 
 func (s *ProblemDetailScreen) handleManualSolveKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	if s.manualSolvePhase == "note" {
+		switch msg.Type {
+		case tea.KeyEsc:
+			s.manualSolveMode = false
+			s.manualSolveInput = ""
+			s.manualSolveNote = ""
+			s.manualSolvePhase = ""
+			return s, nil
+
+		case tea.KeyEnter:
+			s.confirmManualSolve()
+			return s, nil
+
+		case tea.KeyBackspace:
+			if len(s.manualSolveNote) > 0 {
+				s.manualSolveNote = s.manualSolveNote[:len(s.manualSolveNote)-1]
+			}
+			return s, nil
+
+		case tea.KeyRunes:
+			s.manualSolveNote += string(msg.Runes)
+			return s, nil
+		}
+		return s, nil
+	}
+
 	switch msg.Type {
 	case tea.KeyEsc:
 		s.manualSolveMode = false
 		s.manualSolveInput = ""
+		s.manualSolveNote = ""
+		s.manualSolvePhase = ""
 		return s, nil
 
 	case tea.KeyEnter:
 		if s.manualSolveInput == "SOLVE" {
-			s.confirmManualSolve()
+			s.manualSolvePhase = "note"
 		}
 		return s, nil
 
@@ -585,6 +914,16 @@ func (s *ProblemDetailScreen) confirmManualSolve() {
 		return
 	}
 
+	if err := s.db.RecordSolveProvenance(ctx, &store.SolveProvenance{
+		ProblemID: s.problem.ID,
+		Kind:      "manual",
+		Note:      s.manualSolveNote,
+	}); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to record solve provenance: %v", err)
+		s.manualSolveMode = false
+		return
+	}
+
 	if err := s.db.UpdateStreak(ctx); err != nil {
 		s.errorMsg += fmt.Sprintf(" | Failed to update streak: %v", err)
 	}
@@ -592,7 +931,34 @@ func (s *ProblemDetailScreen) confirmManualSolve() {
 	s.status = roadmap.StatusSolved
 	s.manualSolveMode = false
 	s.manualSolveInput = ""
-	s.errorMsg = "Manually marked Solved. No XP awarded."
+	s.manualSolveNote = ""
+	s.errorMsg = views.RenderRewardMoment(views.RewardMoment{
+		Title:    "Manual Solve",
+		Subject:  fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title),
+		Reward:   "Manually marked Solved. No XP awarded.",
+		Unlocked: s.directUnlockLabels(),
+		Next:     s.nextRecommendationTitle(ctx),
+		Reason:   "Manual Solve unlocks progression, but Accepted Submission is still recommended for confidence and XP.",
+		Actions:  []string{"s submit for Accepted Solve", "x run local TestSuite", "esc back"},
+	}, viewPalette(s.theme))
+}
+
+func (s *ProblemDetailScreen) directUnlockLabels() []string {
+	unlocks := s.directUnlocks()
+	labels := make([]string, 0, len(unlocks))
+	for _, p := range unlocks {
+		labels = append(labels, fmt.Sprintf("#%d %s", p.ID, p.Title))
+	}
+	return labels
+}
+
+func (s *ProblemDetailScreen) nextRecommendationTitle(ctx context.Context) string {
+	calc := recommendation.NewCalculator(s.db, s.roadmap)
+	actions, err := calc.Calculate(ctx)
+	if err != nil || len(actions) == 0 {
+		return ""
+	}
+	return actions[0].Title
 }
 
 func (s *ProblemDetailScreen) stubPaths() (string, string) {
@@ -634,15 +1000,19 @@ func (s *ProblemDetailScreen) testCommand() *exec.Cmd {
 }
 
 func (s *ProblemDetailScreen) View() string {
+	if s.submitAnywayMode {
+		return s.renderSubmitAnywayConfirmation()
+	}
 	if s.manualSolveMode {
 		return s.renderManualSolveConfirmation()
 	}
 
 	var lines []string
+	screenLabel, briefLabel, filesLabel := themeProblemLabels(s.theme)
 
-	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title)))
+	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("%s: #%d %s", screenLabel, s.problem.ID, s.problem.Title)))
 
-	statusLabel := s.renderStatus()
+	statusLabel := s.renderStatusDetail()
 	lines = append(lines, statusLabel)
 
 	lines = append(lines, fmt.Sprintf("Difficulty: %s  Category: %s  Stage: %s",
@@ -651,47 +1021,78 @@ func (s *ProblemDetailScreen) View() string {
 		s.stageName(),
 	))
 
+	if s.problem.ProblemTimeEstimate != "" {
+		lines = append(lines, fmt.Sprintf("Time: %s", s.problem.ProblemTimeEstimate))
+	}
+
+	s.renderProblemBrief(&lines, briefLabel)
+
 	if len(s.problem.Prerequisites) == 0 {
-		lines = append(lines, "Prerequisites: none")
+		lines = append(lines, "Requires: none (Prerequisites: none)")
 	} else {
 		prereqs := s.prerequisiteLabels()
-		lines = append(lines, "Prerequisites: "+strings.Join(prereqs, ", "))
+		lines = append(lines, "Requires / Prerequisites: "+strings.Join(prereqs, ", "))
 	}
 
 	if s.status == roadmap.StatusLocked {
 		blocked := s.missingPrerequisites()
 		if len(blocked) > 0 {
 			lines = append(lines, lipgloss.NewStyle().
-				Foreground(s.theme.Danger).
-				Render("Blocked by: "+strings.Join(blocked, ", ")))
+				Foreground(s.theme.Warning).
+				Render("Locked Gate / Blocked by: "+strings.Join(blocked, ", ")+" — clear a prerequisite to unlock this tile."))
+		}
+	}
+
+	unlocks := s.directUnlocks()
+	if len(unlocks) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, s.theme.Key.Render("Unlocks"))
+		for _, u := range unlocks {
+			lines = append(lines, fmt.Sprintf("  #%d %s (%s)", u.ID, u.Title, u.Difficulty))
+		}
+	}
+
+	indirect := s.indirectUnlocks(2)
+	if len(indirect) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Builds Toward"))
+		for _, u := range indirect {
+			lines = append(lines, fmt.Sprintf("  #%d %s", u.ID, u.Title))
 		}
 	}
 
 	if s.status != roadmap.StatusLocked {
 		stubPath, testPath := s.stubPaths()
 		lines = append(lines, "")
-		lines = append(lines, fmt.Sprintf("Stub: %s", stubPath))
-		lines = append(lines, fmt.Sprintf("Test: %s", testPath))
+		lines = append(lines, s.theme.Key.Render(filesLabel))
+		lines = append(lines, fmt.Sprintf("  Stub: %s", stubPath))
+		lines = append(lines, fmt.Sprintf("  Test: %s", testPath))
 	}
 
-	if len(s.solveLogs) > 0 {
+	practiceLog := BuildPracticeLog(s.db, s.problem.ID)
+	if len(practiceLog) > 0 {
 		lines = append(lines, "")
-		lines = append(lines, s.theme.Key.Render("Latest Solve Logs"))
-		for _, log := range s.solveLogs {
-			when := log.SubmittedAt.Format("2006-01-02 15:04")
-			result := log.Status
-			if log.StatusCode == 10 {
-				result = fmt.Sprintf("Accepted · %s · %s", log.Runtime, log.Memory)
+		lines = append(lines, s.theme.Key.Render("Practice Log"))
+		for _, entry := range practiceLog {
+			when := entry.Timestamp.Format("2006-01-02 15:04")
+			line := fmt.Sprintf("  %s  %s", s.practiceLogSymbol(entry), when)
+			line += "  " + entry.Kind
+			if entry.Detail != "" {
+				line += " · " + entry.Detail
 			}
-			lines = append(lines, fmt.Sprintf("  %s  %s  %s", when, log.Language, result))
+			lines = append(lines, line)
 		}
 	}
 
 	lines = append(lines, "")
 
 	if s.submitting {
-		frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
-		lines = append(lines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
+		if s.allowsSpinnerMotion() {
+			frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
+			lines = append(lines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
+		} else {
+			lines = append(lines, s.theme.Spinner.Render("Submitting to LeetCode..."))
+		}
 	}
 
 	if s.errorMsg != "" {
@@ -711,19 +1112,131 @@ func (s *ProblemDetailScreen) View() string {
 	return strings.Join(lines, "\n") + "\n" + footer
 }
 
-func (s *ProblemDetailScreen) renderStatus() string {
+func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
+	var lines []string
+	lines = append(lines, s.theme.Title.Render("Submit Anyway"))
+	lines = append(lines, fmt.Sprintf("Problem: #%d %s", s.problem.ID, s.problem.Title))
+	lines = append(lines, "")
+	warning := strings.Join([]string{
+		lipgloss.NewStyle().Foreground(s.theme.Danger).Bold(true).Render("Local TestSuite failed."),
+		"Submitting anyway skips local verification and sends your current Stub to LeetCode.",
+		"Use this only when generated tests are wrong or you intentionally want LeetCode as source of truth.",
+	}, "\n")
+	lines = append(lines, views.PixelFrame("Serious Warning", warning, viewPalette(s.theme)))
+	lines = append(lines, "")
+	lines = append(lines, "Type SUBMIT to confirm:")
+	lines = append(lines, s.theme.FocusedPanel.Render(s.submitAnywayInput))
+	lines = append(lines, "")
+	lines = append(lines, s.theme.Footer.Render(s.theme.Key.Render("enter")+" confirm  "+s.theme.Key.Render("esc")+" cancel"))
+	return strings.Join(lines, "\n")
+}
+
+func (s *ProblemDetailScreen) renderProblemBrief(lines *[]string, label string) {
+	if s.problem.Summary == "" && s.problem.PracticeFocus == "" {
+		return
+	}
+	*lines = append(*lines, "")
+	*lines = append(*lines, s.theme.Key.Render(label))
+	if s.problem.Summary != "" {
+		*lines = append(*lines, fmt.Sprintf("  %s", s.problem.Summary))
+	}
+	if s.problem.PracticeFocus != "" {
+		*lines = append(*lines, fmt.Sprintf("  Practice Focus: %s", s.problem.PracticeFocus))
+	}
+	if s.problem.WhyNow != "" {
+		*lines = append(*lines, fmt.Sprintf("  Why now: %s", s.problem.WhyNow))
+	}
+	if s.problem.UnlockImpact != "" {
+		*lines = append(*lines, fmt.Sprintf("  Unlock Impact: %s", s.problem.UnlockImpact))
+	}
+}
+
+func (s *ProblemDetailScreen) renderStatusDetail() string {
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 	switch s.status {
 	case roadmap.StatusSolved:
-		return lipgloss.NewStyle().Foreground(s.theme.Success).Bold(true).Render("[SOLVED]")
+		label := renderStatusPill(s.theme, symbols, roadmap.StatusSolved)
+		sp, _ := s.db.GetSolveProvenance(context.Background(), s.problem.ID)
+		if sp != nil {
+			if sp.Kind == "manual" {
+				label = views.StatusPill("MANUAL SOLVE", s.theme.Success)
+			} else {
+				label = views.StatusPill("ACCEPTED SOLVE", s.theme.Success)
+			}
+		}
+		return views.PixelFrame("Status Tile", label+"\nPractice Log and unlock impact are now the priority.", viewPalette(s.theme))
 	case roadmap.StatusVerified:
-		return lipgloss.NewStyle().Foreground(s.theme.PrimaryAccent).Bold(true).Render("[VERIFIED]")
+		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusVerified)+"\nPrimary: Submit to LeetCode. Secondary: Manual Solve if needed.", viewPalette(s.theme))
 	case roadmap.StatusInProgress:
-		return lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true).Render("[ACTIVE]")
+		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusInProgress)+"\nKeep file paths and TestSuite actions close.", viewPalette(s.theme))
 	case roadmap.StatusAvailable:
-		return lipgloss.NewStyle().Foreground(s.theme.PrimaryAccent).Bold(true).Render("[READY]")
+		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusAvailable)+"\nRead the Training Notes, then start the encounter.", viewPalette(s.theme))
 	default:
-		return lipgloss.NewStyle().Foreground(s.theme.Muted).Bold(true).Render("[LOCKED]")
+		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusLocked)+"\nClear the Locked Gate before starting.", viewPalette(s.theme))
 	}
+}
+
+func (s *ProblemDetailScreen) practiceLogSymbol(entry ProblemLogEntry) string {
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	switch {
+	case strings.Contains(entry.Kind, "accepted") || entry.Kind == "Accepted Solve":
+		return symbols.Solved
+	case strings.Contains(entry.Kind, "failed"):
+		return "!"
+	case entry.Kind == "Manual Solve":
+		return "M"
+	case strings.Contains(entry.Kind, "passed"):
+		return symbols.Verified
+	default:
+		return symbols.Bullet
+	}
+}
+
+func (s *ProblemDetailScreen) directUnlocks() []*roadmap.Problem {
+	var result []*roadmap.Problem
+	progress, _ := s.db.GetAllProgress(context.Background())
+	for _, p := range s.roadmap.Graph.Problems {
+		for _, prereq := range p.Prerequisites {
+			if prereq == s.problem.ID {
+				if progress[p.ID] != roadmap.StatusSolved {
+					result = append(result, p)
+				}
+				break
+			}
+		}
+	}
+	return result
+}
+
+func (s *ProblemDetailScreen) indirectUnlocks(depth int) []*roadmap.Problem {
+	if depth <= 0 {
+		return nil
+	}
+	var result []*roadmap.Problem
+	progress, _ := s.db.GetAllProgress(context.Background())
+	seen := make(map[int]bool)
+	for _, p := range s.roadmap.Graph.Problems {
+		for _, prereq := range p.Prerequisites {
+			if prereq == s.problem.ID {
+				if !seen[p.ID] && progress[p.ID] != roadmap.StatusSolved {
+					seen[p.ID] = true
+					result = append(result, p)
+				}
+				for _, pp := range s.roadmap.Graph.Problems {
+					for _, ppr := range pp.Prerequisites {
+						if ppr == p.ID && !seen[pp.ID] && progress[pp.ID] != roadmap.StatusSolved {
+							seen[pp.ID] = true
+							result = append(result, pp)
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(result) > 3 {
+		result = result[:3]
+	}
+	return result
 }
 
 func (s *ProblemDetailScreen) problemStage() string {
@@ -761,7 +1274,7 @@ func (s *ProblemDetailScreen) missingPrerequisites() []string {
 	progress, _ := s.db.GetAllProgress(context.Background())
 	var missing []string
 	for _, id := range s.problem.Prerequisites {
-		if progress[id] == roadmap.StatusSolved || progress[id] == roadmap.StatusVerified {
+		if progress[id] == roadmap.StatusSolved {
 			continue
 		}
 		if prereq, ok := s.roadmap.Graph.Problems[id]; ok {
@@ -778,12 +1291,12 @@ func (s *ProblemDetailScreen) renderFooter() string {
 		return s.renderManualSolveFooter()
 	}
 
-	primaryLabel := "start"
+	primaryLabel := "open"
 	switch s.status {
 	case roadmap.StatusAvailable:
 		primaryLabel = "start"
 	case roadmap.StatusVerified:
-		primaryLabel = "submit"
+		primaryLabel = "submit (primary)"
 	case roadmap.StatusLocked:
 		primaryLabel = "locked"
 	default:
@@ -810,27 +1323,43 @@ func (s *ProblemDetailScreen) renderManualSolveConfirmation() string {
 	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("#%d %s", s.problem.ID, s.problem.Title)))
 	lines = append(lines, "")
 
-	warning := lipgloss.NewStyle().
-		Foreground(s.theme.Warning).
-		Bold(true).
-		Render("Manual Solve bypasses verification and awards no XP.")
-	lines = append(lines, warning)
-	lines = append(lines, "")
+	if s.manualSolvePhase == "note" {
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(s.theme.Muted).
+			Render("Optional note (press Enter to skip):"))
+		lines = append(lines, "")
 
-	prompt := lipgloss.NewStyle().
-		Foreground(s.theme.Muted).
-		Render("Type SOLVE to confirm:")
-	lines = append(lines, prompt)
-	lines = append(lines, "")
+		inputDisplay := s.manualSolveNote
+		if inputDisplay == "" {
+			inputDisplay = "_"
+		}
+		inputStyle := lipgloss.NewStyle().
+			Foreground(s.theme.PrimaryAccent).
+			Bold(true)
+		lines = append(lines, inputStyle.Render(inputDisplay))
+	} else {
+		warning := lipgloss.NewStyle().
+			Foreground(s.theme.Warning).
+			Bold(true).
+			Render("Mark as manually solved? This will unlock dependent Problems, but you will not earn XP unless LeetCode accepts a Submission later.")
+		lines = append(lines, warning)
+		lines = append(lines, "")
 
-	inputDisplay := s.manualSolveInput
-	if inputDisplay == "" {
-		inputDisplay = "_"
+		prompt := lipgloss.NewStyle().
+			Foreground(s.theme.Muted).
+			Render("Type SOLVE to confirm:")
+		lines = append(lines, prompt)
+		lines = append(lines, "")
+
+		inputDisplay := s.manualSolveInput
+		if inputDisplay == "" {
+			inputDisplay = "_"
+		}
+		inputStyle := lipgloss.NewStyle().
+			Foreground(s.theme.PrimaryAccent).
+			Bold(true)
+		lines = append(lines, inputStyle.Render(inputDisplay))
 	}
-	inputStyle := lipgloss.NewStyle().
-		Foreground(s.theme.PrimaryAccent).
-		Bold(true)
-	lines = append(lines, inputStyle.Render(inputDisplay))
 
 	content := strings.Join(lines, "\n")
 	footer := s.renderManualSolveFooter()
@@ -838,6 +1367,13 @@ func (s *ProblemDetailScreen) renderManualSolveConfirmation() string {
 }
 
 func (s *ProblemDetailScreen) renderManualSolveFooter() string {
+	if s.manualSolvePhase == "note" {
+		items := []string{
+			s.theme.Key.Render("enter") + " confirm",
+			s.theme.Key.Render("esc") + " cancel",
+		}
+		return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+	}
 	items := []string{
 		s.theme.Key.Render("type SOLVE") + " to confirm",
 		s.theme.Key.Render("esc") + " to cancel",

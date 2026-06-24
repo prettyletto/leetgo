@@ -248,6 +248,7 @@ audience: "test audience"
 promise: "test promise"
 recommended: true
 estimated_hours: 50
+roadmap_time_estimate: "4-8 weeks at 3-5 Problems/week"
 difficulty_mix:
   easy: 40
   medium: 40
@@ -256,12 +257,22 @@ highlights:
   - "highlight one"
   - "highlight two"
   - "highlight three"
+next_roadmaps:
+  - "from-zero-to-hero"
 problems:
   - id: 1
     title: "Two Sum"
     slug: "two-sum"
     difficulty: easy
     category: "arrays-hashing"
+    practice_focus: "Hash table lookups"
+    problem_time_estimate: "15-30 minutes"
+    summary: "Find two numbers that sum to a target."
+    why_now: "Introduces hash tables which are fundamental."
+    unlock_impact: "Prepares for 3Sum and Two Sum II."
+    hints:
+      - "Consider using a hash map to store visited numbers."
+      - "Think about what the complement of each number would be."
 `)
 	rm, err := ParseRoadmap(yaml)
 	require.NoError(t, err)
@@ -275,6 +286,18 @@ problems:
 	assert.Equal(t, 40, rm.DifficultyMix[roadmap.DifficultyMedium])
 	assert.Equal(t, 20, rm.DifficultyMix[roadmap.DifficultyHard])
 	assert.Len(t, rm.Highlights, 3)
+	assert.Equal(t, "4-8 weeks at 3-5 Problems/week", rm.RoadmapTimeEstimate)
+
+	p := rm.Graph.Problems[1]
+	require.NotNil(t, p)
+	assert.Equal(t, "Hash table lookups", p.PracticeFocus)
+	assert.Equal(t, "15-30 minutes", p.ProblemTimeEstimate)
+	assert.Equal(t, "Find two numbers that sum to a target.", p.Summary)
+	assert.Equal(t, "Introduces hash tables which are fundamental.", p.WhyNow)
+	assert.Equal(t, "Prepares for 3Sum and Two Sum II.", p.UnlockImpact)
+	assert.Len(t, p.Hints, 2)
+	assert.Equal(t, "Consider using a hash map to store visited numbers.", p.Hints[0])
+	assert.Equal(t, "Think about what the complement of each number would be.", p.Hints[1])
 }
 
 func TestParseRoadmap_EstimatedHoursZero(t *testing.T) {
@@ -327,7 +350,124 @@ func TestListRoadmaps_HasMetadata(t *testing.T) {
 		assert.NotEmpty(t, rm.Promise, "roadmap %s missing promise", rm.ID)
 		assert.GreaterOrEqual(t, len(rm.Highlights), 2, "roadmap %s should have at least 2 highlights", rm.ID)
 		assert.LessOrEqual(t, len(rm.Highlights), 3, "roadmap %s should have at most 3 highlights", rm.ID)
+		if rm.ID == "from-zero-to-hero" {
+			assert.NotEmpty(t, rm.RoadmapTimeEstimate, "from-zero-to-hero should have roadmap_time_estimate")
+		}
 	}
+}
+
+func TestListRoadmaps_NextRoadmaps(t *testing.T) {
+	roadmaps, err := ListRoadmaps()
+	require.NoError(t, err)
+
+	ids := make(map[string]bool, len(roadmaps))
+	for _, rm := range roadmaps {
+		ids[rm.ID] = true
+	}
+	for _, rm := range roadmaps {
+		for _, nextID := range rm.NextRoadmaps {
+			assert.True(t, ids[nextID], "roadmap %s references unknown next_roadmap %q", rm.ID, nextID)
+		}
+	}
+}
+
+func TestValidateRoadmapSet_BadNextRoadmap(t *testing.T) {
+	rm1 := &roadmap.Roadmap{ID: "a", Recommended: false, NextRoadmaps: []string{"missing"}}
+	rm2 := &roadmap.Roadmap{ID: "b", Recommended: false}
+	err := ValidateRoadmapSet([]*roadmap.Roadmap{rm1, rm2})
+	assert.ErrorContains(t, err, "unknown next_roadmap")
+}
+
+func TestParseRoadmap_EmptyRoadmapTimeEstimate(t *testing.T) {
+	yaml := []byte(`
+id: test
+title: "Test"
+tagline: "test"
+audience: "test"
+promise: "test"
+highlights: ["a", "b"]
+roadmap_time_estimate: ""
+problems:
+  - id: 1
+    title: "Two Sum"
+    slug: "two-sum"
+    difficulty: easy
+    category: "arrays-hashing"
+`)
+	_, err := ParseRoadmap(yaml)
+	assert.ErrorContains(t, err, "roadmap_time_estimate must be non-empty")
+}
+
+func TestParseRoadmap_ProblemMetadataOptional(t *testing.T) {
+	yaml := []byte(`
+id: test
+title: "Test"
+tagline: "test"
+audience: "test"
+promise: "test"
+highlights: ["a", "b"]
+problems:
+  - id: 1
+    title: "Two Sum"
+    slug: "two-sum"
+    difficulty: easy
+    category: "arrays-hashing"
+  - id: 2
+    title: "With Metadata"
+    slug: "with-metadata"
+    difficulty: medium
+    category: "arrays-hashing"
+    practice_focus: "Hash maps"
+    problem_time_estimate: "20-30 min"
+    summary: "A problem with metadata."
+    why_now: "Because it matters."
+    unlock_impact: "Unlocks more complexity."
+    hints:
+      - "Hint one"
+      - "Hint two"
+`)
+	rm, err := ParseRoadmap(yaml)
+	require.NoError(t, err)
+
+	p1 := rm.Graph.Problems[1]
+	require.NotNil(t, p1)
+	assert.Empty(t, p1.PracticeFocus)
+	assert.Empty(t, p1.Summary)
+	assert.Empty(t, p1.Hints)
+
+	p2 := rm.Graph.Problems[2]
+	require.NotNil(t, p2)
+	assert.Equal(t, "Hash maps", p2.PracticeFocus)
+	assert.Equal(t, "20-30 min", p2.ProblemTimeEstimate)
+	assert.Equal(t, "A problem with metadata.", p2.Summary)
+	assert.Equal(t, "Because it matters.", p2.WhyNow)
+	assert.Equal(t, "Unlocks more complexity.", p2.UnlockImpact)
+	assert.Len(t, p2.Hints, 2)
+}
+
+func TestParseRoadmap_NextRoadmaps(t *testing.T) {
+	yaml := []byte(`
+id: test
+title: "Test"
+tagline: "test"
+audience: "test"
+promise: "test"
+highlights: ["a", "b"]
+next_roadmaps:
+  - "from-zero-to-hero"
+  - "hard-mode"
+problems:
+  - id: 1
+    title: "Two Sum"
+    slug: "two-sum"
+    difficulty: easy
+    category: "arrays-hashing"
+`)
+	rm, err := ParseRoadmap(yaml)
+	require.NoError(t, err)
+	assert.Len(t, rm.NextRoadmaps, 2)
+	assert.Equal(t, "from-zero-to-hero", rm.NextRoadmaps[0])
+	assert.Equal(t, "hard-mode", rm.NextRoadmaps[1])
 }
 
 func TestListRoadmaps_SingleRecommended(t *testing.T) {

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement Problem Detail as the owner of Start, Test, Submit, Mark Solved, and Solve Log history actions.
+Implement Problem Detail as the owner of Start, Test, Submit, Mark Solved, and Practice Log history actions.
 
 ## Dependencies
 
@@ -23,7 +23,7 @@ Problem Detail content:
 - Status.
 - Prerequisites and blockers.
 - Generated file paths when available.
-- Latest Solve Logs for the Problem.
+- Latest Practice Log entries for the Problem.
 
 Actions:
 
@@ -47,7 +47,7 @@ Keybindings:
 - Stage Detail can open Problem Detail.
 - Available Problem can be started.
 - InProgress/Solved Problem can run local TestSuite.
-- Submission result writes Solve Log.
+- Submission result writes Practice Log.
 - Accepted Submission marks Problem Solved and updates stats.
 
 ## Verification

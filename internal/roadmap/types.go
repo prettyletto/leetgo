@@ -35,6 +35,13 @@ type Problem struct {
 	Category      Category
 	Stage         string
 	Prerequisites []int
+
+	PracticeFocus       string
+	ProblemTimeEstimate string
+	Summary             string
+	WhyNow              string
+	UnlockImpact        string
+	Hints               []string
 }
 
 type Roadmap struct {
@@ -50,6 +57,9 @@ type Roadmap struct {
 	Highlights     []string
 	Stages         []Stage
 	Graph          *Graph
+
+	RoadmapTimeEstimate string
+	NextRoadmaps        []string
 }
 
 type Graph struct {
@@ -90,4 +100,25 @@ func (g *Graph) Available(solved map[int]bool) []*Problem {
 		}
 	}
 	return available
+}
+
+func (r *Roadmap) IsComplete(solved map[int]bool) bool {
+	for _, p := range r.Graph.Problems {
+		if !solved[p.ID] {
+			return false
+		}
+	}
+	return true
+}
+
+type CompletionSummary struct {
+	TotalProblems     int
+	AcceptedSolves    int
+	ManualSolves      int
+	TotalXP           int
+	SolveDuration     string
+	StrongestCategory string
+	Weaknesses        []string
+	ActiveReviews     int
+	NextRoadmap       string
 }

@@ -19,6 +19,17 @@ var ValidThemes = []string{
 	"cyber-dashboard",
 }
 
+var ValidSymbolModes = []string{
+	"rich",
+	"plain",
+}
+
+var ValidMotionPreferences = []string{
+	"normal",
+	"reduced",
+	"off",
+}
+
 type Config struct {
 	OnboardingComplete bool   `toml:"onboarding_complete"`
 	OnboardingVersion  int    `toml:"onboarding_version"`
@@ -28,6 +39,8 @@ type Config struct {
 	Language           string `toml:"language"`
 	Roadmap            string `toml:"roadmap"`
 	Theme              string `toml:"theme"`
+	SymbolMode         string `toml:"symbol_mode"`
+	MotionPreference   string `toml:"motion_preference"`
 	GitExportEnabled   bool   `toml:"git_export_enabled"`
 	GitExportRepo      string `toml:"git_export_repo"`
 }
@@ -46,6 +59,8 @@ func DefaultConfig() (*Config, error) {
 		Language:           "go",
 		Roadmap:            "from-zero-to-hero",
 		Theme:              "rpg-skill-tree",
+		SymbolMode:         "rich",
+		MotionPreference:   "normal",
 		GitExportEnabled:   false,
 		GitExportRepo:      "",
 	}, nil
@@ -96,10 +111,25 @@ func Load() (*Config, error) {
 	if err := toml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	cfg.ApplyDefaults()
 	return cfg, nil
 }
 
+func (c *Config) ApplyDefaults() {
+	if c.Theme == "" {
+		c.Theme = "rpg-skill-tree"
+	}
+	if c.SymbolMode == "" {
+		c.SymbolMode = "rich"
+	}
+	if c.MotionPreference == "" {
+		c.MotionPreference = "normal"
+	}
+}
+
 func (c *Config) Save() error {
+	c.ApplyDefaults()
+
 	dataDir, err := DataDir()
 	if err != nil {
 		return err
@@ -122,6 +152,8 @@ func (c *Config) Save() error {
 }
 
 func (c *Config) Validate(languages, roadmaps []string) error {
+	c.ApplyDefaults()
+
 	if c.Workspace == "" {
 		return fmt.Errorf("workspace is required")
 	}
@@ -133,6 +165,12 @@ func (c *Config) Validate(languages, roadmaps []string) error {
 	}
 	if !slices.Contains(ValidThemes, c.Theme) {
 		return fmt.Errorf("unknown theme %q", c.Theme)
+	}
+	if !slices.Contains(ValidSymbolModes, c.SymbolMode) {
+		return fmt.Errorf("unknown symbol_mode %q", c.SymbolMode)
+	}
+	if !slices.Contains(ValidMotionPreferences, c.MotionPreference) {
+		return fmt.Errorf("unknown motion_preference %q", c.MotionPreference)
 	}
 	if c.OnboardingComplete {
 		trimmed := strings.TrimSpace(c.DisplayName)

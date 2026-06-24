@@ -10,6 +10,7 @@ import (
 	"github.com/prettyletto/leetgo/internal/config"
 	"github.com/prettyletto/leetgo/internal/roadmap"
 	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/prettyletto/leetgo/internal/tui/views"
 )
 
 type StageDetailScreen struct {
@@ -120,9 +121,10 @@ func (s *StageDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 func (s *StageDetailScreen) View() string {
 	stageTitle := s.stageTitle()
 	stageDesc := s.stageDescription()
+	stagePrefix, gridLabel, recommendedLabel, reviewLabel := themeStageLabels(s.theme)
 
 	var lines []string
-	lines = append(lines, s.theme.Title.Render(stageTitle))
+	lines = append(lines, s.theme.Title.Render(stagePrefix+": "+stageTitle))
 
 	if stageDesc != "" {
 		lines = append(lines, lipgloss.NewStyle().
@@ -130,12 +132,11 @@ func (s *StageDetailScreen) View() string {
 			Render(stageDesc))
 	}
 
-	solved, total := s.completionCount()
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("%s  %d/%d solved",
-		s.theme.Key.Render("Completion"),
-		solved, total,
-	))
+
+	solved, verified, inProgress, available, locked, total := s.statusCounts()
+	lines = append(lines, fmt.Sprintf("Solved: %d  Verified: %d  In Progress: %d  Available: %d  Locked: %d  Total: %d",
+		solved, verified, inProgress, available, locked, total))
 
 	if total > 0 {
 		percentage := float64(solved) / float64(total) * 100
@@ -144,11 +145,25 @@ func (s *StageDetailScreen) View() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, s.theme.Key.Render("Problems"))
+	lines = append(lines, s.theme.Key.Render(gridLabel))
+
+	var firstAvailable *roadmap.Problem
+	for _, p := range s.problems {
+		if s.effectiveStatus(p) == roadmap.StatusAvailable && firstAvailable == nil {
+			firstAvailable = p
+		}
+	}
 
 	for i, p := range s.problems {
-		line := s.renderProblemLine(p, i == s.focusIndex)
+		isRecommended := firstAvailable != nil && p.ID == firstAvailable.ID
+		line := s.renderProblemLine(p, i == s.focusIndex, isRecommended, recommendedLabel)
 		lines = append(lines, line)
+	}
+
+	reviewLines := s.renderReviewShrine(reviewLabel)
+	if len(reviewLines) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, reviewLines...)
 	}
 
 	if len(s.problems) == 0 {
@@ -159,6 +174,26 @@ func (s *StageDetailScreen) View() string {
 
 	footer := s.renderFooter()
 	return strings.Join(lines, "\n") + "\n" + footer
+}
+
+func (s *StageDetailScreen) statusCounts() (solved, verified, inProgress, available, locked, total int) {
+	total = len(s.problems)
+	for _, p := range s.problems {
+		status := s.effectiveStatus(p)
+		switch status {
+		case roadmap.StatusSolved:
+			solved++
+		case roadmap.StatusVerified:
+			verified++
+		case roadmap.StatusInProgress:
+			inProgress++
+		case roadmap.StatusAvailable:
+			available++
+		default:
+			locked++
+		}
+	}
+	return
 }
 
 func (s *StageDetailScreen) stageTitle() string {
@@ -200,19 +235,14 @@ func (s *StageDetailScreen) renderProgressBar(percentage float64) string {
 		filled = width
 	}
 
-	bar := lipgloss.NewStyle().
-		Foreground(s.theme.Success).
-		Render(strings.Repeat("█", filled))
-	bg := lipgloss.NewStyle().
-		Foreground(s.theme.Muted).
-		Render(strings.Repeat("░", width-filled))
-
-	return fmt.Sprintf("[%s%s] %.0f%%", bar, bg, percentage)
+	bar := views.ProgressBar(filled, width, width, "█", "░")
+	return fmt.Sprintf("[%s] %.0f%%", lipgloss.NewStyle().Foreground(s.theme.XP).Render(bar), percentage)
 }
 
-func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool) string {
+func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, isRecommended bool, recommendedLabel string) string {
 	status := s.effectiveStatus(p)
-	marker := s.renderStatusMarker(status)
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	marker := renderStatusPill(s.theme, symbols, status)
 
 	label := fmt.Sprintf("#%d %s · %s", p.ID, p.Title, p.Difficulty)
 	labelStyle := lipgloss.NewStyle()
@@ -224,24 +254,30 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool) 
 	}
 
 	if status == roadmap.StatusInProgress {
-		labelStyle = labelStyle.Copy().
-			Background(s.theme.Warning).
-			Foreground(lipgloss.Color("0"))
+		labelStyle = lipgloss.NewStyle().
+			Foreground(s.theme.Warning).
+			Bold(true)
 	}
 
 	if status == roadmap.StatusAvailable && !focused {
-		labelStyle = labelStyle.Copy().
+		labelStyle = lipgloss.NewStyle().
 			Foreground(s.theme.PrimaryAccent)
 	}
 
 	line := fmt.Sprintf("  %s %s", marker, labelStyle.Render(label))
+
+	if isRecommended && status == roadmap.StatusAvailable {
+		line += "  " + lipgloss.NewStyle().
+			Foreground(s.theme.Warning).
+			Render("["+recommendedLabel+"]")
+	}
 
 	if status == roadmap.StatusLocked {
 		blocked := s.missingPrerequisites(p)
 		if len(blocked) > 0 {
 			line += "  " + lipgloss.NewStyle().
 				Foreground(s.theme.Muted).
-				Render("blocked by "+strings.Join(blocked, ", "))
+				Render("Locked Gate: "+strings.Join(blocked, ", ")+" (blocked by "+strings.Join(blocked, ", ")+")")
 		}
 	}
 
@@ -254,7 +290,7 @@ func (s *StageDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status {
 	}
 
 	for _, prereq := range p.Prerequisites {
-		if s.progress[prereq] != roadmap.StatusSolved && s.progress[prereq] != roadmap.StatusVerified {
+		if s.progress[prereq] != roadmap.StatusSolved {
 			return roadmap.StatusLocked
 		}
 	}
@@ -262,43 +298,39 @@ func (s *StageDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status {
 }
 
 func (s *StageDetailScreen) renderStatusMarker(status roadmap.Status) string {
-	width := 12
-	switch status {
-	case roadmap.StatusSolved:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Success).
-			Width(width).
-			Render("[SOLVED]")
-	case roadmap.StatusVerified:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.PrimaryAccent).
-			Bold(true).
-			Width(width).
-			Render("[VERIFIED]")
-	case roadmap.StatusInProgress:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Warning).
-			Bold(true).
-			Width(width).
-			Render("[ACTIVE]")
-	case roadmap.StatusAvailable:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.PrimaryAccent).
-			Bold(true).
-			Width(width).
-			Render("[READY]")
-	default:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Muted).
-			Width(width).
-			Render("[LOCKED]")
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	return lipgloss.NewStyle().Width(14).Render(renderStatusPill(s.theme, symbols, status))
+}
+
+func (s *StageDetailScreen) renderReviewShrine(label string) []string {
+	cycles, err := s.db.GetReviewCycles(context.Background())
+	if err != nil || len(cycles) == 0 {
+		return nil
 	}
+	ids := make(map[int]bool)
+	for _, p := range s.problems {
+		ids[p.ID] = true
+	}
+	var lines []string
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	for _, cycle := range cycles {
+		if cycle.CompletedAt != nil || !ids[cycle.ProblemID] {
+			continue
+		}
+		if len(lines) == 0 {
+			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Review).Bold(true).Render(label))
+		}
+		if p, ok := s.roadmap.Graph.Problems[cycle.ProblemID]; ok {
+			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Review).Render(fmt.Sprintf("  %s #%d %s", symbols.Review, p.ID, p.Title)))
+		}
+	}
+	return lines
 }
 
 func (s *StageDetailScreen) missingPrerequisites(p *roadmap.Problem) []string {
 	var missing []string
 	for _, id := range p.Prerequisites {
-		if s.progress[id] == roadmap.StatusSolved || s.progress[id] == roadmap.StatusVerified {
+		if s.progress[id] == roadmap.StatusSolved {
 			continue
 		}
 		if prereq, ok := s.roadmap.Graph.Problems[id]; ok {

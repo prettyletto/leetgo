@@ -30,7 +30,7 @@ Dashboard keybindings:
 - `enter`: activate focused Next Action.
 - `j/k` or arrows: move focus.
 - `r`: Roadmap Detail.
-- `s`: Solve Log or Solve Log Detail placeholder.
+- `s`: Practice Log or Practice Log Detail placeholder.
 - `t`: cycle Theme and persist.
 - `q`: quit.
 

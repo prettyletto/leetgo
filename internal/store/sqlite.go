@@ -199,6 +199,180 @@ func (s *SQLiteStore) GetSolveLogs(ctx context.Context) ([]*SolveLogRecord, erro
 	return logs, rows.Err()
 }
 
+func (s *SQLiteStore) GetSolveLogsForProblem(ctx context.Context, problemID int) ([]*SolveLogRecord, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, problem_id, slug, language, status, status_code, runtime, memory,
+			total_tests, passed_tests, error, note, submitted_at
+		 FROM solve_logs WHERE problem_id = ? ORDER BY submitted_at DESC, id DESC`, problemID)
+	if err != nil {
+		return nil, fmt.Errorf("get solve logs for problem: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []*SolveLogRecord
+	for rows.Next() {
+		var log SolveLogRecord
+		var runtime, memory, errText, note sql.NullString
+		if err := rows.Scan(&log.ID, &log.ProblemID, &log.Slug, &log.Language, &log.Status,
+			&log.StatusCode, &runtime, &memory, &log.TotalTests, &log.PassedTests,
+			&errText, &note, &log.SubmittedAt); err != nil {
+			return nil, fmt.Errorf("scan solve log: %w", err)
+		}
+		if runtime.Valid {
+			log.Runtime = runtime.String
+		}
+		if memory.Valid {
+			log.Memory = memory.String
+		}
+		if errText.Valid {
+			log.Error = errText.String
+		}
+		if note.Valid {
+			log.Note = note.String
+		}
+		logs = append(logs, &log)
+	}
+	return logs, rows.Err()
+}
+
+func (s *SQLiteStore) RecordSolveProvenance(ctx context.Context, sp *SolveProvenance) error {
+	if sp.SolvedAt.IsZero() {
+		sp.SolvedAt = time.Now()
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO solve_provenance (problem_id, kind, note, solve_log_id, solved_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		sp.ProblemID, sp.Kind, nullString(sp.Note), sp.SolveLogID, sp.SolvedAt)
+	if err != nil {
+		return fmt.Errorf("record solve provenance: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) GetSolveProvenance(ctx context.Context, problemID int) (*SolveProvenance, error) {
+	var sp SolveProvenance
+	var note sql.NullString
+	var solveLogID sql.NullInt64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT problem_id, kind, note, solve_log_id, solved_at FROM solve_provenance WHERE problem_id = ?",
+		problemID).Scan(&sp.ProblemID, &sp.Kind, &note, &solveLogID, &sp.SolvedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get solve provenance: %w", err)
+	}
+	if note.Valid {
+		sp.Note = note.String
+	}
+	if solveLogID.Valid {
+		id := int(solveLogID.Int64)
+		sp.SolveLogID = &id
+	}
+	return &sp, nil
+}
+
+func (s *SQLiteStore) GetSolveProvenanceAll(ctx context.Context) (map[int]*SolveProvenance, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT problem_id, kind, note, solve_log_id, solved_at FROM solve_provenance")
+	if err != nil {
+		return nil, fmt.Errorf("get all solve provenance: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[int]*SolveProvenance)
+	for rows.Next() {
+		var sp SolveProvenance
+		var note sql.NullString
+		var solveLogID sql.NullInt64
+		if err := rows.Scan(&sp.ProblemID, &sp.Kind, &note, &solveLogID, &sp.SolvedAt); err != nil {
+			return nil, fmt.Errorf("scan solve provenance: %w", err)
+		}
+		if note.Valid {
+			sp.Note = note.String
+		}
+		if solveLogID.Valid {
+			id := int(solveLogID.Int64)
+			sp.SolveLogID = &id
+		}
+		result[sp.ProblemID] = &sp
+	}
+	return result, rows.Err()
+}
+
+func nullString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func (s *SQLiteStore) CreateReviewCycle(ctx context.Context, rc *ReviewCycle) error {
+	if rc.CreatedAt.IsZero() {
+		rc.CreatedAt = time.Now()
+	}
+	result, err := s.db.ExecContext(ctx,
+		"INSERT INTO review_cycles (problem_id, reason, roadmap_id, created_at) VALUES (?, ?, ?, ?)",
+		rc.ProblemID, rc.Reason, rc.RoadmapID, rc.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("create review cycle: %w", err)
+	}
+	id, _ := result.LastInsertId()
+	rc.ID = int(id)
+	return nil
+}
+
+func (s *SQLiteStore) GetReviewCycles(ctx context.Context) ([]*ReviewCycle, error) {
+	return s.queryReviewCycles(ctx, "SELECT id, problem_id, reason, roadmap_id, created_at, completed_at, rewarded_at FROM review_cycles ORDER BY created_at DESC")
+}
+
+func (s *SQLiteStore) GetReviewCyclesForProblem(ctx context.Context, problemID int) ([]*ReviewCycle, error) {
+	return s.queryReviewCycles(ctx, "SELECT id, problem_id, reason, roadmap_id, created_at, completed_at, rewarded_at FROM review_cycles WHERE problem_id = ? ORDER BY created_at DESC", problemID)
+}
+
+func (s *SQLiteStore) queryReviewCycles(ctx context.Context, query string, args ...interface{}) ([]*ReviewCycle, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query review cycles: %w", err)
+	}
+	defer rows.Close()
+
+	var cycles []*ReviewCycle
+	for rows.Next() {
+		var rc ReviewCycle
+		var completedAt, rewardedAt sql.NullTime
+		if err := rows.Scan(&rc.ID, &rc.ProblemID, &rc.Reason, &rc.RoadmapID, &rc.CreatedAt, &completedAt, &rewardedAt); err != nil {
+			return nil, fmt.Errorf("scan review cycle: %w", err)
+		}
+		if completedAt.Valid {
+			rc.CompletedAt = &completedAt.Time
+		}
+		if rewardedAt.Valid {
+			rc.RewardedAt = &rewardedAt.Time
+		}
+		cycles = append(cycles, &rc)
+	}
+	return cycles, rows.Err()
+}
+
+func (s *SQLiteStore) CompleteReviewCycle(ctx context.Context, id int) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, "UPDATE review_cycles SET completed_at = ? WHERE id = ? AND completed_at IS NULL", now, id)
+	if err != nil {
+		return fmt.Errorf("complete review cycle: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) RewardReviewCycle(ctx context.Context, id int) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, "UPDATE review_cycles SET rewarded_at = ? WHERE id = ? AND rewarded_at IS NULL", now, id)
+	if err != nil {
+		return fmt.Errorf("reward review cycle: %w", err)
+	}
+	return nil
+}
+
 func (s *SQLiteStore) GetStats(ctx context.Context) (*Stats, error) {
 	var stats Stats
 

@@ -290,3 +290,219 @@ func TestRewardEventMultipleProblems(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, events)
 }
+
+func TestSolveProvenance_RecordAndGet(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	sp, err := s.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	assert.Nil(t, sp)
+
+	err = s.RecordSolveProvenance(ctx, &SolveProvenance{
+		ProblemID: 1,
+		Kind:      "manual",
+		Note:      "Solved in browser",
+	})
+	require.NoError(t, err)
+
+	sp, err = s.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, 1, sp.ProblemID)
+	assert.Equal(t, "manual", sp.Kind)
+	assert.Equal(t, "Solved in browser", sp.Note)
+	assert.Nil(t, sp.SolveLogID)
+	assert.False(t, sp.SolvedAt.IsZero())
+}
+
+func TestSolveProvenance_AcceptedWithLogID(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.RecordSolveLog(ctx, &SolveLogRecord{
+		ProblemID:   1,
+		Slug:        "two-sum",
+		Language:    "golang",
+		Status:      "Accepted",
+		StatusCode:  10,
+		TotalTests:  63,
+		PassedTests: 63,
+	}))
+
+	logs, err := s.GetSolveLogs(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, logs)
+	logID := logs[0].ID
+
+	err = s.RecordSolveProvenance(ctx, &SolveProvenance{
+		ProblemID:  1,
+		Kind:       "accepted",
+		SolveLogID: &logID,
+	})
+	require.NoError(t, err)
+
+	sp, err := s.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "accepted", sp.Kind)
+	require.NotNil(t, sp.SolveLogID)
+	assert.Equal(t, logID, *sp.SolveLogID)
+}
+
+func TestSolveProvenance_UpgradeManualToAccepted(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.RecordSolveProvenance(ctx, &SolveProvenance{
+		ProblemID: 1,
+		Kind:      "manual",
+		Note:      "temp solve",
+	}))
+
+	require.NoError(t, s.RecordSolveLog(ctx, &SolveLogRecord{
+		ProblemID:  1,
+		Slug:       "two-sum",
+		Language:   "golang",
+		Status:     "Accepted",
+		StatusCode: 10,
+	}))
+
+	logs, _ := s.GetSolveLogs(ctx)
+	logID := logs[0].ID
+
+	require.NoError(t, s.RecordSolveProvenance(ctx, &SolveProvenance{
+		ProblemID:  1,
+		Kind:       "accepted",
+		Note:       "temp solve",
+		SolveLogID: &logID,
+	}))
+
+	sp, err := s.GetSolveProvenance(ctx, 1)
+	require.NoError(t, err)
+	require.NotNil(t, sp)
+	assert.Equal(t, "accepted", sp.Kind)
+	assert.Equal(t, "temp solve", sp.Note)
+}
+
+func TestSolveProvenance_GetAll(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.RecordSolveProvenance(ctx, &SolveProvenance{ProblemID: 1, Kind: "manual"}))
+	require.NoError(t, s.RecordSolveProvenance(ctx, &SolveProvenance{ProblemID: 49, Kind: "accepted"}))
+
+	all, err := s.GetSolveProvenanceAll(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	assert.Equal(t, "manual", all[1].Kind)
+	assert.Equal(t, "accepted", all[49].Kind)
+}
+
+func TestGetSolveLogsForProblem(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.RecordSolveLog(ctx, &SolveLogRecord{
+		ProblemID:  1,
+		Slug:       "two-sum",
+		Language:   "golang",
+		Status:     "Accepted",
+		StatusCode: 10,
+	}))
+	require.NoError(t, s.RecordSolveLog(ctx, &SolveLogRecord{
+		ProblemID:  49,
+		Slug:       "group-anagrams",
+		Language:   "golang",
+		Status:     "Wrong Answer",
+		StatusCode: 11,
+	}))
+
+	logs, err := s.GetSolveLogsForProblem(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, logs, 1)
+	assert.Equal(t, 1, logs[0].ProblemID)
+
+	logs, err = s.GetSolveLogsForProblem(ctx, 999)
+	require.NoError(t, err)
+	assert.Empty(t, logs)
+}
+
+func TestReviewCycles_CreateAndGet(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	err := s.CreateReviewCycle(ctx, &ReviewCycle{
+		ProblemID: 1,
+		Reason:    "weakness",
+		RoadmapID: "test",
+	})
+	require.NoError(t, err)
+
+	cycles, err := s.GetReviewCycles(ctx)
+	require.NoError(t, err)
+	require.Len(t, cycles, 1)
+	assert.Equal(t, 1, cycles[0].ProblemID)
+	assert.Equal(t, "weakness", cycles[0].Reason)
+	assert.Nil(t, cycles[0].CompletedAt)
+	assert.Nil(t, cycles[0].RewardedAt)
+}
+
+func TestReviewCycles_GetForProblem(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateReviewCycle(ctx, &ReviewCycle{ProblemID: 1, Reason: "weakness"}))
+	require.NoError(t, s.CreateReviewCycle(ctx, &ReviewCycle{ProblemID: 49, Reason: "failed_attempts"}))
+
+	cycles, err := s.GetReviewCyclesForProblem(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, cycles, 1)
+	assert.Equal(t, 1, cycles[0].ProblemID)
+
+	cycles, err = s.GetReviewCyclesForProblem(ctx, 999)
+	require.NoError(t, err)
+	assert.Empty(t, cycles)
+}
+
+func TestReviewCycles_CompleteAndReward(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateReviewCycle(ctx, &ReviewCycle{ProblemID: 1, Reason: "weakness"}))
+
+	cycles, _ := s.GetReviewCycles(ctx)
+	require.Len(t, cycles, 1)
+	id := cycles[0].ID
+
+	require.NoError(t, s.CompleteReviewCycle(ctx, id))
+	err := s.RewardReviewCycle(ctx, id)
+	require.NoError(t, err)
+
+	cycles, _ = s.GetReviewCycles(ctx)
+	require.Len(t, cycles, 1)
+	assert.NotNil(t, cycles[0].CompletedAt)
+	assert.NotNil(t, cycles[0].RewardedAt)
+}
+
+func TestReviewCycles_RewardIdempotent(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateReviewCycle(ctx, &ReviewCycle{ProblemID: 1, Reason: "weakness"}))
+	cycles, _ := s.GetReviewCycles(ctx)
+	id := cycles[0].ID
+
+	require.NoError(t, s.CompleteReviewCycle(ctx, id))
+	require.NoError(t, s.RewardReviewCycle(ctx, id))
+
+	err := s.RewardReviewCycle(ctx, id)
+	require.NoError(t, err, "rewarding again should not error")
+
+	cycles, _ = s.GetReviewCycles(ctx)
+	require.Len(t, cycles, 1)
+	firstRewarded := cycles[0].RewardedAt
+	require.NoError(t, s.RewardReviewCycle(ctx, id))
+	cycles, _ = s.GetReviewCycles(ctx)
+	assert.Equal(t, firstRewarded.Unix(), cycles[0].RewardedAt.Unix(), "re-award should not change timestamp")
+}

@@ -199,6 +199,78 @@ func TestRootModel_WindowSizeMsg(t *testing.T) {
 	assert.Contains(t, view, "Welcome, Ada")
 }
 
+func TestRootModel_UnsupportedSize(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 59, Height: 18})
+	root := updated.(*RootModel)
+	view := root.View()
+	assert.Contains(t, view, "Unsupported Size")
+	assert.Contains(t, view, "59x18")
+}
+
+func TestRootModel_UnsupportedSizeRestoresScreen(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
+	root := updated.(*RootModel)
+	assert.Contains(t, root.View(), "Unsupported Size")
+	updated, _ = root.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	root = updated.(*RootModel)
+	assert.Contains(t, root.View(), "Welcome, Ada")
+}
+
+func TestRootModel_ReducedMotionDisablesAmbientBorder(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "cyber-dashboard",
+		MotionPreference:   "reduced",
+	}
+
+	m := newTestRootModel(t, cfg)
+	view := m.View()
+	assert.Contains(t, view, "Welcome, Ada")
+	assert.NotContains(t, view, "░░░░")
+	assert.NotContains(t, view, "▓▓▓▓")
+}
+
+func TestRootModel_CyberNormalMotionShowsAmbientBorder(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "cyber-dashboard",
+		MotionPreference:   "normal",
+	}
+
+	m := newTestRootModel(t, cfg)
+	view := m.View()
+	assert.Contains(t, view, "Welcome, Ada")
+	assert.Contains(t, view, "░░░░")
+}
+
 func TestRootModel_Quit(t *testing.T) {
 	cfg := &config.Config{
 		OnboardingComplete: true,

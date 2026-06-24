@@ -33,7 +33,7 @@ func TestOnboardingPrefill_DisplayName(t *testing.T) {
 	require.NoError(t, err)
 	cfg.DisplayName = "  Ada  "
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, "  Ada  ", s.displayNameInput, "raw input preserved; trimming happens on next")
 }
 
@@ -45,7 +45,7 @@ func TestOnboardingPrefill_Workspace(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Workspace = "/home/ada/my-workspace"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, "/home/ada/my-workspace", s.workspaceInput)
 }
 
@@ -57,7 +57,7 @@ func TestOnboardingPrefill_Language(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Language = "typescript"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	langs := testLanguages()
 	assert.Equal(t, "typescript", langs[s.languageIndex])
 }
@@ -71,7 +71,7 @@ func TestOnboardingPrefill_RoadmapFromConfig(t *testing.T) {
 	cfg.Roadmap = "interview-sprint"
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	assert.Equal(t, "interview-sprint", rmaps[s.roadmapFocus].ID)
 }
 
@@ -84,7 +84,7 @@ func TestOnboardingPrefill_RoadmapFallsBackToRecommended(t *testing.T) {
 	cfg.Roadmap = "nonexistent"
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	assert.Equal(t, "from-zero-to-hero", rmaps[s.roadmapFocus].ID)
 	assert.True(t, rmaps[s.roadmapFocus].Recommended)
 }
@@ -97,8 +97,89 @@ func TestOnboardingPrefill_Theme(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Theme = "cyber-dashboard"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, "cyber-dashboard", config.ValidThemes[s.themeFocus])
+}
+
+func TestOnboardingThemeSelectionShowsPreview(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepThemeSelection
+	view := s.View()
+
+	assert.Contains(t, view, "Theme Preview")
+	assert.Contains(t, view, "Main Quest")
+	assert.Contains(t, view, "Status Preview")
+	assert.Contains(t, view, "Can you see these symbols?")
+	assert.Contains(t, view, "p plain/rich")
+}
+
+func TestOnboardingThemePreviewUsesSelectedThemeLabels(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepThemeSelection
+	s.themeFocus = 1
+	cleanView := s.View()
+	assert.Contains(t, cleanView, "Recommended")
+
+	s.themeFocus = 2
+	cyberView := s.View()
+	assert.Contains(t, cyberView, "Primary Signal")
+	assert.Contains(t, cyberView, "SYS: Theme Preview")
+}
+
+func TestOnboardingThemeSelectionTogglesSymbolMode(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepThemeSelection
+	assert.Equal(t, "rich", s.cfg.SymbolMode)
+
+	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	assert.Nil(t, cmd)
+	assert.Equal(t, "plain", s.cfg.SymbolMode)
+	assert.Contains(t, s.View(), "Symbol mode: plain")
+	assert.NotContains(t, s.View(), "⚠")
+	assert.NotContains(t, s.View(), "🔒")
+
+	_, cmd = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	assert.Nil(t, cmd)
+	assert.Equal(t, "rich", s.cfg.SymbolMode)
+}
+
+func TestOnboardingThemeSelectionPersistsSymbolMode(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+	cfg.DisplayName = "Ada"
+	cfg.Workspace = filepath.Join(home, "workspace")
+	cfg.Language = "go"
+	cfg.Roadmap = "from-zero-to-hero"
+	cfg.SymbolMode = "plain"
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepCompletion
+	s.handleNext()
+
+	loaded, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "plain", loaded.SymbolMode)
 }
 
 func TestOnboardingPrefill_GitExportEnabled(t *testing.T) {
@@ -113,7 +194,7 @@ func TestOnboardingPrefill_GitExportEnabled(t *testing.T) {
 	cfg.GitExportEnabled = true
 	cfg.GitExportRepo = gitDir
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, 0, s.gitExportChoice, "should be 'Yes' when GitExport is enabled")
 	assert.Equal(t, gitDir, s.gitExportRepo, "should prefill the repo path")
 }
@@ -126,7 +207,7 @@ func TestOnboardingPrefill_GitExportDisabled(t *testing.T) {
 	require.NoError(t, err)
 	cfg.GitExportEnabled = false
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, 1, s.gitExportChoice, "should be 'Not now' when GitExport is disabled")
 	assert.Empty(t, s.gitExportRepo)
 }
@@ -140,7 +221,7 @@ func TestOnboardingPrefill_GitExportClearsRepoOnNotNow(t *testing.T) {
 	cfg.GitExportEnabled = false
 	cfg.GitExportRepo = "/old/repo"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, 1, s.gitExportChoice)
 	assert.Empty(t, s.gitExportRepo, "should clear repo when git export is disabled")
 }
@@ -152,7 +233,7 @@ func TestOnboarding_EnterDisplayName(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	assert.Equal(t, stepDisplayName, s.step)
 
 	s.handleDisplayNameKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
@@ -174,7 +255,7 @@ func TestOnboarding_DisplayNameRequired(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.displayNameInput = "   "
 	s.handleNext()
 	assert.Equal(t, stepDisplayName, s.step, "should not advance when name is empty")
@@ -188,7 +269,7 @@ func TestOnboarding_GitExportNotNow(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 1
 	s.handleNext()
@@ -204,7 +285,7 @@ func TestOnboarding_GitExportUsesVerticalSelection(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 1
 
@@ -233,7 +314,7 @@ func TestOnboarding_JKAreTextInGitExportRepoInput(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 0
 	s.gitExportRepo = ""
@@ -254,7 +335,7 @@ func TestOnboarding_QIsTextOnDisplayName(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
 
 	assert.Nil(t, cmd)
@@ -268,7 +349,7 @@ func TestOnboarding_QIsTextOnWorkspace(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepWorkspaceLang
 	s.workspaceInput = ""
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
@@ -284,7 +365,7 @@ func TestOnboarding_JKAreTextInWorkspaceInput(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepWorkspaceLang
 	s.workspaceInput = ""
 	s.languageIndex = 0
@@ -305,7 +386,7 @@ func TestOnboarding_CtrlNPSelectLanguageWhileTypingWorkspace(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepWorkspaceLang
 	s.languageIndex = 0
 
@@ -324,7 +405,7 @@ func TestOnboarding_ReplacesGoTestTempWorkspaceDefault(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Workspace = filepath.Join(os.TempDir(), "TestRootModel_ThemeCycle1737575936", "001")
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 
 	assert.Equal(t, filepath.Join(home, "leetgo-workspace"), s.workspaceInput)
 }
@@ -336,7 +417,7 @@ func TestOnboarding_FooterShowsCtrlCQuitOnInputStep(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepWorkspaceLang
 	footer := s.renderFooter()
 
@@ -351,7 +432,7 @@ func TestOnboarding_QQuitsOnSelectionStep(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepRoadmapCarousel
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
 
@@ -368,7 +449,7 @@ func TestOnboarding_GitExportOptIn(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 0
 	s.gitExportRepo = gitDir
@@ -385,7 +466,7 @@ func TestOnboarding_GitExportRequiresRepo(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 0
 	s.gitExportRepo = ""
@@ -401,7 +482,7 @@ func TestOnboarding_GitExportNonExistentPath(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 0
 	s.gitExportRepo = "/nonexistent/path"
@@ -418,7 +499,7 @@ func TestOnboarding_GitExportNotGitRepo(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 	s.gitExportChoice = 0
 	s.gitExportRepo = nonGitDir
@@ -434,7 +515,7 @@ func TestOnboarding_WorkspaceRequired(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepWorkspaceLang
 	s.workspaceInput = ""
 	s.handleNext()
@@ -450,7 +531,7 @@ func TestOnboarding_RoadmapCarouselWrapsLeft(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 0
 
@@ -466,7 +547,7 @@ func TestOnboarding_RoadmapCarouselWrapsRight(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = len(rmaps) - 1
 
@@ -482,7 +563,7 @@ func TestOnboarding_RoadmapCarouselHKey(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 1
 
@@ -498,7 +579,7 @@ func TestOnboarding_RoadmapCarouselLKey(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 0
 
@@ -516,12 +597,12 @@ func TestOnboarding_RoadmapCarouselRendersThreeCards(t *testing.T) {
 	rmaps := testRoadmaps(t)
 	require.GreaterOrEqual(t, len(rmaps), 3, "need at least 3 bundled roadmaps")
 
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 0
 
 	view := s.View()
-	assert.Contains(t, view, "Step 4/5")
+	assert.Contains(t, view, "Step 4/7")
 	assert.Contains(t, view, "From Zero To Hero")
 	assert.Contains(t, view, "Interview Sprint")
 	assert.Contains(t, view, "Hard Mode")
@@ -537,7 +618,7 @@ func TestOnboarding_RoadmapCarouselFocusShowsAll(t *testing.T) {
 	rmaps := testRoadmaps(t)
 	require.GreaterOrEqual(t, len(rmaps), 3)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 1
 
@@ -555,7 +636,7 @@ func TestOnboarding_RoadmapConfirmSetsRoadmap(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 2
 	s.handleNext()
@@ -575,11 +656,16 @@ func TestOnboarding_CompletionSavesAndNavigates(t *testing.T) {
 	cfg.Roadmap = "from-zero-to-hero"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
 	nextScreen, cmd := s.handleNext()
+	assert.NotNil(t, nextScreen)
+	assert.Nil(t, cmd)
+	nextScreen, cmd = s.handleNext()
 	assert.Nil(t, nextScreen, "screen should be nil on completion (root replaces it)")
 	require.NotNil(t, cmd, "should return a navigation command")
 	assert.True(t, s.cfg.OnboardingComplete, "should mark onboarding complete on success")
@@ -597,16 +683,18 @@ func TestOnboarding_CompletionValidationFails_NoWorkspace(t *testing.T) {
 	cfg.Roadmap = "from-zero-to-hero"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
 	next, cmd := s.handleNext()
 	assert.NotNil(t, next, "should stay on the screen")
 	assert.Nil(t, cmd)
 	assert.False(t, s.cfg.OnboardingComplete, "should not mark complete on validation failure")
 	assert.Contains(t, s.errorMsg, "validation failed")
-	assert.Equal(t, stepThemeSelection, s.step, "should stay on final step")
+	assert.Equal(t, stepCompletion, s.step, "should stay on completion step")
 }
 
 func TestOnboarding_CompletionValidationFails_UnsupportedLanguage(t *testing.T) {
@@ -621,10 +709,12 @@ func TestOnboarding_CompletionValidationFails_UnsupportedLanguage(t *testing.T) 
 	cfg.Roadmap = "from-zero-to-hero"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
 	next, cmd := s.handleNext()
 	assert.NotNil(t, next)
 	assert.Nil(t, cmd)
@@ -645,10 +735,12 @@ func TestOnboarding_CompletionValidationFails_UnknownRoadmap(t *testing.T) {
 	cfg.Roadmap = "unknown-roadmap"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
 	next, cmd := s.handleNext()
 	assert.NotNil(t, next)
 	assert.Nil(t, cmd)
@@ -668,10 +760,12 @@ func TestOnboarding_CompletionValidationFails_DisplayNameEmpty(t *testing.T) {
 	cfg.Roadmap = "from-zero-to-hero"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
 	next, cmd := s.handleNext()
 	assert.NotNil(t, next)
 	assert.Nil(t, cmd)
@@ -687,7 +781,7 @@ func TestOnboarding_QuitDoesNotMarkComplete(t *testing.T) {
 	require.NoError(t, err)
 	cfg.OnboardingComplete = false
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	require.NotNil(t, cmd)
 	assert.False(t, s.cfg.OnboardingComplete, "quitting should not mark Onboarding complete")
@@ -700,7 +794,7 @@ func TestOnboarding_EscGoesBack(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepGitExport
 
 	_, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -714,7 +808,7 @@ func TestOnboarding_EscStaysOnFirstStep(t *testing.T) {
 	cfg, err := config.DefaultConfig()
 	require.NoError(t, err)
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepDisplayName
 
 	_, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -729,7 +823,7 @@ func TestOnboarding_FullFlowNoGitExport(t *testing.T) {
 	require.NoError(t, err)
 	cfg.Workspace = t.TempDir()
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 
 	s.handleDisplayNameKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")})
 	s.handleDisplayNameKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
@@ -743,6 +837,9 @@ func TestOnboarding_FullFlowNoGitExport(t *testing.T) {
 
 	s.handleNext()
 
+	s.handleNext()
+	s.handleNext()
+	s.handleNext()
 	_, cmd := s.handleNext()
 	assert.NotNil(t, cmd)
 	assert.True(t, s.cfg.OnboardingComplete)
@@ -765,10 +862,13 @@ func TestOnboarding_CompletionReturnsNavigateCmd(t *testing.T) {
 	cfg.Roadmap = "from-zero-to-hero"
 	cfg.Theme = "rpg-skill-tree"
 
-	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t))
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
 	s.themeFocus = 0
 
+	s.handleNext()
+	s.handleNext()
+	s.handleNext()
 	_, cmd := s.handleNext()
 	require.NotNil(t, cmd)
 
@@ -786,7 +886,7 @@ func TestOnboarding_RoadmapCarouselViewContainsIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	rmaps := testRoadmaps(t)
-	s := NewOnboardingScreen(cfg, testLanguages(), rmaps)
+	s := NewOnboardingScreen(cfg, testLanguages(), rmaps, nil, nil)
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 0
 

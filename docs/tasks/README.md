@@ -8,10 +8,18 @@ Read first:
 - `docs/adr/0010-local-first-verification-and-reward-events.md`
 - `docs/product/onboarding-dashboard.md`
 - `docs/product/tui-screen-spec.md`
+- `docs/product/learning-system.md`
+- `docs/product/interface-styling.md`
 - `docs/product/config-schema.md`
 - `docs/product/tui-rebuild-plan.md`
+- `docs/tasks/learning-system-sprints.md`
+- `docs/tasks/interface-styling-sprints.md`
 
 ## Recommended Order
+
+For the learning-system phase, assign tasks by sprint from [Learning System Sprint Plan](./learning-system-sprints.md). The list below remains the full task index.
+
+For the interface-styling phase, assign tasks by sprint from [Interface Styling Sprint Plan](./interface-styling-sprints.md).
 
 1. [Config Profile and Preferences](./001-config-profile-preferences.md)
 2. [Roadmap Carousel Metadata](./002-roadmap-carousel-metadata.md)
@@ -28,7 +36,7 @@ Read first:
 13. [Dashboard Context Completeness](./013-dashboard-context-completeness.md)
 14. [Theme Motion and Async Polish](./014-theme-motion-async-polish.md)
 15. [Dashboard Action State Fixes](./015-dashboard-action-state-fixes.md)
-16. [Solve Log Dashboard Flow](./016-solve-log-dashboard-flow.md)
+16. [Practice Log Dashboard Flow](./016-solve-log-dashboard-flow.md)
 17. [Onboarding Defaults and Rerun](./017-onboarding-defaults-and-rerun.md)
 18. [Verified Status Domain Model](./018-verified-status.md)
 19. [Reward Events Persistence and XP Idempotency](./019-reward-events.md)
@@ -40,6 +48,29 @@ Read first:
 25. [CLI Test and Submit Output](./025-cli-output.md)
 26. [Migration for Existing Solved Problems](./026-migration-legacy-solved.md)
 27. [Dashboard Next Action Ranking for Verified](./027-dashboard-verified-ranking.md)
+28. [Solved-Gated Progression](./028-solved-gated-progression.md)
+29. [Solve Provenance and Practice Log Foundation](./029-solve-provenance-practice-log.md)
+30. [Catalog Learning Metadata](./030-catalog-learning-metadata.md)
+31. [Next Action Learning Ranking](./031-next-action-learning-ranking.md)
+32. [Problem Brief and `leetgo info`](./032-problem-brief-info-cli.md)
+33. [`leetgo next` CLI](./033-next-cli-command.md)
+34. [Submit and Manual Solve Flow](./034-submit-manual-solve-flow.md)
+35. [Unlock Path UI Explanations](./035-unlock-path-ui-explanations.md)
+36. [Review Cycles and Review XP](./036-review-cycles-xp.md)
+37. [Onboarding Session and Roadmap Handoff](./037-onboarding-session-roadmap-handoff.md)
+38. [Roadmap Completion](./038-roadmap-completion.md)
+39. [Learning System Audit](./039-learning-system-audit.md)
+40. [Appearance Config](./040-appearance-config.md)
+41. [Terminal Palette and Symbol Set](./041-terminal-palette-symbols.md)
+42. [Shared View Components](./042-shared-view-components.md)
+43. [Unsupported Size and Responsive Shell](./043-unsupported-size-responsive-shell.md)
+44. [Dashboard RPG Redesign](./044-dashboard-rpg-redesign.md)
+45. [Roadmap and Stage RPG Redesign](./045-roadmap-stage-rpg-redesign.md)
+46. [Problem Detail and Practice Log RPG Redesign](./046-problem-practice-rpg-redesign.md)
+47. [Reward Moments for TUI and CLI](./047-reward-moments.md)
+48. [Onboarding Theme Preview and Symbol Fallback](./048-onboarding-theme-preview.md)
+49. [Clean and Cyber Theme Pass](./049-clean-cyber-theme-pass.md)
+50. [Interface Styling Audit](./050-interface-styling-audit.md)
 
 ## Task Rules
 

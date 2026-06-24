@@ -1,6 +1,6 @@
-# Local-First Verification and Reward Events
+# Solved-Gated Progression and Reward Events
 
-Leetgo treats local TestSuite pass as the primary success state (`Verified`) and LeetCode Accepted Submission as optional external confirmation (`Solved`). This makes the app useful offline and prevents an unstable browser-session LeetCode integration from blocking Roadmap progression or XP awards. XP is awarded through idempotent Reward Events: 70% on first local Verify, 30% on first Accepted Submission, 0% on manual Solve.
+Leetgo treats local TestSuite pass as `Verified`, a local confidence state that can earn local XP but does not unlock dependent Problems. Roadmap progression is gated by `Solved`: either an Accepted LeetCode Submission (`Accepted Solve`) or an explicit user confirmation (`Manual Solve`). Manual Solve unlocks dependent Problems but earns no XP unless the user later upgrades it with an Accepted Submission.
 
-**Considered Options**: Make LeetCode Accepted the only valid solve condition, split rewards 50/50, make local Verify worth 100% with no Submission XP, award XP on every test pass.
-**Consequences**: Existing `Solved` Problems must be migrated with legacy Reward Event guards to prevent duplicate XP. Dashboard, Problem Detail, CLI output, and Roadmap unlocking all need to distinguish Verified from Solved. LeetCode Submission becomes best-effort, not a core dependency.
+**Considered Options**: Make local `Verified` unlock dependents, make Accepted Submission the only valid Solve, allow Manual Solve as an unlock-only override, award XP for Manual Solve.
+**Consequences**: Dashboard, Problem Detail, CLI output, and Roadmap unlocking must distinguish `Verified`, `Manual Solve`, and `Accepted Solve`. Verified Problems become strong Next Actions for Submission or Manual Solve. Manual Solve needs confirmation and Practice Log provenance. Existing Reward Events remain idempotent, and Accepted Submission can later upgrade a Manual Solve for eligible XP.

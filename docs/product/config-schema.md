@@ -12,6 +12,8 @@ editor = "nvim"
 language = "go"
 roadmap = "from-zero-to-hero"
 theme = "rpg-skill-tree"
+symbol_mode = "rich"
+motion_preference = "normal"
 git_export_enabled = true
 git_export_repo = "/home/ada/progress"
 ```
@@ -25,6 +27,8 @@ git_export_repo = "/home/ada/progress"
 - `language`: must match a supported generator Language.
 - `roadmap`: must match a bundled Roadmap ID.
 - `theme`: must be one of `rpg-skill-tree`, `clean-productivity`, `cyber-dashboard`.
+- `symbol_mode`: must be `rich` or `plain`.
+- `motion_preference`: must be `normal`, `reduced`, or `off`.
 - `git_export_enabled`: whether Git Export backup is enabled.
 - `git_export_repo`: required when `git_export_enabled` is true.
 
@@ -49,6 +53,8 @@ Config validation should fail when:
 - Language is unsupported.
 - Roadmap is unknown.
 - Theme is unknown.
+- Symbol mode is unknown.
+- Motion preference is unknown.
 - Onboarding is complete but Display Name is empty.
 - Git Export is enabled but repo path is empty or invalid.
 
@@ -64,6 +70,8 @@ Should support new keys:
 
 - `display-name`
 - `theme`
+- `symbol-mode`
+- `motion`
 - `git-export-enabled`
 - `git-export-repo`
 

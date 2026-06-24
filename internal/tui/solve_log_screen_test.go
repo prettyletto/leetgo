@@ -43,7 +43,7 @@ func TestSolveLog_EmptyState(t *testing.T) {
 	sl.width = 120
 
 	view := sl.View()
-	assert.Contains(t, view, "No Solve Logs")
+	assert.Contains(t, view, "No entries yet")
 	assert.Contains(t, view, "submit")
 }
 
@@ -133,6 +133,8 @@ func TestSolveLog_RendersAccepted(t *testing.T) {
 	sl.width = 120
 	view := sl.View()
 	assert.Contains(t, view, "two-sum")
+	assert.Contains(t, view, "Learning History")
+	assert.Contains(t, view, "✓ Accepted")
 	assert.Contains(t, view, "Accepted")
 	assert.Contains(t, view, "1 ms")
 	assert.Contains(t, view, "2 MB")
@@ -207,7 +209,7 @@ func TestSolveLog_TitleRendered(t *testing.T) {
 	sl.width = 120
 
 	view := sl.View()
-	assert.Contains(t, view, "Solve Log")
+	assert.Contains(t, view, "Practice Log")
 }
 
 func TestSolveLog_ProblemDetailStillShowsLogs(t *testing.T) {
@@ -232,8 +234,7 @@ func TestSolveLog_ProblemDetailStillShowsLogs(t *testing.T) {
 	pd.refresh()
 	pd.width = 120
 	view := pd.View()
-	assert.Contains(t, view, "Solve Log")
-	assert.Contains(t, view, "Accepted")
+	assert.Contains(t, view, "Practice Log")
 }
 
 func TestSolveLog_SubmitResultRecordsLog(t *testing.T) {

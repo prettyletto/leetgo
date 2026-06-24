@@ -48,6 +48,56 @@ func TestRoadmapDetail_ViewShowsTitle(t *testing.T) {
 	assert.Contains(t, view, "From Zero To Hero")
 }
 
+func TestRoadmapDetail_RPGWorldMapLabels(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 120
+
+	view := rd.View()
+	assert.Contains(t, view, "World Map")
+	assert.Contains(t, view, "Zone:")
+	assert.Contains(t, view, "Locked Branches")
+}
+
+func TestRoadmapDetail_CleanThemeLabels(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.cfg.Theme = "clean-productivity"
+	theme, err := LookupTheme(rd.cfg.Theme)
+	require.NoError(t, err)
+	rd.theme = theme
+	rd.width = 120
+
+	view := rd.View()
+	assert.Contains(t, view, "Roadmap: From Zero To Hero")
+	assert.Contains(t, view, "Stage:")
+	assert.Contains(t, view, "Upcoming")
+	assert.NotContains(t, view, "World Map")
+}
+
+func TestRoadmapDetail_CyberThemeLabels(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.cfg.Theme = "cyber-dashboard"
+	theme, err := LookupTheme(rd.cfg.Theme)
+	require.NoError(t, err)
+	rd.theme = theme
+	rd.width = 120
+
+	view := rd.View()
+	assert.Contains(t, view, "Signal Map")
+	assert.Contains(t, view, "Sector:")
+	assert.Contains(t, view, "Locked Signals")
+}
+
+func TestRoadmapDetail_PlainSymbolsPreserveStatusMeaning(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.cfg.SymbolMode = "plain"
+	rd.width = 120
+
+	view := rd.View()
+	assert.Contains(t, view, "[READY]")
+	assert.Contains(t, view, "[LOCKED]")
+	assert.NotContains(t, view, "🔒")
+}
+
 func TestRoadmapDetail_ViewShowsTagline(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 120

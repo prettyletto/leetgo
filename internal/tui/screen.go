@@ -30,4 +30,5 @@ const (
 	ScreenStageDetail   = "stage-detail"
 	ScreenProblemDetail = "problem-detail"
 	ScreenSolveLog      = "solve-log"
+	ScreenCompletion    = "roadmap-completion"
 )

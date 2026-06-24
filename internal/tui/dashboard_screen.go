@@ -13,6 +13,7 @@ import (
 	"github.com/prettyletto/leetgo/internal/recommendation"
 	"github.com/prettyletto/leetgo/internal/roadmap"
 	"github.com/prettyletto/leetgo/internal/store"
+	"github.com/prettyletto/leetgo/internal/tui/views"
 )
 
 type DashboardScreen struct {
@@ -26,8 +27,16 @@ type DashboardScreen struct {
 	stats          *store.Stats
 	achievementIDs []string
 
+	comingSoon []comingSoonItem
+
 	width  int
 	height int
+}
+
+type comingSoonItem struct {
+	problem  *roadmap.Problem
+	blockers []*roadmap.Problem
+	status   roadmap.Status
 }
 
 func NewDashboardScreen(cfg *config.Config, theme *Theme, db store.Store, rm *roadmap.Roadmap) *DashboardScreen {
@@ -63,6 +72,52 @@ func (s *DashboardScreen) refresh(ctx context.Context) {
 	if err == nil {
 		s.achievementIDs = achievementIDs
 	}
+
+	s.comingSoon = s.buildComingSoon()
+}
+
+func (s *DashboardScreen) buildComingSoon() []comingSoonItem {
+	solvedMap := s.solvedMap()
+	progress, _ := s.db.GetAllProgress(context.Background())
+	if progress == nil {
+		progress = make(map[int]roadmap.Status)
+	}
+
+	sorted, err := s.roadmap.Graph.TopologicalSort()
+	if err != nil {
+		return nil
+	}
+
+	var items []comingSoonItem
+	for _, p := range sorted {
+		if solvedMap[p.ID] {
+			continue
+		}
+		if progress[p.ID] == roadmap.StatusInProgress {
+			continue
+		}
+
+		var blockers []*roadmap.Problem
+		for _, prereqID := range p.Prerequisites {
+			if !solvedMap[prereqID] {
+				if bp, ok := s.roadmap.Graph.Problems[prereqID]; ok {
+					blockers = append(blockers, bp)
+				}
+			}
+		}
+
+		if len(blockers) >= 1 && len(blockers) <= 2 {
+			status := progress[p.ID]
+			if status == "" {
+				status = roadmap.StatusLocked
+			}
+			items = append(items, comingSoonItem{problem: p, blockers: blockers, status: status})
+			if len(items) >= 3 {
+				break
+			}
+		}
+	}
+	return items
 }
 
 func (s *DashboardScreen) Init() tea.Cmd {
@@ -100,9 +155,22 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			if s.focusIndex < len(s.actions) {
 				action := s.actions[s.focusIndex]
 				switch action.Kind {
-				case recommendation.KindContinue, recommendation.KindStart, recommendation.KindSubmit:
+				case recommendation.KindContinue, recommendation.KindStart, recommendation.KindSubmit, recommendation.KindManualSolve:
 					return s, func() tea.Msg {
 						return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: action.ProblemID}
+					}
+				case recommendation.KindReview:
+					s.ensureReviewCycle(action)
+					return s, func() tea.Msg {
+						return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: action.ProblemID}
+					}
+				case recommendation.KindConnectLeetCode:
+					return s, func() tea.Msg {
+						return GlobalNotificationMsg{Message: "Run leetgo auth to connect your LeetCode Session for Submission XP."}
+					}
+				case recommendation.KindViewRoadmapCompletion:
+					return s, func() tea.Msg {
+						return NavigateMsg{ScreenID: ScreenCompletion}
 					}
 				case recommendation.KindExport:
 					return s, func() tea.Msg {
@@ -137,6 +205,32 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	return s, nil
 }
 
+func (s *DashboardScreen) ensureReviewCycle(action recommendation.NextAction) {
+	if action.Kind != recommendation.KindReview || action.ProblemID == 0 {
+		return
+	}
+	ctx := context.Background()
+	reason := "weakness"
+	if action.ReasonType == recommendation.ReasonValidatesManualSolve {
+		reason = "manual_solve_validation"
+	} else if strings.Contains(action.Reason, "failed-attempt") {
+		reason = "failed_attempts"
+	}
+	cycles, err := s.db.GetReviewCyclesForProblem(ctx, action.ProblemID)
+	if err == nil {
+		for _, rc := range cycles {
+			if rc.CompletedAt == nil && rc.Reason == reason {
+				return
+			}
+		}
+	}
+	_ = s.db.CreateReviewCycle(ctx, &store.ReviewCycle{
+		ProblemID: action.ProblemID,
+		Reason:    reason,
+		RoadmapID: s.roadmap.ID,
+	})
+}
+
 func dashboardFocusDelta(msg tea.KeyMsg) (int, bool) {
 	switch msg.Type {
 	case tea.KeyDown, tea.KeyShiftDown, tea.KeyCtrlDown, tea.KeyCtrlShiftDown:
@@ -161,8 +255,8 @@ func (s *DashboardScreen) moveFocus(delta int) {
 		return
 	}
 
-	rendered := n
 	maxShow := 5
+	rendered := n
 	if rendered > maxShow {
 		rendered = maxShow
 	}
@@ -196,7 +290,7 @@ func (s *DashboardScreen) View() string {
 
 	if s.width > 100 {
 		left := s.renderHUD()
-		center := s.renderNextActions()
+		center := s.renderCenter()
 		right := s.renderRoadmapContext()
 		body := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", center, "  ", right)
 		content = header + "\n" + body + "\n" + s.renderFooter()
@@ -204,7 +298,7 @@ func (s *DashboardScreen) View() string {
 	}
 
 	if s.width > 60 {
-		center := s.renderNextActions()
+		center := s.renderCenter()
 		left := s.renderHUD()
 		right := s.renderRoadmapContext()
 		rails := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
@@ -212,7 +306,7 @@ func (s *DashboardScreen) View() string {
 		return s.centerContent(content)
 	}
 
-	center := s.renderNextActions()
+	center := s.renderCenter()
 	content = header + "\n" + center + "\n" + s.renderFooter()
 	return s.centerContent(content)
 }
@@ -226,10 +320,11 @@ func (s *DashboardScreen) centerContent(content string) string {
 
 func (s *DashboardScreen) renderHUD() string {
 	var lines []string
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 	lines = append(lines, s.theme.Key.Render(s.cfg.DisplayName))
 
 	if s.stats != nil {
-		lines = append(lines, fmt.Sprintf("Level %d", s.stats.Level))
+		lines = append(lines, fmt.Sprintf("%s Level %d", symbols.XP, s.stats.Level))
 		lines = append(lines, s.renderXPProgress())
 		lines = append(lines, fmt.Sprintf("Streak: %d days", s.stats.Streak))
 		lines = append(lines, fmt.Sprintf("Verified: %d", s.stats.Verified))
@@ -243,7 +338,7 @@ func (s *DashboardScreen) renderHUD() string {
 	lines = append(lines, s.renderLatestAchievement())
 
 	content := strings.Join(lines, "\n")
-	return s.theme.Panel.Width(25).Render(content)
+	return lipgloss.NewStyle().Width(27).Render(renderThemedPanel(s.theme, s.theme.Labels.Profile, content, false))
 }
 
 func (s *DashboardScreen) renderXPProgress() string {
@@ -267,14 +362,8 @@ func (s *DashboardScreen) renderXPProgress() string {
 		filled = barWidth
 	}
 
-	bar := lipgloss.NewStyle().
-		Foreground(s.theme.Success).
-		Render(strings.Repeat("█", filled))
-	bg := lipgloss.NewStyle().
-		Foreground(s.theme.Muted).
-		Render(strings.Repeat("░", barWidth-filled))
-
-	return fmt.Sprintf("[%s%s] %d/%d XP", bar, bg, xpInLevel, xpNeeded)
+	bar := views.ProgressBar(filled, barWidth, barWidth, "█", "░")
+	return fmt.Sprintf("[%s] %d/%d XP", lipgloss.NewStyle().Foreground(s.theme.XP).Render(bar), xpInLevel, xpNeeded)
 }
 
 func (s *DashboardScreen) renderLatestAchievement() string {
@@ -323,7 +412,7 @@ func (s *DashboardScreen) renderRoadmapContext() string {
 	}
 
 	if currentStage != "" {
-		lines = append(lines, fmt.Sprintf("Stage: %s", currentStage))
+		lines = append(lines, fmt.Sprintf("Current Stage: %s", currentStage))
 		completion := stageCompletions[currentStage]
 		lines = append(lines, fmt.Sprintf("Progress: %d/%d solved", completion[0], completion[1]))
 	}
@@ -334,11 +423,24 @@ func (s *DashboardScreen) renderRoadmapContext() string {
 		lines = append(lines, blocker)
 	}
 
+	if len(s.comingSoon) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(s.theme.Labels.LockedItems+":"))
+		for _, cs := range s.comingSoon[:min(2, len(s.comingSoon))] {
+			blockerLabels := make([]string, len(cs.blockers))
+			for i, b := range cs.blockers {
+				blockerLabels[i] = fmt.Sprintf("#%d %s", b.ID, b.Title)
+			}
+			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(
+				fmt.Sprintf("  #%d %s", cs.problem.ID, cs.problem.Title)))
+		}
+	}
+
 	lines = append(lines, "")
 	lines = append(lines, "Press r for Roadmap Detail")
 
 	content := strings.Join(lines, "\n")
-	return s.theme.Panel.Width(25).Render(content)
+	return lipgloss.NewStyle().Width(27).Render(renderThemedPanel(s.theme, s.theme.Labels.RoadmapContext, content, false))
 }
 
 func (s *DashboardScreen) findNextBlocker(solvedMap map[int]bool) string {
@@ -373,9 +475,14 @@ func (s *DashboardScreen) findNextBlocker(solvedMap map[int]bool) string {
 		}
 
 		if blockingPrereq != nil {
-			return lipgloss.NewStyle().Foreground(s.theme.Danger).Render(
-				fmt.Sprintf("Blocker: #%d %s\n  locked by #%d %s",
-					p.ID, p.Title, blockingPrereq.ID, blockingPrereq.Title))
+			status := progress[blockingPrereq.ID]
+			blockerLabel := fmt.Sprintf("#%d %s", blockingPrereq.ID, blockingPrereq.Title)
+			if status == roadmap.StatusVerified {
+				blockerLabel += " (Verified)"
+			}
+			return lipgloss.NewStyle().Foreground(s.theme.Warning).Render(
+				fmt.Sprintf("Blocker: #%d %s\n  locked by %s",
+					p.ID, p.Title, blockerLabel))
 		}
 	}
 	return ""
@@ -388,83 +495,141 @@ func (s *DashboardScreen) solvedMap() map[int]bool {
 	}
 	solved := make(map[int]bool, len(progress))
 	for id, status := range progress {
-		if status == roadmap.StatusSolved || status == roadmap.StatusVerified {
+		if status == roadmap.StatusSolved {
 			solved[id] = true
 		}
 	}
 	return solved
 }
 
-func (s *DashboardScreen) renderNextActions() string {
-	if len(s.actions) == 0 {
-		content := fmt.Sprintf("No actions available.\n\nStart a problem from the list view (press l).")
-		return s.theme.Panel.Width(40).Render(content)
+func (s *DashboardScreen) renderCenter() string {
+	var sections []string
+
+	primary := s.renderPrimaryAction()
+	if primary != "" {
+		sections = append(sections, primary)
 	}
 
-	maxShow := 5
-	showActions := s.actions
-	if len(showActions) > maxShow {
-		showActions = showActions[:maxShow]
+	also := s.renderAlsoAvailable()
+	if also != "" {
+		sections = append(sections, also)
 	}
 
-	actionLines := make([]string, 0, len(showActions))
-	for i, action := range showActions {
-		line := s.renderActionCard(action, i == s.focusIndex)
-		actionLines = append(actionLines, line)
-	}
-
-	content := strings.Join(actionLines, "")
-	return content
+	return strings.Join(sections, "\n")
 }
 
-func (s *DashboardScreen) renderActionCard(action recommendation.NextAction, focused bool) string {
-	var style, labelStyle lipgloss.Style
-	marker := " "
-	if focused {
-		marker = ">"
-		style = s.theme.FocusedPanel.Width(40)
-		labelStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(s.theme.SecondaryAccent)
-	} else {
-		style = s.theme.Panel.Width(40)
-		labelStyle = lipgloss.NewStyle().
-			Foreground(s.theme.Muted)
+func (s *DashboardScreen) renderPrimaryAction() string {
+	if len(s.actions) == 0 {
+		return s.theme.Panel.Width(44).Render("No actions available.\n\nStart a problem from the list view (press l).")
 	}
 
-	label := string(action.Kind)
-	label = strings.ToUpper(label[:1]) + label[1:]
+	action := s.actions[0]
+	focused := s.focusIndex == 0
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 
-	lines := fmt.Sprintf("%s %s  %s\n  %s",
+	var style, labelStyle lipgloss.Style
+	_ = symbols
+	marker := ">"
+	if focused {
+		style = s.theme.FocusedPanel.Width(44)
+		labelStyle = lipgloss.NewStyle().Bold(true).Foreground(s.theme.SecondaryAccent)
+	} else {
+		style = s.theme.Panel.Width(44)
+		labelStyle = lipgloss.NewStyle().Foreground(s.theme.Muted)
+	}
+
+	label := formatActionLabel(action.Kind)
+	header := lipgloss.NewStyle().Bold(true).Foreground(s.theme.PrimaryAccent).Render(s.theme.Labels.PrimaryAction)
+
+	lines := fmt.Sprintf("%s %s %s\n%s  %s\n       %s",
 		marker,
 		labelStyle.Render(label),
 		s.theme.Key.Render(action.Title),
+		header,
+		lipgloss.NewStyle().Foreground(s.theme.Muted).Render(formatReasonType(action.ReasonType)),
 		action.Reason,
 	)
 
 	if action.ProblemID > 0 {
 		detail := fmt.Sprintf("%s · %s", action.Stage, action.Category)
 		if detail != " · " {
-			lines += "\n" + lipgloss.NewStyle().Foreground(s.theme.Muted).Render(detail)
+			lines += "\n" + lipgloss.NewStyle().Foreground(s.theme.Muted).Render("       "+detail)
 		}
 	}
 
-	return style.Render(lines) + "\n"
+	panelTitle := s.theme.Labels.PrimaryAction
+	if s.theme.ID == "rpg-skill-tree" {
+		panelTitle = "Quest Board"
+	}
+	return renderThemedPanel(s.theme, panelTitle, style.Render(lines), focused) + "\n"
+}
+
+func (s *DashboardScreen) renderAlsoAvailable() string {
+	if len(s.actions) <= 1 {
+		return ""
+	}
+
+	rest := s.actions[1:]
+	maxShow := 4
+	if len(rest) > maxShow {
+		rest = rest[:maxShow]
+	}
+
+	var lines []string
+	lines = append(lines, "")
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(s.theme.Muted).Render(s.theme.Labels.SecondaryActions))
+
+	for i, action := range rest {
+		idx := i + 1
+		focused := s.focusIndex == idx
+
+		marker := "  "
+		style := lipgloss.NewStyle()
+		if focused {
+			marker = "> "
+			style = lipgloss.NewStyle().
+				Foreground(s.theme.SecondaryAccent).Bold(true)
+		} else {
+			style = lipgloss.NewStyle().Foreground(s.theme.Muted)
+		}
+
+		label := formatActionLabel(action.Kind)
+		line := fmt.Sprintf("%s%s  %s", marker, label, action.Title)
+		lines = append(lines, style.Render(line))
+		if focused {
+			reasonLine := fmt.Sprintf("   %s", action.Reason)
+			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(reasonLine))
+		}
+	}
+
+	return views.Panel("", strings.Join(lines, "\n"), viewPalette(s.theme), false)
+}
+
+func formatReasonType(rt recommendation.ReasonType) string {
+	switch rt {
+	case recommendation.ReasonUnlocksDependent:
+		return "Why: unlocks dependent problems"
+	case recommendation.ReasonStrengthensPracticeFocus:
+		return "Why: strengthens practice focus"
+	case recommendation.ReasonCompletesVerified:
+		return "Why: complete verified problem"
+	case recommendation.ReasonContinuesInProgress:
+		return "Why: continue in-progress work"
+	case recommendation.ReasonRepairsWeakness:
+		return "Why: repairs weakness"
+	case recommendation.ReasonValidatesManualSolve:
+		return "Why: validates manual solve"
+	case recommendation.ReasonCompletesRoadmap:
+		return "Why: completes roadmap"
+	default:
+		return ""
+	}
 }
 
 func (s *DashboardScreen) renderFooter() string {
-	items := []string{
-		s.theme.Key.Render("up/down") + " navigate",
-		s.theme.Key.Render("j/k") + " navigate",
-		s.theme.Key.Render("enter") + " select",
-		s.theme.Key.Render("t") + " theme",
-		s.theme.Key.Render("r") + " roadmap",
-		s.theme.Key.Render("s") + " solve log",
-		s.theme.Key.Render("l") + " list",
-		s.theme.Key.Render("q") + " quit",
-	}
-
-	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+	keys := map[string]string{"up/down": "navigate", "j/k": "navigate", "enter": "select", "t": "theme", "r": "roadmap", "s": "practice log", "l": "list", "q": "quit"}
+	order := []string{"up/down", "j/k", "enter", "t", "r", "s", "l", "q"}
+	return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
 }
 
 func filterExports(actions []recommendation.NextAction) []recommendation.NextAction {
@@ -476,4 +641,18 @@ func filterExports(actions []recommendation.NextAction) []recommendation.NextAct
 		filtered = append(filtered, a)
 	}
 	return filtered
+}
+
+func formatActionLabel(kind recommendation.ActionKind) string {
+	switch kind {
+	case "manual_solve":
+		return "Manual Solve"
+	case "connect_leetcode":
+		return "Connect"
+	case "view_roadmap_completion":
+		return "Completion"
+	default:
+		s := string(kind)
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
 }

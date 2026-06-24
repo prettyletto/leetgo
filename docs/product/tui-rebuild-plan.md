@@ -11,7 +11,7 @@ Work:
 - Add config fields from `docs/product/config-schema.md`.
 - Add Theme validation.
 - Add Git Export preference validation.
-- Add Roadmap metadata fields: `tagline`, `audience`, `promise`, `recommended`, `estimated_hours`, `difficulty_mix`, `highlights`.
+- Add Roadmap metadata fields: `tagline`, `audience`, `promise`, `recommended`, `roadmap_time_estimate`, `difficulty_mix`, `highlights`.
 - Update all bundled Roadmap YAML files with metadata.
 - Validate Roadmap metadata.
 
@@ -84,7 +84,7 @@ Work:
 
 - Roadmap Detail with Unlock Path and Stage progress.
 - Stage Detail with filtered Problem list.
-- Problem Detail with Start/Test/Submit/Solve Log actions.
+- Problem Detail with Start/Test/Submit/Practice Log actions.
 - Migrate current list/graph views into these screens.
 
 Acceptance:

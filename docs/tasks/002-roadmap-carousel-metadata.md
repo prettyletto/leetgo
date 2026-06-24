@@ -24,7 +24,7 @@ Add fields to `roadmap.Roadmap`:
 - `Audience string`
 - `Promise string`
 - `Recommended bool`
-- `EstimatedHours int`
+- `RoadmapTimeEstimate string`
 - `DifficultyMix map[roadmap.Difficulty]int` or a dedicated struct
 - `Highlights []string`
 
@@ -42,7 +42,7 @@ Validation rules:
 - Only one bundled Roadmap may be recommended.
 - `difficulty_mix` must add to 100 when present.
 - `highlights` must contain 2-3 items.
-- `estimated_hours` must be positive when present.
+- `roadmap_time_estimate` must be non-empty when present.
 
 ## Acceptance Criteria
 

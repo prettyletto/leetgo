@@ -28,6 +28,9 @@ type rawCatalog struct {
 	Highlights     []string       `yaml:"highlights"`
 	Stages         []rawStage     `yaml:"stages"`
 	Problems       []rawProblem   `yaml:"problems"`
+
+	RoadmapTimeEstimate *string  `yaml:"roadmap_time_estimate"`
+	NextRoadmaps        []string `yaml:"next_roadmaps"`
 }
 
 type rawStage struct {
@@ -44,6 +47,13 @@ type rawProblem struct {
 	Category      string `yaml:"category"`
 	Stage         string `yaml:"stage"`
 	Prerequisites []int  `yaml:"prerequisites"`
+
+	PracticeFocus       string   `yaml:"practice_focus"`
+	ProblemTimeEstimate string   `yaml:"problem_time_estimate"`
+	Summary             string   `yaml:"summary"`
+	WhyNow              string   `yaml:"why_now"`
+	UnlockImpact        string   `yaml:"unlock_impact"`
+	Hints               []string `yaml:"hints"`
 }
 
 func Load() (*roadmap.Graph, error) {
@@ -126,13 +136,19 @@ func ParseRoadmap(data []byte) (*roadmap.Roadmap, error) {
 			stage = r.Category
 		}
 		problems[i] = &roadmap.Problem{
-			ID:            r.ID,
-			Title:         r.Title,
-			Slug:          r.Slug,
-			Difficulty:    roadmap.Difficulty(r.Difficulty),
-			Category:      roadmap.Category(r.Category),
-			Stage:         stage,
-			Prerequisites: r.Prerequisites,
+			ID:                  r.ID,
+			Title:               r.Title,
+			Slug:                r.Slug,
+			Difficulty:          roadmap.Difficulty(r.Difficulty),
+			Category:            roadmap.Category(r.Category),
+			Stage:               stage,
+			Prerequisites:       r.Prerequisites,
+			PracticeFocus:       r.PracticeFocus,
+			ProblemTimeEstimate: r.ProblemTimeEstimate,
+			Summary:             r.Summary,
+			WhyNow:              r.WhyNow,
+			UnlockImpact:        r.UnlockImpact,
+			Hints:               r.Hints,
 		}
 	}
 
@@ -156,19 +172,26 @@ func ParseRoadmap(data []byte) (*roadmap.Roadmap, error) {
 		estimatedHours = *raw.EstimatedHours
 	}
 
+	roadmapTimeEstimate := ""
+	if raw.RoadmapTimeEstimate != nil {
+		roadmapTimeEstimate = *raw.RoadmapTimeEstimate
+	}
+
 	rm := &roadmap.Roadmap{
-		ID:             raw.ID,
-		Title:          raw.Title,
-		Description:    raw.Description,
-		Tagline:        raw.Tagline,
-		Audience:       raw.Audience,
-		Promise:        raw.Promise,
-		Recommended:    raw.Recommended,
-		EstimatedHours: estimatedHours,
-		DifficultyMix:  difficultyMix,
-		Highlights:     raw.Highlights,
-		Stages:         stages,
-		Graph:          roadmap.NewGraph(problems),
+		ID:                  raw.ID,
+		Title:               raw.Title,
+		Description:         raw.Description,
+		Tagline:             raw.Tagline,
+		Audience:            raw.Audience,
+		Promise:             raw.Promise,
+		Recommended:         raw.Recommended,
+		EstimatedHours:      estimatedHours,
+		DifficultyMix:       difficultyMix,
+		Highlights:          raw.Highlights,
+		Stages:              stages,
+		Graph:               roadmap.NewGraph(problems),
+		RoadmapTimeEstimate: roadmapTimeEstimate,
+		NextRoadmaps:        raw.NextRoadmaps,
 	}
 	if _, err := rm.Graph.TopologicalSort(); err != nil {
 		return nil, fmt.Errorf("validate roadmap %q: %w", rm.ID, err)
@@ -194,6 +217,9 @@ func validateRawCatalog(raw rawCatalog) error {
 	}
 	if raw.EstimatedHours != nil && *raw.EstimatedHours <= 0 {
 		return fmt.Errorf("roadmap estimated_hours must be positive for %q", raw.ID)
+	}
+	if raw.RoadmapTimeEstimate != nil && strings.TrimSpace(*raw.RoadmapTimeEstimate) == "" {
+		return fmt.Errorf("roadmap_time_estimate must be non-empty for %q", raw.ID)
 	}
 	if len(raw.Highlights) < 2 || len(raw.Highlights) > 3 {
 		return fmt.Errorf("roadmap highlights must contain 2-3 items for %q, got %d", raw.ID, len(raw.Highlights))
@@ -247,6 +273,18 @@ func ValidateRoadmapSet(roadmaps []*roadmap.Roadmap) error {
 	}
 	if recommendedCount > 1 {
 		return fmt.Errorf("only one bundled roadmap may be marked recommended, found %d", recommendedCount)
+	}
+
+	validIDs := make(map[string]bool, len(roadmaps))
+	for _, rm := range roadmaps {
+		validIDs[rm.ID] = true
+	}
+	for _, rm := range roadmaps {
+		for _, nextID := range rm.NextRoadmaps {
+			if !validIDs[nextID] {
+				return fmt.Errorf("roadmap %q references unknown next_roadmap %q", rm.ID, nextID)
+			}
+		}
 	}
 	return nil
 }

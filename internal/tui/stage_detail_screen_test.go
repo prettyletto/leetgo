@@ -48,13 +48,48 @@ func TestStageDetail_ViewShowsStageTitle(t *testing.T) {
 	assert.Contains(t, view, "Arrays & Hashing")
 }
 
+func TestStageDetail_RPGZoneLabels(t *testing.T) {
+	sd, _ := newTestStageDetail(t, "arrays-hashing")
+	sd.width = 120
+
+	view := sd.View()
+	assert.Contains(t, view, "Zone: Arrays & Hashing")
+	assert.Contains(t, view, "Encounter Grid")
+	assert.Contains(t, view, "Recommended Encounter")
+}
+
+func TestStageDetail_ReviewShrine(t *testing.T) {
+	sd, db := newTestStageDetail(t, "arrays-hashing")
+	ctx := context.Background()
+	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
+	sd.width = 120
+
+	view := sd.View()
+	assert.Contains(t, view, "Review Shrine")
+	assert.Contains(t, view, "Two Sum")
+}
+
+func TestStageDetail_ReviewShrinePlainSymbols(t *testing.T) {
+	sd, db := newTestStageDetail(t, "arrays-hashing")
+	sd.cfg.SymbolMode = "plain"
+	ctx := context.Background()
+	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
+	sd.width = 120
+
+	view := sd.View()
+	assert.Contains(t, view, "Review Shrine")
+	assert.Contains(t, view, "R #1 Two Sum")
+	assert.NotContains(t, view, "↻")
+}
+
 func TestStageDetail_ViewShowsCompletion(t *testing.T) {
 	sd, _ := newTestStageDetail(t, "arrays-hashing")
 	sd.width = 120
 
 	view := sd.View()
-	assert.Contains(t, view, "solved")
-	assert.Contains(t, view, "Completion")
+	assert.Contains(t, view, "Solved:")
+	assert.Contains(t, view, "Verified:")
+	assert.Contains(t, view, "Total:")
 }
 
 func TestStageDetail_ViewShowsProblems(t *testing.T) {

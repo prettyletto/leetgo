@@ -1,17 +1,21 @@
-# Task 016: Solve Log Dashboard Flow
+# Task 016: Practice Log Dashboard Flow
+
+## Renaming Note
+
+This task was originally written for Solve Logs. User-facing full-history surfaces should now use `Practice Log`. Existing persistence names may remain if renaming them would make the implementation larger than necessary.
 
 ## Goal
 
-Make Solve Logs work from the Dashboard and Problem Detail instead of showing placeholder notifications.
+Make Practice Logs work from the Dashboard and Problem Detail instead of showing placeholder notifications.
 
 ## Why This Exists
 
-The Dashboard currently exposes Solve Log actions, but both paths are placeholders:
+The Dashboard currently exposes Practice Log actions, but both paths are placeholders:
 
-- `enter` on the `Review Solve Log` Next Action shows `Solve Log view not yet implemented from Dashboard.`
-- Pressing `s` on Dashboard shows `Solve Log detail not yet implemented.`
+- `enter` on the Practice Log Next Action should open Practice Log history.
+- Pressing `s` on Dashboard should open Practice Log history.
 
-Problem Detail already records Solve Logs from Submissions and renders latest logs for one Problem, and the CLI already has `leetgo solve-log [limit]`. The MVP needs an in-TUI way to inspect recent Solve Logs so the Dashboard action is not dead.
+Problem Detail already records Submission history and renders latest entries for one Problem, and the CLI may already have `leetgo solve-log [limit]`. The MVP needs an in-TUI way to inspect recent Practice Log entries so the Dashboard action is not dead.
 
 ## Dependencies
 
@@ -19,7 +23,7 @@ Problem Detail already records Solve Logs from Submissions and renders latest lo
 - Task 006: Next Action Calculator
 - Task 007: Dashboard MVP
 - Task 010: Problem Detail Screen
-- Solve Log persistence from SQLite migration `003_solve_logs.sql`
+- Existing solve log persistence from SQLite migration `003_solve_logs.sql`
 
 ## Likely Files
 
@@ -34,27 +38,27 @@ Problem Detail already records Solve Logs from Submissions and renders latest lo
 
 ## Implementation Notes
 
-- Add a `SolveLogDetail` or `SolveLogScreen` to the screen architecture.
-- Dashboard `s` should navigate to the Solve Log screen.
-- Dashboard `enter` on `KindInspect` / `Review Solve Log` should navigate to the same Solve Log screen.
-- The Solve Log screen should show recent Solve Logs with newest first.
+- Add a `PracticeLogDetail` or `PracticeLogScreen` to the screen architecture.
+- Dashboard `s` should navigate to the Practice Log screen.
+- Dashboard `enter` on the Practice Log action should navigate to the same Practice Log screen.
+- The Practice Log screen should show recent Practice Log entries with newest first.
 - Each row should include Problem ID or Slug, Language, Status, passed/total tests when available, runtime/memory when available, and submitted time.
-- Empty state should say that there are no Solve Logs yet and explain that Submissions create Solve Logs.
+- Empty state should say that there are no Practice Log entries yet and explain that local tests, Submissions, and Solve actions create entries.
 - `esc` / `backspace` should return to Dashboard.
-- Keep Problem Detail's per-Problem latest Solve Logs working.
-- If Solve Logs are not being recorded from Submissions, fix that path too.
+- Keep Problem Detail's per-Problem latest Practice Log entries working.
+- If Practice Log entries are not being recorded from Submissions, fix that path too.
 - Do not invent notes/editing unless it is already supported; this task is read-only inspection plus recording correctness.
 
 ## Acceptance Criteria
 
-- Dashboard `s` opens a Solve Log screen, not a placeholder notification.
-- Dashboard `enter` on `Review Solve Log` opens the Solve Log screen, not a placeholder notification.
-- Solve Log screen shows recent Solve Logs newest first.
-- Solve Log screen has a useful empty state.
-- Problem Detail still shows latest Solve Logs for the current Problem.
-- Accepted and rejected Submissions record Solve Logs with enough data to render status and test counts.
-- Tests cover Dashboard navigation to Solve Log screen from `s` and from the Inspect Next Action.
-- Tests cover Solve Log screen rendering for empty and populated stores.
+- Dashboard `s` opens a Practice Log screen, not a placeholder notification.
+- Dashboard `enter` on the Practice Log action opens the Practice Log screen, not a placeholder notification.
+- Practice Log screen shows recent entries newest first.
+- Practice Log screen has a useful empty state.
+- Problem Detail still shows latest Practice Log entries for the current Problem.
+- Accepted and rejected Submissions record entries with enough data to render status and test counts.
+- Tests cover Dashboard navigation to Practice Log screen from `s` and from the Inspect Next Action.
+- Tests cover Practice Log screen rendering for empty and populated stores.
 - Tests cover newest-first ordering.
 
 ## Verification

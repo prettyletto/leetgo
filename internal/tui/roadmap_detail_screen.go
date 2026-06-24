@@ -154,7 +154,8 @@ func (s *RoadmapDetailScreen) View() string {
 }
 
 func (s *RoadmapDetailScreen) renderHeader() string {
-	title := s.theme.Title.Render(s.roadmap.Title)
+	titlePrefix, _, _ := themeRoadmapLabels(s.theme)
+	title := s.theme.Title.Render(titlePrefix + ": " + s.roadmap.Title)
 	subtitle := ""
 	if s.roadmap.Tagline != "" {
 		subtitle = lipgloss.NewStyle().
@@ -176,6 +177,7 @@ func (s *RoadmapDetailScreen) renderListView() string {
 	var lines []string
 
 	solvedCount := s.buildStageSolvedCount()
+	_, stagePrefix, lockedLabel := themeRoadmapLabels(s.theme)
 
 	groups := s.groupProblemsByStage()
 	for _, stage := range s.roadmap.Stages {
@@ -188,7 +190,7 @@ func (s *RoadmapDetailScreen) renderListView() string {
 		solved := solvedCount[stage.ID]
 
 		header := fmt.Sprintf("%s  %d/%d solved",
-			s.theme.Key.Render(stage.Title),
+			s.theme.Key.Render(stagePrefix+": "+stage.Title),
 			solved, total,
 		)
 
@@ -208,7 +210,66 @@ func (s *RoadmapDetailScreen) renderListView() string {
 		lines = append(lines, "")
 	}
 
+	comingSoon := s.buildComingSoon()
+	if len(comingSoon) > 0 {
+		lines = append(lines, s.theme.Key.Render(lockedLabel))
+		for _, item := range comingSoon {
+			blockerNames := make([]string, len(item.blockers))
+			for i, b := range item.blockers {
+				status := ""
+				if s.progress[b.ID] == roadmap.StatusVerified {
+					status = " (Verified: Submit or Manual Solve to open gate)"
+				}
+				blockerNames[i] = fmt.Sprintf("#%d %s%s", b.ID, b.Title, status)
+			}
+			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(
+				fmt.Sprintf("  #%d %s — blocked by %s", item.problem.ID, item.problem.Title, strings.Join(blockerNames, ", "))))
+		}
+		lines = append(lines, "")
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+func (s *RoadmapDetailScreen) buildComingSoon() []comingSoonItem {
+	solvedMap := make(map[int]bool)
+	for id, status := range s.progress {
+		if status == roadmap.StatusSolved {
+			solvedMap[id] = true
+		}
+	}
+
+	sorted, err := s.roadmap.Graph.TopologicalSort()
+	if err != nil {
+		return nil
+	}
+
+	var items []comingSoonItem
+	for _, p := range sorted {
+		if solvedMap[p.ID] {
+			continue
+		}
+		if s.progress[p.ID] == roadmap.StatusInProgress {
+			continue
+		}
+
+		var blockers []*roadmap.Problem
+		for _, prereqID := range p.Prerequisites {
+			if !solvedMap[prereqID] {
+				if bp, ok := s.roadmap.Graph.Problems[prereqID]; ok {
+					blockers = append(blockers, bp)
+				}
+			}
+		}
+
+		if len(blockers) >= 1 && len(blockers) <= 2 {
+			items = append(items, comingSoonItem{problem: p, blockers: blockers})
+			if len(items) >= 3 {
+				break
+			}
+		}
+	}
+	return items
 }
 
 func (s *RoadmapDetailScreen) groupProblemsByStage() map[string][]*roadmap.Problem {
@@ -239,10 +300,11 @@ func (s *RoadmapDetailScreen) buildStageSolvedCount() map[string]int {
 
 func (s *RoadmapDetailScreen) renderProblemLine(p *roadmap.Problem) string {
 	status := s.effectiveStatus(p)
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 
 	focused := s.focusIndex < len(s.problems) && s.problems[s.focusIndex].ID == p.ID
 
-	marker := s.renderStatusMarker(status)
+	marker := renderStatusPill(s.theme, symbols, status)
 
 	label := fmt.Sprintf("#%d %s", p.ID, p.Title)
 	labelStyle := lipgloss.NewStyle()
@@ -273,7 +335,7 @@ func (s *RoadmapDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status
 
 	locked := false
 	for _, prereq := range p.Prerequisites {
-		if s.progress[prereq] != roadmap.StatusSolved && s.progress[prereq] != roadmap.StatusVerified {
+		if s.progress[prereq] != roadmap.StatusSolved {
 			locked = true
 			break
 		}
@@ -285,41 +347,14 @@ func (s *RoadmapDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status
 }
 
 func (s *RoadmapDetailScreen) renderStatusMarker(status roadmap.Status) string {
-	switch status {
-	case roadmap.StatusSolved:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Success).
-			Width(12).
-			Render("[SOLVED]")
-	case roadmap.StatusVerified:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.PrimaryAccent).
-			Bold(true).
-			Width(12).
-			Render("[VERIFIED]")
-	case roadmap.StatusInProgress:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Warning).
-			Bold(true).
-			Width(12).
-			Render("[ACTIVE]")
-	case roadmap.StatusAvailable:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.PrimaryAccent).
-			Width(12).
-			Render("[READY]")
-	default:
-		return lipgloss.NewStyle().
-			Foreground(s.theme.Muted).
-			Width(12).
-			Render("[LOCKED]")
-	}
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	return lipgloss.NewStyle().Width(14).Render(renderStatusPill(s.theme, symbols, status))
 }
 
 func (s *RoadmapDetailScreen) missingPrerequisites(p *roadmap.Problem) []string {
 	var missing []string
 	for _, id := range p.Prerequisites {
-		if s.progress[id] == roadmap.StatusSolved || s.progress[id] == roadmap.StatusVerified {
+		if s.progress[id] == roadmap.StatusSolved {
 			continue
 		}
 		if prereq, ok := s.roadmap.Graph.Problems[id]; ok {
@@ -338,14 +373,8 @@ func (s *RoadmapDetailScreen) renderMiniBar(percentage float64) string {
 		filled = width
 	}
 
-	bar := lipgloss.NewStyle().
-		Foreground(s.theme.Success).
-		Render(strings.Repeat("█", filled))
-	bg := lipgloss.NewStyle().
-		Foreground(s.theme.Muted).
-		Render(strings.Repeat("░", width-filled))
-
-	return fmt.Sprintf("[%s%s] %.0f%%", bar, bg, percentage)
+	bar := views.ProgressBar(filled, width, width, "█", "░")
+	return fmt.Sprintf("[%s] %.0f%%", lipgloss.NewStyle().Foreground(s.theme.XP).Render(bar), percentage)
 }
 
 func (s *RoadmapDetailScreen) renderFooter() string {

@@ -127,6 +127,12 @@ type submitResultMsg struct {
 	language  string
 	result    *leetcode.SubmissionResult
 	err       error
+	duration  time.Duration
+
+	localTestRan      bool
+	localTestPassed   bool
+	localTestOutput   string
+	localTestDuration time.Duration
 }
 
 type testRunResultMsg struct {
@@ -134,6 +140,7 @@ type testRunResultMsg struct {
 	difficulty roadmap.Difficulty
 	output     string
 	passed     bool
+	duration   time.Duration
 	alreadyRun bool
 }
 
@@ -174,7 +181,7 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 
 	solved := make(map[int]bool)
 	for id, status := range progress {
-		if status == roadmap.StatusSolved || status == roadmap.StatusVerified {
+		if status == roadmap.StatusSolved {
 			solved[id] = true
 		}
 	}
@@ -629,6 +636,14 @@ func (m *Model) handleMarkSolved() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if err := m.store.RecordSolveProvenance(ctx, &store.SolveProvenance{
+		ProblemID: item.problem.ID,
+		Kind:      "manual",
+	}); err != nil {
+		m.notifications.Add(fmt.Sprintf("Failed to record solve provenance: %v", err))
+		return m, nil
+	}
+
 	if err := m.store.UpdateStreak(ctx); err != nil {
 		m.notifications.Add(fmt.Sprintf("Failed to update streak: %v", err))
 		return m, nil
@@ -695,8 +710,9 @@ func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
 	client := m.leetcode
 
 	return m, func() tea.Msg {
+		startedAt := time.Now()
 		result, err := client.Submit(context.Background(), item.problem.ID, slug, lang, string(code))
-		return submitResultMsg{problemID: item.problem.ID, slug: slug, language: lang, result: result, err: err}
+		return submitResultMsg{problemID: item.problem.ID, slug: slug, language: lang, result: result, err: err, duration: time.Since(startedAt)}
 	}
 }
 
@@ -704,6 +720,12 @@ func (m *Model) recordSolveLog(msg submitResultMsg) {
 	if msg.result == nil {
 		return
 	}
+	_ = m.store.RecordAttempt(context.Background(), &store.AttemptRecord{
+		ProblemID: msg.problemID,
+		Timestamp: time.Now().Add(-msg.duration),
+		Duration:  msg.duration,
+		Passed:    msg.result.StatusCode == 10,
+	})
 	log := &store.SolveLogRecord{
 		ProblemID:   msg.problemID,
 		Slug:        msg.slug,
@@ -735,6 +757,8 @@ func (m *Model) markAcceptedSubmission(problemID int) {
 		return
 	}
 
+	m.recordAcceptedProvenance(ctx, problemID)
+
 	if alreadyClaimed {
 		m.notifications.Add("Submit XP already claimed for this problem.")
 		m.refreshStats()
@@ -762,6 +786,46 @@ func (m *Model) markAcceptedSubmission(problemID int) {
 		m.notifications.Add(fmt.Sprintf("Failed to update streak: %v", err))
 	}
 	m.refreshStats()
+}
+
+func (m *Model) recordAcceptedProvenance(ctx context.Context, problemID int) {
+	sp, err := m.store.GetSolveProvenance(ctx, problemID)
+	if err != nil {
+		return
+	}
+
+	logs, err := m.store.GetSolveLogsForProblem(ctx, problemID)
+	var logID *int
+	if err == nil && len(logs) > 0 {
+		latestAccepted := -1
+		for _, l := range logs {
+			if l.StatusCode == 10 && l.ID > latestAccepted {
+				latestAccepted = l.ID
+			}
+		}
+		if latestAccepted > 0 {
+			logID = &latestAccepted
+		}
+	}
+
+	if sp != nil && sp.Kind == "manual" {
+		if err := m.store.RecordSolveProvenance(ctx, &store.SolveProvenance{
+			ProblemID:  problemID,
+			Kind:       "accepted",
+			Note:       sp.Note,
+			SolveLogID: logID,
+		}); err != nil {
+			return
+		}
+	} else {
+		if err := m.store.RecordSolveProvenance(ctx, &store.SolveProvenance{
+			ProblemID:  problemID,
+			Kind:       "accepted",
+			SolveLogID: logID,
+		}); err != nil {
+			return
+		}
+	}
 }
 
 func stubExt(lang string) string {

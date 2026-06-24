@@ -16,6 +16,11 @@ import (
 
 type ambientTickMsg time.Time
 
+const (
+	minSupportedWidth  = views.MinSupportedWidth
+	minSupportedHeight = views.MinSupportedHeight
+)
+
 type RootModel struct {
 	cfg           *config.Config
 	screen        Screen
@@ -32,6 +37,8 @@ type RootModel struct {
 }
 
 func NewRootModel(cfg *config.Config, legacyModel *Model, db store.Store, languages []string, roadmaps []*roadmap.Roadmap) (*RootModel, error) {
+	cfg.ApplyDefaults()
+
 	theme, err := LookupTheme(cfg.Theme)
 	if err != nil {
 		return nil, err
@@ -46,7 +53,7 @@ func NewRootModel(cfg *config.Config, legacyModel *Model, db store.Store, langua
 	if cfg.ReadyForDashboard(languages, roadmapIDsFromRoadmaps(roadmaps)) {
 		scr = NewDashboardScreen(cfg, theme, db, activeRoadmap)
 	} else {
-		scr = NewOnboardingScreen(cfg, languages, roadmaps, theme)
+		scr = NewOnboardingScreen(cfg, languages, roadmaps, db, activeRoadmap, theme)
 	}
 
 	return &RootModel{
@@ -90,7 +97,7 @@ func (m *RootModel) Notify(msg string) {
 
 func (m *RootModel) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.screen.Init()}
-	if m.theme.HasAmbientMotion {
+	if m.allowsAmbientMotion() {
 		cmds = append(cmds, ambientTickCmd())
 	}
 	return tea.Batch(cmds...)
@@ -108,7 +115,7 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ambientTickMsg:
 		m.ambientFrame = (m.ambientFrame + 1) % 60
 		var cmd tea.Cmd
-		if m.theme.HasAmbientMotion {
+		if m.allowsAmbientMotion() {
 			cmd = ambientTickCmd()
 		}
 		return m, cmd
@@ -116,7 +123,7 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ThemeChangedMsg:
 		m2, cmd := m.handleThemeChange(msg)
 		if m2 != nil {
-			if m.theme.HasAmbientMotion {
+			if m.allowsAmbientMotion() {
 				cmd = tea.Batch(cmd, ambientTickCmd())
 			}
 		}
@@ -135,9 +142,13 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *RootModel) View() string {
+	if m.isUnsupportedSize() {
+		return views.UnsupportedSize(m.width, m.height, m.viewPalette())
+	}
+
 	screenView := m.screen.View()
 
-	if m.theme.HasAmbientMotion {
+	if m.allowsAmbientMotion() {
 		screenView = m.renderAmbientBorder(screenView)
 	}
 
@@ -147,6 +158,18 @@ func (m *RootModel) View() string {
 	}
 
 	return screenView
+}
+
+func (m *RootModel) isUnsupportedSize() bool {
+	return m.width > 0 && m.height > 0 && (m.width < minSupportedWidth || m.height < minSupportedHeight)
+}
+
+func (m *RootModel) allowsAmbientMotion() bool {
+	return m.theme.HasAmbientMotion && m.cfg.MotionPreference == "normal"
+}
+
+func (m *RootModel) viewPalette() views.Palette {
+	return viewPalette(m.theme)
 }
 
 func (m *RootModel) renderAmbientBorder(content string) string {
@@ -170,7 +193,7 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 	switch msg.ScreenID {
 	case ScreenOnboarding:
 		m.refreshTheme()
-		m.screen = NewOnboardingScreen(m.cfg, m.languages, m.roadmaps, m.theme)
+		m.screen = NewOnboardingScreen(m.cfg, m.languages, m.roadmaps, m.db, m.activeRoadmap, m.theme)
 		m.applyCurrentSize()
 		return m, nil
 	case ScreenLegacyList:
@@ -204,6 +227,11 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)
 		m.applyCurrentSize()
 		return m, nil
+	case ScreenCompletion:
+		m.refreshTheme()
+		m.screen = NewRoadmapCompletionScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
+		m.applyCurrentSize()
+		return m, nil
 	}
 	return m, nil
 }
@@ -234,7 +262,7 @@ func (m *RootModel) handleThemeChange(msg ThemeChangedMsg) (tea.Model, tea.Cmd) 
 	if _, ok := m.screen.(*DashboardScreen); ok {
 		m.screen = NewDashboardScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
 	} else if _, ok := m.screen.(*OnboardingScreen); ok {
-		m.screen = NewOnboardingScreen(m.cfg, m.languages, m.roadmaps, m.theme)
+		m.screen = NewOnboardingScreen(m.cfg, m.languages, m.roadmaps, m.db, m.activeRoadmap, m.theme)
 	} else if _, ok := m.screen.(*RoadmapDetailScreen); ok {
 		m.screen = NewRoadmapDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
 	} else if sd, ok := m.screen.(*StageDetailScreen); ok {
@@ -243,6 +271,8 @@ func (m *RootModel) handleThemeChange(msg ThemeChangedMsg) (tea.Model, tea.Cmd) 
 		m.screen = NewProblemDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, pd.problem.ID)
 	} else if _, ok := m.screen.(*SolveLogScreen); ok {
 		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)
+	} else if _, ok := m.screen.(*RoadmapCompletionScreen); ok {
+		m.screen = NewRoadmapCompletionScreen(m.cfg, m.theme, m.db, m.activeRoadmap)
 	}
 	m.applyCurrentSize()
 

@@ -411,8 +411,8 @@ func TestCalculate_SubmitRanksAfterContinueBeforeStart(t *testing.T) {
 	require.NotEqual(t, -1, continueIdx)
 	require.NotEqual(t, -1, submitIdx)
 	require.NotEqual(t, -1, startIdx)
-	assert.Less(t, continueIdx, submitIdx, "Continue should rank before Submit")
-	assert.Less(t, submitIdx, startIdx, "Submit should rank before Start")
+	assert.Less(t, submitIdx, continueIdx, "Submit (Verified) should rank before Continue (InProgress)")
+	assert.Less(t, continueIdx, startIdx, "Continue should rank before Start")
 }
 
 func TestCalculate_NoSubmitWhenNoVerified(t *testing.T) {
@@ -427,4 +427,232 @@ func TestCalculate_NoSubmitWhenNoVerified(t *testing.T) {
 
 	submits := collectActionsByKind(actions, KindSubmit)
 	assert.Empty(t, submits, "should not generate Submit actions when no Verified problems exist")
+}
+
+func TestCalculate_ManualSolveGeneratedForVerified(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	manuals := collectActionsByKind(actions, KindManualSolve)
+	require.Len(t, manuals, 1)
+	assert.Equal(t, 1, manuals[0].ProblemID)
+	assert.Equal(t, ReasonCompletesVerified, manuals[0].ReasonType)
+	assert.Contains(t, manuals[0].Reason, "unlocks dependents")
+}
+
+func TestCalculate_ReasonTypesPresent(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, s.SetProgress(ctx, 217, roadmap.StatusInProgress))
+	require.NoError(t, s.SetProgress(ctx, 242, roadmap.StatusSolved))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	for _, a := range actions {
+		if a.Kind == KindExport || a.Kind == KindInspect {
+			continue
+		}
+		assert.NotEmpty(t, a.ReasonType, "action %s should have a ReasonType", a.ID)
+		assert.NotEmpty(t, a.Reason, "action %s should have a Reason", a.ID)
+	}
+}
+
+func TestCalculate_NoScoreExposed(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	for _, a := range actions {
+		assert.False(t, a.Priority < 0 || a.Priority > 1000, "priority should be a simple ordering index")
+	}
+}
+
+func TestCalculate_DifficultySpikeAvoided(t *testing.T) {
+	rm := &roadmap.Roadmap{
+		ID:    "test",
+		Title: "Test Roadmap",
+		Stages: []roadmap.Stage{
+			{ID: "foundations", Title: "Foundations", Order: 0},
+		},
+		Graph: roadmap.NewGraph([]*roadmap.Problem{
+			{ID: 1, Title: "Easy First", Slug: "a", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "foundations"},
+			{ID: 2, Title: "Hard Second", Slug: "b", Difficulty: roadmap.DifficultyHard, Category: "arrays-hashing", Stage: "foundations"},
+		}),
+	}
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
+
+	ctx := context.Background()
+	calc := NewCalculator(s, rm)
+	actions, err := calc.Calculate(ctx)
+	require.NoError(t, err)
+
+	starts := collectActionsByKind(actions, KindStart)
+	require.Len(t, starts, 2)
+	assert.Equal(t, 1, starts[0].ProblemID, "easier problem should rank first")
+	assert.Equal(t, 2, starts[1].ProblemID)
+}
+
+func TestCalculate_DirectUnlockImpactsRanking(t *testing.T) {
+	rm := &roadmap.Roadmap{
+		ID:    "test",
+		Title: "Test Roadmap",
+		Stages: []roadmap.Stage{
+			{ID: "s1", Title: "Stage 1", Order: 0},
+		},
+		Graph: roadmap.NewGraph([]*roadmap.Problem{
+			{ID: 1, Title: "No Unlock", Slug: "a", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1"},
+			{ID: 2, Title: "Unlocks Many", Slug: "b", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1"},
+			{ID: 3, Title: "Dep A", Slug: "c", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1", Prerequisites: []int{2}},
+			{ID: 4, Title: "Dep B", Slug: "d", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1", Prerequisites: []int{2}},
+		}),
+	}
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
+
+	calc := NewCalculator(s, rm)
+	ctx := context.Background()
+	actions, err := calc.Calculate(ctx)
+	require.NoError(t, err)
+
+	starts := collectActionsByKind(actions, KindStart)
+	require.Len(t, starts, 2)
+	assert.Equal(t, 2, starts[0].ProblemID, "problem that unlocks more should rank first")
+}
+
+func TestCalculate_ConnectLeetCodeWhenVerified(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, s.SetProgress(ctx, 242, roadmap.StatusVerified))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	connects := collectActionsByKind(actions, KindConnectLeetCode)
+	require.Len(t, connects, 1)
+	assert.Equal(t, "connect_leetcode", connects[0].ID)
+	assert.Contains(t, connects[0].Reason, "Verified")
+}
+
+func TestCalculate_ReviewRecommendationDoesNotCreateCycle(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusSolved))
+	require.NoError(t, s.RecordSolveProvenance(ctx, &store.SolveProvenance{ProblemID: 1, Kind: "manual"}))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	reviews := collectActionsByKind(actions, KindReview)
+	require.NotEmpty(t, reviews)
+
+	cycles, err := s.GetReviewCycles(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, cycles, "Calculate should not mutate persistence by creating Review Cycles")
+}
+
+func TestCalculate_NoConnectLeetCodeWhenAcceptedProvPresent(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusVerified))
+	require.NoError(t, s.RecordSolveProvenance(ctx, &store.SolveProvenance{ProblemID: 1, Kind: "accepted"}))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	connects := collectActionsByKind(actions, KindConnectLeetCode)
+	assert.Empty(t, connects, "ConnectLeetCode should not appear when accepted provenance exists")
+}
+
+func TestCalculate_ViewRoadmapCompletionWhenAllSolved(t *testing.T) {
+	rm := &roadmap.Roadmap{
+		ID:           "test",
+		Title:        "Test Roadmap",
+		NextRoadmaps: []string{"next-roadmap"},
+		Stages: []roadmap.Stage{
+			{ID: "s1", Title: "Stage 1", Order: 0},
+		},
+		Graph: roadmap.NewGraph([]*roadmap.Problem{
+			{ID: 1, Title: "Only Problem", Slug: "a", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1"},
+		}),
+	}
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
+
+	require.NoError(t, s.SetProgress(context.Background(), 1, roadmap.StatusSolved))
+	require.NoError(t, s.RecordSolveProvenance(context.Background(), &store.SolveProvenance{ProblemID: 1, Kind: "accepted"}))
+
+	calc := NewCalculator(s, rm)
+	ctx := context.Background()
+	actions, err := calc.Calculate(ctx)
+	require.NoError(t, err)
+
+	completions := collectActionsByKind(actions, KindViewRoadmapCompletion)
+	require.Len(t, completions, 1)
+	assert.Contains(t, completions[0].Reason, "next-roadmap")
+}
+
+func TestCalculate_NoCompletionWhenNotAllSolved(t *testing.T) {
+	rm := &roadmap.Roadmap{
+		ID:           "test",
+		Title:        "Test Roadmap",
+		NextRoadmaps: []string{"next-roadmap"},
+		Stages: []roadmap.Stage{
+			{ID: "s1", Title: "Stage 1", Order: 0},
+		},
+		Graph: roadmap.NewGraph([]*roadmap.Problem{
+			{ID: 1, Title: "Problem 1", Slug: "a", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1"},
+			{ID: 2, Title: "Problem 2", Slug: "b", Difficulty: roadmap.DifficultyEasy, Category: "arrays-hashing", Stage: "s1"},
+		}),
+	}
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewSQLiteStore(dbPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { s.Close() })
+
+	require.NoError(t, s.SetProgress(context.Background(), 1, roadmap.StatusSolved))
+
+	calc := NewCalculator(s, rm)
+	ctx := context.Background()
+	actions, err := calc.Calculate(ctx)
+	require.NoError(t, err)
+
+	completions := collectActionsByKind(actions, KindViewRoadmapCompletion)
+	assert.Empty(t, completions)
+}
+
+func TestCalculate_ContinueActionHasReasonType(t *testing.T) {
+	c, s := newTestCalculator(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.SetProgress(ctx, 1, roadmap.StatusInProgress))
+
+	actions, err := c.Calculate(ctx)
+	require.NoError(t, err)
+
+	continues := collectActionsByKind(actions, KindContinue)
+	require.Len(t, continues, 1)
+	assert.Equal(t, ReasonContinuesInProgress, continues[0].ReasonType)
 }

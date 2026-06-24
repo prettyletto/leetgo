@@ -36,7 +36,7 @@ Ranking:
 1. InProgress Problems.
 2. Earliest Available Problems in selected Roadmap/Stage order.
 3. Weakness-targeting review actions.
-4. Maintenance actions such as Git Export or Solve Log review.
+4. Maintenance actions such as Git Export or Practice Log review.
 
 Keep weakness/export actions simple if needed; first version can focus on InProgress and Available Problems.
 

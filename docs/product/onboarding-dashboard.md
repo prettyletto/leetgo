@@ -17,9 +17,10 @@ Steps:
 3. Workspace and Language confirmation.
 4. Roadmap Selection with Roadmap Carousel.
 5. Theme selection.
-6. Enter Dashboard.
+6. Optional LeetCode Session setup.
+7. First Next Action handoff.
 
-Onboarding saves Profile and Practice Preferences to `config.toml`. It does not require LeetCode authentication; Session setup remains just-in-time when the user first submits.
+Onboarding saves Profile and Practice Preferences to `config.toml`. It asks whether the user wants to connect LeetCode Session because Accepted Solves unlock Roadmap progress and XP. The user may skip Session setup and use Manual Solve later.
 
 ## Profile and Practice Preferences
 
@@ -34,7 +35,7 @@ Persist in `config.toml`:
 - `git_export_enabled`
 - `git_export_repo`
 
-SQLite remains responsible for progress/history: Status, Attempts, Solve Logs, XP, Streaks, and Achievements.
+SQLite remains responsible for progress/history: Status, Attempts, Practice Logs, XP, Streaks, and Achievements.
 
 ## Git Export Backup
 
@@ -73,7 +74,7 @@ tagline: "Build LeetCode fundamentals from zero into interview readiness."
 audience: "New or returning users who want a guided foundation-first path."
 promise: "You will learn the core patterns in the order they unlock each other."
 recommended: true
-estimated_hours: 80
+  roadmap_time_estimate: "4-8 weeks at 3-5 Problems/week"
 difficulty_mix:
   easy: 35
   medium: 50
@@ -92,7 +93,7 @@ Field intent:
 - `audience`: who should choose this Roadmap.
 - `promise`: what the Roadmap claims the user will get by following it.
 - `recommended`: whether this Roadmap receives the Onboarding recommended label.
-- `estimated_hours`: rough total effort signal, not a guarantee.
+- `roadmap_time_estimate`: broad commitment range, not a precise completion date.
 - `difficulty_mix`: percentage split used for card stats.
 - `highlights`: 2-3 bullets that make the card feel distinct.
 
@@ -108,7 +109,7 @@ Validation rules:
 - Only one bundled Roadmap should have `recommended: true`.
 - `difficulty_mix` values should add up to 100 when present.
 - `highlights` should contain 2-3 items.
-- `estimated_hours` must be positive when present.
+- `roadmap_time_estimate` must be non-empty when present.
 
 ## Themes
 
@@ -162,7 +163,7 @@ Rank Next Actions in this order:
 1. Continue InProgress Problems.
 2. Start earliest Available Problems in selected Roadmap/Stage order.
 3. Weakness-targeting review actions.
-4. Maintenance actions such as Git Export or Solve Log review.
+4. Maintenance actions such as Git Export or Practice Log review.
 
 ## Deep Navigation
 
@@ -177,7 +178,7 @@ Roadmap Detail shows the Unlock Path and Stage progress.
 
 Stage Detail shows Problems, completion, and blockers for one Stage.
 
-Problem Detail owns Start, local testing, Submission, and Solve Log history.
+Problem Detail owns Start, local testing, Submission, and Practice Log history.
 
 ## Architecture Direction
 

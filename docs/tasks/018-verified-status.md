@@ -1,8 +1,12 @@
 # Task 018: Add Verified Status to Domain Model
 
+## Superseded Progression Note
+
+Task 028 supersedes the original unlock rule in this task. `Verified` no longer satisfies prerequisites. `Verified` is local confidence and may earn local XP, but only `Solved` unlocks dependent Problems. See `docs/tasks/028-solved-gated-progression.md` and `docs/adr/0010-local-first-verification-and-reward-events.md`.
+
 ## Goal
 
-Add `Verified` as a new Problem Status between `InProgress` and `Solved`, and update Roadmap unlocking so both `Verified` and `Solved` satisfy prerequisites.
+Add `Verified` as a new Problem Status between `InProgress` and `Solved`. Roadmap unlocking must treat `Verified` prerequisites as Blockers until they become Solved.
 
 ## Dependencies
 
@@ -11,7 +15,7 @@ Add `Verified` as a new Problem Status between `InProgress` and `Solved`, and up
 ## Likely Files
 
 - `internal/roadmap/roadmap.go` — add `StatusVerified` constant
-- `internal/roadmap/graph.go` — update `IsUnlocked` to accept Verified
+- `internal/roadmap/graph.go` — keep Verified prerequisites blocked until Solved
 - `internal/store/store.go` — no interface change, Status is a string type
 - `internal/store/sqlite.go` — ensure Verified is persisted correctly
 - `internal/store/export.go` — handle Verified in export/import
@@ -25,21 +29,21 @@ Add `Verified` as a new Problem Status between `InProgress` and `Solved`, and up
 ## Implementation Notes
 
 - Add `StatusVerified roadmap.Status = "verified"` to `internal/roadmap/roadmap.go`.
-- Update `Graph.IsUnlocked` so that a prerequisite is satisfied if its status is `StatusVerified` or `StatusSolved`.
+- Update `Graph.IsUnlocked` so that a prerequisite is satisfied only when its status is `StatusSolved`.
 - Update all status rendering across TUI screens to show `VERIFIED` with a distinct color (use `theme.PrimaryAccent` or similar).
 - Update `effectiveStatus` helpers in Roadmap Detail, Stage Detail, and Problem Detail to recognize Verified.
-- Update blocker summary to not show Verified Problems as blockers.
+- Update blocker summary to show Verified Problems as Blockers that need Submission or Manual Solve.
 - Update export/import to round-trip Verified status.
 - Do not change XP logic in this task; that belongs in Task 019.
 
 ## Acceptance Criteria
 
 - `StatusVerified` exists as a valid Status constant.
-- `Graph.IsUnlocked` returns true when prerequisites are Verified or Solved.
+- `Graph.IsUnlocked` returns false when prerequisites are Verified and true when prerequisites are Solved.
 - All TUI screens render Verified with a distinct label and color.
-- Verified Problems do not appear as blockers in Dashboard or Problem Detail.
+- Verified Problems appear as Blockers in Dashboard or Problem Detail until they become Solved.
 - Export/import round-trips Verified status.
-- Tests cover IsUnlocked with Verified prerequisites.
+- Tests cover IsUnlocked with Verified prerequisites and Solved prerequisites.
 - Tests cover status rendering for Verified.
 
 ## Verification

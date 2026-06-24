@@ -11,18 +11,19 @@ import (
 )
 
 type ExportData struct {
-	Version              int                 `json:"version"`
-	ExportedAt           time.Time           `json:"exported_at"`
-	ExportIdentity       string              `json:"export_identity,omitempty"`
-	ExportIdentitySource string              `json:"export_identity_source,omitempty"`
-	Progress             []ExportProgress    `json:"progress"`
-	Attempts             []ExportAttempt     `json:"attempts"`
-	SolveLogs            []ExportSolveLog    `json:"solve_logs"`
-	RewardEvents         []ExportRewardEvent `json:"reward_events,omitempty"`
-	XP                   int                 `json:"xp"`
-	Streak               ExportStreak        `json:"streak"`
-	StreakDays           []string            `json:"streak_days"`
-	Achievements         []string            `json:"achievements"`
+	Version              int                     `json:"version"`
+	ExportedAt           time.Time               `json:"exported_at"`
+	ExportIdentity       string                  `json:"export_identity,omitempty"`
+	ExportIdentitySource string                  `json:"export_identity_source,omitempty"`
+	Progress             []ExportProgress        `json:"progress"`
+	Attempts             []ExportAttempt         `json:"attempts"`
+	SolveLogs            []ExportSolveLog        `json:"solve_logs"`
+	RewardEvents         []ExportRewardEvent     `json:"reward_events,omitempty"`
+	SolveProvenance      []ExportSolveProvenance `json:"solve_provenance,omitempty"`
+	XP                   int                     `json:"xp"`
+	Streak               ExportStreak            `json:"streak"`
+	StreakDays           []string                `json:"streak_days"`
+	Achievements         []string                `json:"achievements"`
 }
 
 type ExportProgress struct {
@@ -64,6 +65,14 @@ type ExportRewardEvent struct {
 	Kind      string `json:"kind"`
 	XP        int    `json:"xp"`
 	CreatedAt string `json:"created_at"`
+}
+
+type ExportSolveProvenance struct {
+	ProblemID  int    `json:"problem_id"`
+	Kind       string `json:"kind"`
+	Note       string `json:"note,omitempty"`
+	SolveLogID *int   `json:"solve_log_id,omitempty"`
+	SolvedAt   string `json:"solved_at"`
 }
 
 func (s *SQLiteStore) Export(ctx context.Context) (*ExportData, error) {
@@ -133,6 +142,20 @@ func (s *SQLiteStore) Export(ctx context.Context) (*ExportData, error) {
 			Kind:      e.Kind,
 			XP:        e.XP,
 			CreatedAt: e.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	provenances, err := s.GetSolveProvenanceAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("export solve provenance: %w", err)
+	}
+	for _, sp := range provenances {
+		data.SolveProvenance = append(data.SolveProvenance, ExportSolveProvenance{
+			ProblemID:  sp.ProblemID,
+			Kind:       sp.Kind,
+			Note:       sp.Note,
+			SolveLogID: sp.SolveLogID,
+			SolvedAt:   sp.SolvedAt.Format(time.RFC3339),
 		})
 	}
 
@@ -224,6 +247,23 @@ func (s *SQLiteStore) Import(ctx context.Context, data *ExportData) error {
 		}
 		if err := s.RecordRewardEvent(ctx, event); err != nil {
 			return fmt.Errorf("import reward event: %w", err)
+		}
+	}
+
+	for _, sp := range data.SolveProvenance {
+		solvedAt, err := time.Parse(time.RFC3339, sp.SolvedAt)
+		if err != nil {
+			return fmt.Errorf("parse solve provenance timestamp %q: %w", sp.SolvedAt, err)
+		}
+		record := &SolveProvenance{
+			ProblemID:  sp.ProblemID,
+			Kind:       sp.Kind,
+			Note:       sp.Note,
+			SolveLogID: sp.SolveLogID,
+			SolvedAt:   solvedAt,
+		}
+		if err := s.RecordSolveProvenance(ctx, record); err != nil {
+			return fmt.Errorf("import solve provenance: %w", err)
 		}
 	}
 

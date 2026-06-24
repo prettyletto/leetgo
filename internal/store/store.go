@@ -55,6 +55,24 @@ type Stats struct {
 	Total         int
 }
 
+type SolveProvenance struct {
+	ProblemID  int
+	Kind       string
+	Note       string
+	SolveLogID *int
+	SolvedAt   time.Time
+}
+
+type ReviewCycle struct {
+	ID          int
+	ProblemID   int
+	Reason      string
+	RoadmapID   string
+	CreatedAt   time.Time
+	CompletedAt *time.Time
+	RewardedAt  *time.Time
+}
+
 type Store interface {
 	Close() error
 
@@ -66,6 +84,17 @@ type Store interface {
 	GetAttempts(ctx context.Context, problemID int) ([]*AttemptRecord, error)
 	RecordSolveLog(ctx context.Context, log *SolveLogRecord) error
 	GetSolveLogs(ctx context.Context) ([]*SolveLogRecord, error)
+	GetSolveLogsForProblem(ctx context.Context, problemID int) ([]*SolveLogRecord, error)
+
+	RecordSolveProvenance(ctx context.Context, sp *SolveProvenance) error
+	GetSolveProvenance(ctx context.Context, problemID int) (*SolveProvenance, error)
+	GetSolveProvenanceAll(ctx context.Context) (map[int]*SolveProvenance, error)
+
+	CreateReviewCycle(ctx context.Context, rc *ReviewCycle) error
+	GetReviewCycles(ctx context.Context) ([]*ReviewCycle, error)
+	GetReviewCyclesForProblem(ctx context.Context, problemID int) ([]*ReviewCycle, error)
+	CompleteReviewCycle(ctx context.Context, id int) error
+	RewardReviewCycle(ctx context.Context, id int) error
 
 	GetStats(ctx context.Context) (*Stats, error)
 	AddXP(ctx context.Context, amount int) error
