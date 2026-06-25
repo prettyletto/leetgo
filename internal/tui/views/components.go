@@ -24,7 +24,28 @@ type Palette struct {
 }
 
 func Panel(title, body string, palette Palette, focused bool) string {
-	border := lipgloss.RoundedBorder()
+	border := lipgloss.NormalBorder()
+	borderColor := palette.Border
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.Primary)
+	if focused {
+		border = lipgloss.RoundedBorder()
+		borderColor = palette.Primary
+		titleStyle = titleStyle.Copy().Foreground(palette.Primary)
+	}
+	content := body
+	if strings.TrimSpace(title) != "" {
+		titleView := titleStyle.Render(title)
+		if strings.TrimSpace(body) == "" {
+			content = titleView
+		} else {
+			content = titleView + "\n\n" + body
+		}
+	}
+	return lipgloss.NewStyle().Border(border).BorderForeground(borderColor).Padding(0, 1).Render(content)
+}
+
+func PixelFrame(title, body string, palette Palette, focused bool) string {
+	border := lipgloss.BlockBorder()
 	borderColor := palette.Border
 	if focused {
 		border = lipgloss.ThickBorder()
@@ -32,18 +53,9 @@ func Panel(title, body string, palette Palette, focused bool) string {
 	}
 	content := body
 	if strings.TrimSpace(title) != "" {
-		titleView := lipgloss.NewStyle().Bold(true).Foreground(palette.Primary).Render(title)
-		content = titleView + "\n" + body
-	}
-	return lipgloss.NewStyle().Border(border).BorderForeground(borderColor).Padding(0, 1).Render(content)
-}
-
-func PixelFrame(title, body string, palette Palette) string {
-	content := body
-	if strings.TrimSpace(title) != "" {
 		content = lipgloss.NewStyle().Bold(true).Foreground(palette.Primary).Render(title) + "\n" + body
 	}
-	return lipgloss.NewStyle().Border(lipgloss.BlockBorder()).BorderForeground(palette.Border).Padding(0, 1).Render(content)
+	return lipgloss.NewStyle().Border(border).BorderForeground(borderColor).Padding(0, 1).Render(content)
 }
 
 func StatusPill(label string, color lipgloss.Color) string {
@@ -84,10 +96,10 @@ func KeytipFooter(keys map[string]string, order []string, palette Palette) strin
 		}
 		parts = append(parts, keyStyle.Render(key)+" "+textStyle.Render(label))
 	}
-	return strings.Join(parts, textStyle.Render("  |  "))
+	return strings.Join(parts, textStyle.Render("  •  "))
 }
 
 func UnsupportedSize(width, height int, palette Palette) string {
-	body := fmt.Sprintf("Leetgo needs a little more room.\n\nCurrent: %dx%d\nMinimum: %dx%d\n\nResize your terminal or use CLI commands:\nleetgo next\nleetgo info .\nleetgo test .", width, height, MinSupportedWidth, MinSupportedHeight)
+	body := fmt.Sprintf("Leetgo needs a little more room.\n\nCurrent size: %dx%d\nMinimum size: %dx%d\n\nResize your terminal, or use these CLI paths instead:\nleetgo next\nleetgo info .\nleetgo test .", width, height, MinSupportedWidth, MinSupportedHeight)
 	return Panel("Unsupported Size", body, palette, true)
 }

@@ -129,11 +129,11 @@ The user-chosen name shown in Leetgo's interface for a Profile.
 _Avoid_: Username, handle, Git name
 
 **Practice Preferences**:
-The Profile-level choices that shape a user's Leetgo experience, including selected Roadmap, Language, Workspace, Theme, and Git Export backup preference.
+The Profile-level choices that shape a user's Leetgo experience, including selected Roadmap, Language, Workspace, adaptive TUI appearance settings, and Git Export backup preference.
 _Avoid_: Settings, options, config knobs
 
 **Theme**:
-The visual style used by Leetgo's TUI. Leetgo supports RPG skill tree, clean productivity, and cyber dashboard Themes, with RPG skill tree as the default; ambient motion is Theme-specific.
+The adaptive appearance system used by Leetgo's TUI. Leetgo now uses a single adaptive Theme that adjusts contrast and emphasis to the terminal instead of offering multiple branded Themes.
 _Avoid_: Skin, color scheme
 
 **Motion Preference**:
@@ -141,15 +141,15 @@ The user's choice for animated feedback in Leetgo's CLI and TUI: normal, reduced
 _Avoid_: Animation setting, effects toggle, motion mode
 
 **Terminal Palette**:
-The ANSI-oriented color roles used by a Theme, such as Primary, Success, Warning, Danger, Muted, Border, XP, and Review. Theme identity comes from layout, emphasis, symbols, and motion as much as color.
+The ANSI-oriented semantic color roles used by the adaptive Theme, such as Primary, Success, Warning, Danger, Muted, Border, XP, and Review. Leetgo's TUI identity comes from layout, hierarchy, symbols, and motion restraint as much as color.
 _Avoid_: Truecolor palette, paint scheme, CSS theme
 
-**Pixel Frame**:
-The blocky card and panel treatment used by the RPG skill tree Theme to make Problems, Next Actions, and progress summaries feel like game tiles.
-_Avoid_: Rounded card, box skin, pixel art
+**Panel Surface**:
+The shared bordered container treatment used by Leetgo's adaptive TUI to group related content without relying on heavy decorative framing.
+_Avoid_: Widget skin, box gimmick, pixel art
 
 **Rich Symbols**:
-The icon set used by styled TUI Themes when the terminal supports Nerd Fonts or modern emoji rendering. Rich Symbols communicate state and progression rather than acting as decoration.
+The icon set used by Leetgo's adaptive TUI when the terminal supports Nerd Fonts or modern emoji rendering. Rich Symbols communicate state and progression rather than acting as decoration.
 _Avoid_: Emoji spam, decorative icons, image assets
 
 **Plain Symbols**:

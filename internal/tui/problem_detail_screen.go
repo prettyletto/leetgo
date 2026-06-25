@@ -181,12 +181,6 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "m":
 			return s.handleMarkSolved()
 
-		case "t":
-			currentIdx := sliceIndex(config.ValidThemes, s.cfg.Theme)
-			nextIdx := (currentIdx + 1) % len(config.ValidThemes)
-			return s, func() tea.Msg {
-				return ThemeChangedMsg{ThemeID: config.ValidThemes[nextIdx]}
-			}
 		}
 	}
 	return s, nil
@@ -1007,72 +1001,72 @@ func (s *ProblemDetailScreen) View() string {
 		return s.renderManualSolveConfirmation()
 	}
 
-	var lines []string
 	screenLabel, briefLabel, filesLabel := themeProblemLabels(s.theme)
-
-	lines = append(lines, s.theme.Title.Render(fmt.Sprintf("%s: #%d %s", screenLabel, s.problem.ID, s.problem.Title)))
-
-	statusLabel := s.renderStatusDetail()
-	lines = append(lines, statusLabel)
-
-	lines = append(lines, fmt.Sprintf("Difficulty: %s  Category: %s  Stage: %s",
-		s.problem.Difficulty,
-		s.problem.Category,
-		s.stageName(),
-	))
-
+	header := renderScreenHeader(s.theme, fmt.Sprintf("%s: #%d %s", screenLabel, s.problem.ID, s.problem.Title), fmt.Sprintf("Difficulty: %s  •  Category: %s  •  Stage: %s", s.problem.Difficulty, s.problem.Category, s.stageName()))
 	if s.problem.ProblemTimeEstimate != "" {
-		lines = append(lines, fmt.Sprintf("Time: %s", s.problem.ProblemTimeEstimate))
+		header += "\n" + s.theme.Subtitle.Render("Time estimate: "+s.problem.ProblemTimeEstimate)
 	}
 
-	s.renderProblemBrief(&lines, briefLabel)
+	statusLabel := s.renderStatusDetail()
+	leftSections := []string{statusLabel}
+	var contextLines []string
+
+	contextLines = append(contextLines, s.renderProblemBriefBlock(briefLabel))
 
 	if len(s.problem.Prerequisites) == 0 {
-		lines = append(lines, "Requires: none (Prerequisites: none)")
+		contextLines = append(contextLines, "Requires: none")
 	} else {
 		prereqs := s.prerequisiteLabels()
-		lines = append(lines, "Requires / Prerequisites: "+strings.Join(prereqs, ", "))
+		contextLines = append(contextLines, "Requires: "+strings.Join(prereqs, ", "))
 	}
 
 	if s.status == roadmap.StatusLocked {
 		blocked := s.missingPrerequisites()
 		if len(blocked) > 0 {
-			lines = append(lines, lipgloss.NewStyle().
+			contextLines = append(contextLines, lipgloss.NewStyle().
 				Foreground(s.theme.Warning).
-				Render("Locked Gate / Blocked by: "+strings.Join(blocked, ", ")+" — clear a prerequisite to unlock this tile."))
+				Render("Blocked by: "+strings.Join(blocked, ", ")+". Clear a prerequisite to unlock this Problem."))
 		}
 	}
+	leftSections = append(leftSections, renderThemedPanel(s.theme, "Context", strings.Join(contextLines, "\n\n"), false))
 
+	var progressionLines []string
 	unlocks := s.directUnlocks()
 	if len(unlocks) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, s.theme.Key.Render("Unlocks"))
+		progressionLines = append(progressionLines, s.theme.Key.Render("Unlocks"))
 		for _, u := range unlocks {
-			lines = append(lines, fmt.Sprintf("  #%d %s (%s)", u.ID, u.Title, u.Difficulty))
+			progressionLines = append(progressionLines, fmt.Sprintf("  #%d %s (%s)", u.ID, u.Title, u.Difficulty))
 		}
 	}
 
 	indirect := s.indirectUnlocks(2)
 	if len(indirect) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Builds Toward"))
+		if len(progressionLines) > 0 {
+			progressionLines = append(progressionLines, "")
+		}
+		progressionLines = append(progressionLines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Builds Toward"))
 		for _, u := range indirect {
-			lines = append(lines, fmt.Sprintf("  #%d %s", u.ID, u.Title))
+			progressionLines = append(progressionLines, fmt.Sprintf("  #%d %s", u.ID, u.Title))
 		}
 	}
-
-	if s.status != roadmap.StatusLocked {
-		stubPath, testPath := s.stubPaths()
-		lines = append(lines, "")
-		lines = append(lines, s.theme.Key.Render(filesLabel))
-		lines = append(lines, fmt.Sprintf("  Stub: %s", stubPath))
-		lines = append(lines, fmt.Sprintf("  Test: %s", testPath))
+	if len(progressionLines) > 0 {
+		leftSections = append(leftSections, renderThemedPanel(s.theme, "Progression", strings.Join(progressionLines, "\n"), false))
 	}
 
+	var workspaceLines []string
+	if s.status != roadmap.StatusLocked {
+		stubPath, testPath := s.stubPaths()
+		workspaceLines = append(workspaceLines,
+			fmt.Sprintf("Stub: %s", stubPath),
+			fmt.Sprintf("Test: %s", testPath),
+		)
+		leftSections = append(leftSections, renderThemedPanel(s.theme, filesLabel, strings.Join(workspaceLines, "\n"), false))
+	}
+
+	rightSections := []string{}
 	practiceLog := BuildPracticeLog(s.db, s.problem.ID)
 	if len(practiceLog) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, s.theme.Key.Render("Practice Log"))
+		var logLines []string
 		for _, entry := range practiceLog {
 			when := entry.Timestamp.Format("2006-01-02 15:04")
 			line := fmt.Sprintf("  %s  %s", s.practiceLogSymbol(entry), when)
@@ -1080,23 +1074,22 @@ func (s *ProblemDetailScreen) View() string {
 			if entry.Detail != "" {
 				line += " · " + entry.Detail
 			}
-			lines = append(lines, line)
+			logLines = append(logLines, line)
 		}
+		rightSections = append(rightSections, renderThemedPanel(s.theme, "Practice Log", strings.Join(logLines, "\n"), false))
 	}
 
-	lines = append(lines, "")
-
+	statusLines := []string{}
 	if s.submitting {
 		if s.allowsSpinnerMotion() {
 			frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
-			lines = append(lines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
+			statusLines = append(statusLines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
 		} else {
-			lines = append(lines, s.theme.Spinner.Render("Submitting to LeetCode..."))
+			statusLines = append(statusLines, s.theme.Spinner.Render("Submitting to LeetCode..."))
 		}
 	}
 
 	if s.errorMsg != "" {
-		lines = append(lines, "")
 		style := lipgloss.NewStyle().Foreground(s.theme.Muted)
 		if strings.Contains(s.errorMsg, "failed") || strings.Contains(s.errorMsg, "locked") || strings.Contains(s.errorMsg, "Failed") {
 			style = lipgloss.NewStyle().Foreground(s.theme.Danger)
@@ -1105,11 +1098,29 @@ func (s *ProblemDetailScreen) View() string {
 		} else if strings.Contains(s.errorMsg, "Start") || strings.Contains(s.errorMsg, "Started") {
 			style = lipgloss.NewStyle().Foreground(s.theme.Warning)
 		}
-		lines = append(lines, style.Render(s.errorMsg))
+		statusLines = append(statusLines, style.Render(s.errorMsg))
+	}
+	if len(statusLines) > 0 {
+		rightSections = append(rightSections, renderThemedPanel(s.theme, "Status", strings.Join(statusLines, "\n"), false))
 	}
 
 	footer := s.renderFooter()
-	return strings.Join(lines, "\n") + "\n" + footer
+	left := strings.Join(leftSections, "\n\n")
+	right := strings.Join(rightSections, "\n\n")
+	body := left
+	if right != "" {
+		if s.width >= 110 {
+			leftWidth := maxInt(46, s.width-44)
+			body = lipgloss.JoinHorizontal(lipgloss.Top,
+				lipgloss.NewStyle().Width(leftWidth).Render(left),
+				"  ",
+				lipgloss.NewStyle().Width(34).Render(right),
+			)
+		} else {
+			body = left + "\n\n" + right
+		}
+	}
+	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
 }
 
 func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
@@ -1122,13 +1133,33 @@ func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
 		"Submitting anyway skips local verification and sends your current Stub to LeetCode.",
 		"Use this only when generated tests are wrong or you intentionally want LeetCode as source of truth.",
 	}, "\n")
-	lines = append(lines, views.PixelFrame("Serious Warning", warning, viewPalette(s.theme)))
+	lines = append(lines, renderThemedPanel(s.theme, "Serious Warning", warning, false))
 	lines = append(lines, "")
 	lines = append(lines, "Type SUBMIT to confirm:")
 	lines = append(lines, s.theme.FocusedPanel.Render(s.submitAnywayInput))
 	lines = append(lines, "")
 	lines = append(lines, s.theme.Footer.Render(s.theme.Key.Render("enter")+" confirm  "+s.theme.Key.Render("esc")+" cancel"))
 	return strings.Join(lines, "\n")
+}
+
+func (s *ProblemDetailScreen) renderProblemBriefBlock(label string) string {
+	if s.problem.Summary == "" && s.problem.PracticeFocus == "" {
+		return renderThemedPanel(s.theme, label, "No brief available yet.", false)
+	}
+	var lines []string
+	if s.problem.Summary != "" {
+		lines = append(lines, s.problem.Summary)
+	}
+	if s.problem.PracticeFocus != "" {
+		lines = append(lines, "", fmt.Sprintf("Practice Focus: %s", s.problem.PracticeFocus))
+	}
+	if s.problem.WhyNow != "" {
+		lines = append(lines, fmt.Sprintf("Why now: %s", s.problem.WhyNow))
+	}
+	if s.problem.UnlockImpact != "" {
+		lines = append(lines, fmt.Sprintf("Unlock Impact: %s", s.problem.UnlockImpact))
+	}
+	return renderThemedPanel(s.theme, label, strings.Join(lines, "\n"), false)
 }
 
 func (s *ProblemDetailScreen) renderProblemBrief(lines *[]string, label string) {
@@ -1164,15 +1195,15 @@ func (s *ProblemDetailScreen) renderStatusDetail() string {
 				label = views.StatusPill("ACCEPTED SOLVE", s.theme.Success)
 			}
 		}
-		return views.PixelFrame("Status Tile", label+"\nPractice Log and unlock impact are now the priority.", viewPalette(s.theme))
+		return renderThemedPanel(s.theme, "Status", label+"\nPractice Log and unlock impact are now the priority.", false)
 	case roadmap.StatusVerified:
-		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusVerified)+"\nPrimary: Submit to LeetCode. Secondary: Manual Solve if needed.", viewPalette(s.theme))
+		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusVerified)+"\nPrimary: Submit to LeetCode. Secondary: Manual Solve if needed.", false)
 	case roadmap.StatusInProgress:
-		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusInProgress)+"\nKeep file paths and TestSuite actions close.", viewPalette(s.theme))
+		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusInProgress)+"\nKeep file paths and TestSuite actions close.", false)
 	case roadmap.StatusAvailable:
-		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusAvailable)+"\nRead the Training Notes, then start the encounter.", viewPalette(s.theme))
+		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusAvailable)+"\nRead the Problem Brief, then start the Problem.", false)
 	default:
-		return views.PixelFrame("Status Tile", renderStatusPill(s.theme, symbols, roadmap.StatusLocked)+"\nClear the Locked Gate before starting.", viewPalette(s.theme))
+		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusLocked)+"\nClear the blocker before starting.", false)
 	}
 }
 
@@ -1309,7 +1340,6 @@ func (s *ProblemDetailScreen) renderFooter() string {
 		s.theme.Key.Render("x") + " test",
 		s.theme.Key.Render("s") + " submit",
 		s.theme.Key.Render("m") + " solve",
-		s.theme.Key.Render("t") + " theme",
 		s.theme.Key.Render("esc") + " back",
 		s.theme.Key.Render("q") + " quit",
 	}

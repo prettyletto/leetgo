@@ -53,15 +53,15 @@ func TestProblemDetail_ViewShowsTitle(t *testing.T) {
 	assert.Contains(t, view, "#1 Two Sum")
 }
 
-func TestProblemDetail_RPGSkillTileLabels(t *testing.T) {
+func TestProblemDetail_UsesAdaptiveLabels(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 	pd.width = 120
 
 	view := pd.View()
-	assert.Contains(t, view, "Skill Tile")
-	assert.Contains(t, view, "Status Tile")
-	assert.Contains(t, view, "Training Notes")
-	assert.Contains(t, view, "Training Files")
+	assert.Contains(t, view, "Problem Detail")
+	assert.Contains(t, view, "Status")
+	assert.Contains(t, view, "Problem Brief")
+	assert.Contains(t, view, "Workspace Files")
 }
 
 func TestProblemDetail_VerifiedMakesSubmitPrimary(t *testing.T) {
@@ -98,7 +98,7 @@ func TestProblemDetail_CleanThemeLabels(t *testing.T) {
 	view := pd.View()
 	assert.Contains(t, view, "Problem Detail")
 	assert.Contains(t, view, "Problem Brief")
-	assert.Contains(t, view, "Files")
+	assert.Contains(t, view, "Workspace Files")
 	assert.NotContains(t, view, "Skill Tile")
 }
 
@@ -145,7 +145,7 @@ func TestProblemDetail_ViewShowsPrerequisites(t *testing.T) {
 	pd.width = 120
 
 	view := pd.View()
-	assert.Contains(t, view, "Prerequisites: none")
+	assert.Contains(t, view, "Requires: none")
 }
 
 func TestProblemDetail_ViewShowsPrerequisitesWithContent(t *testing.T) {
@@ -153,7 +153,7 @@ func TestProblemDetail_ViewShowsPrerequisitesWithContent(t *testing.T) {
 	pd.width = 120
 
 	view := pd.View()
-	assert.Contains(t, view, "Prerequisites:")
+	assert.Contains(t, view, "Requires:")
 	assert.Contains(t, view, "Valid Anagram")
 }
 
@@ -511,15 +511,11 @@ func TestProblemDetail_WindowResize(t *testing.T) {
 	assert.Equal(t, 50, pd.height)
 }
 
-func TestProblemDetail_ThemeCycle(t *testing.T) {
+func TestProblemDetail_NoThemeCycleShortcut(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 
 	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	_, ok := msg.(ThemeChangedMsg)
-	assert.True(t, ok)
+	assert.Nil(t, cmd)
 }
 
 func TestProblemDetail_PrimaryActionLocked(t *testing.T) {

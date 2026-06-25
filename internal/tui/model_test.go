@@ -41,20 +41,8 @@ func pressSpecial(m *Model, key tea.KeyType) {
 func TestNewModel(t *testing.T) {
 	m := newTestModel(t)
 	assert.NotNil(t, m.list)
-	assert.NotNil(t, m.graphView)
 	assert.NotNil(t, m.heatmapView)
 	assert.NotNil(t, m.statsBar)
-	assert.Equal(t, viewList, m.viewMode)
-}
-
-func TestViewModeToggle_Graph(t *testing.T) {
-	m := newTestModel(t)
-	assert.Equal(t, viewList, m.viewMode)
-
-	pressKey(m, "g")
-	assert.Equal(t, viewGraph, m.viewMode)
-
-	pressKey(m, "g")
 	assert.Equal(t, viewList, m.viewMode)
 }
 
@@ -69,6 +57,16 @@ func TestViewModeToggle_Heatmap(t *testing.T) {
 	assert.Equal(t, viewList, m.viewMode)
 }
 
+func TestGraphShortcutIsDisabled(t *testing.T) {
+	m := newTestModel(t)
+	assert.Equal(t, viewList, m.viewMode)
+
+	pressKey(m, "g")
+
+	assert.Equal(t, viewList, m.viewMode)
+	assert.NotContains(t, m.renderKeytips(), "unlock path")
+}
+
 func TestView_Renders(t *testing.T) {
 	m := newTestModel(t)
 	view := m.View()
@@ -77,7 +75,8 @@ func TestView_Renders(t *testing.T) {
 }
 
 func TestRenderStatus_Verified(t *testing.T) {
-	assert.Contains(t, renderStatus(roadmap.StatusVerified), "VERIFIED")
+	theme, _ := LookupTheme("rpg-skill-tree")
+	assert.Contains(t, renderStatus(roadmap.StatusVerified, theme), "VERIFIED")
 }
 
 func TestStageFilter_CyclesAndClears(t *testing.T) {

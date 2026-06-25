@@ -18,7 +18,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.False(t, cfg.OnboardingComplete)
 	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
-	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "adaptive", cfg.Theme)
 	assert.Equal(t, "rich", cfg.SymbolMode)
 	assert.Equal(t, "normal", cfg.MotionPreference)
 	assert.False(t, cfg.GitExportEnabled)
@@ -35,7 +35,7 @@ func TestLoad_NoFile(t *testing.T) {
 	assert.Equal(t, "from-zero-to-hero", cfg.Roadmap)
 	assert.False(t, cfg.OnboardingComplete)
 	assert.Zero(t, cfg.OnboardingVersion)
-	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "adaptive", cfg.Theme)
 	assert.Equal(t, "rich", cfg.SymbolMode)
 	assert.Equal(t, "normal", cfg.MotionPreference)
 }
@@ -60,7 +60,7 @@ func TestSaveAndLoad(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(tmp, ".leetgo", "config.toml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "Ada")
-	assert.Contains(t, string(data), "clean-productivity")
+	assert.Contains(t, string(data), "adaptive")
 
 	loaded, err := Load()
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestSaveAndLoad(t *testing.T) {
 	assert.Equal(t, "nvim", loaded.Editor)
 	assert.Equal(t, "python", loaded.Language)
 	assert.Equal(t, "interview-sprint", loaded.Roadmap)
-	assert.Equal(t, "clean-productivity", loaded.Theme)
+	assert.Equal(t, "adaptive", loaded.Theme)
 	assert.Equal(t, "plain", loaded.SymbolMode)
 	assert.Equal(t, "reduced", loaded.MotionPreference)
 }
@@ -271,10 +271,8 @@ func TestValidate_GitExportEnabledWithValidGitRepo(t *testing.T) {
 }
 
 func TestValidThemes(t *testing.T) {
-	assert.Contains(t, ValidThemes, "rpg-skill-tree")
-	assert.Contains(t, ValidThemes, "clean-productivity")
-	assert.Contains(t, ValidThemes, "cyber-dashboard")
-	assert.Len(t, ValidThemes, 3)
+	assert.Contains(t, ValidThemes, "adaptive")
+	assert.Len(t, ValidThemes, 1)
 }
 
 func TestValidAppearancePreferences(t *testing.T) {
@@ -305,11 +303,19 @@ roadmap = "from-zero-to-hero"
 	assert.False(t, cfg.OnboardingComplete)
 	assert.Zero(t, cfg.OnboardingVersion)
 	assert.Empty(t, cfg.DisplayName)
-	assert.Equal(t, "rpg-skill-tree", cfg.Theme)
+	assert.Equal(t, "adaptive", cfg.Theme)
 	assert.Equal(t, "rich", cfg.SymbolMode)
 	assert.Equal(t, "normal", cfg.MotionPreference)
 	assert.False(t, cfg.GitExportEnabled)
 	assert.Empty(t, cfg.GitExportRepo)
+}
+
+func TestApplyDefaults_MigratesLegacyTheme(t *testing.T) {
+	cfg := &Config{Theme: "cyber-dashboard"}
+
+	cfg.ApplyDefaults()
+
+	assert.Equal(t, "adaptive", cfg.Theme)
 }
 
 func TestReadyForDashboard(t *testing.T) {

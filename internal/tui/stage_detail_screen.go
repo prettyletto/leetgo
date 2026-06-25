@@ -107,12 +107,6 @@ func (s *StageDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				}
 			}
 
-		case "t":
-			currentIdx := sliceIndex(config.ValidThemes, s.cfg.Theme)
-			nextIdx := (currentIdx + 1) % len(config.ValidThemes)
-			return s, func() tea.Msg {
-				return ThemeChangedMsg{ThemeID: config.ValidThemes[nextIdx]}
-			}
 		}
 	}
 	return s, nil
@@ -123,29 +117,20 @@ func (s *StageDetailScreen) View() string {
 	stageDesc := s.stageDescription()
 	stagePrefix, gridLabel, recommendedLabel, reviewLabel := themeStageLabels(s.theme)
 
-	var lines []string
-	lines = append(lines, s.theme.Title.Render(stagePrefix+": "+stageTitle))
-
-	if stageDesc != "" {
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(s.theme.Muted).
-			Render(stageDesc))
-	}
-
-	lines = append(lines, "")
-
 	solved, verified, inProgress, available, locked, total := s.statusCounts()
-	lines = append(lines, fmt.Sprintf("Solved: %d  Verified: %d  In Progress: %d  Available: %d  Locked: %d  Total: %d",
-		solved, verified, inProgress, available, locked, total))
+	header := renderScreenHeader(s.theme, stagePrefix+": "+stageTitle, stageDesc)
+	summaryLines := []string{fmt.Sprintf("Solved: %d  Verified: %d  In Progress: %d  Available: %d  Locked: %d  Total: %d",
+		solved, verified, inProgress, available, locked, total)}
 
 	if total > 0 {
 		percentage := float64(solved) / float64(total) * 100
 		bar := s.renderProgressBar(percentage)
-		lines = append(lines, bar)
+		summaryLines = append(summaryLines, bar)
 	}
+	summary := renderThemedPanel(s.theme, "Stage Summary", strings.Join(summaryLines, "\n"), false)
 
-	lines = append(lines, "")
-	lines = append(lines, s.theme.Key.Render(gridLabel))
+	var problemLines []string
+	problemLines = append(problemLines, s.theme.Subtitle.Render(gridLabel))
 
 	var firstAvailable *roadmap.Problem
 	for _, p := range s.problems {
@@ -157,23 +142,24 @@ func (s *StageDetailScreen) View() string {
 	for i, p := range s.problems {
 		isRecommended := firstAvailable != nil && p.ID == firstAvailable.ID
 		line := s.renderProblemLine(p, i == s.focusIndex, isRecommended, recommendedLabel)
-		lines = append(lines, line)
-	}
-
-	reviewLines := s.renderReviewShrine(reviewLabel)
-	if len(reviewLines) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, reviewLines...)
+		problemLines = append(problemLines, line)
 	}
 
 	if len(s.problems) == 0 {
-		lines = append(lines, lipgloss.NewStyle().
+		problemLines = append(problemLines, lipgloss.NewStyle().
 			Foreground(s.theme.Muted).
 			Render("  No problems in this stage."))
 	}
+	problems := renderThemedPanel(s.theme, "Problems", strings.Join(problemLines, "\n"), false)
+
+	reviewLines := s.renderReviewShrine(reviewLabel)
+	parts := []string{summary, problems}
+	if len(reviewLines) > 0 {
+		parts = append(parts, renderThemedPanel(s.theme, "Review", strings.Join(reviewLines, "\n"), false))
+	}
 
 	footer := s.renderFooter()
-	return strings.Join(lines, "\n") + "\n" + footer
+	return renderScreenShell(s.theme, s.width, s.height, header, strings.Join(parts, "\n\n"), footer)
 }
 
 func (s *StageDetailScreen) statusCounts() (solved, verified, inProgress, available, locked, total int) {
@@ -248,9 +234,7 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, 
 	labelStyle := lipgloss.NewStyle()
 
 	if focused {
-		labelStyle = lipgloss.NewStyle().
-			Foreground(s.theme.SecondaryAccent).
-			Bold(true)
+		labelStyle = lipgloss.NewStyle().Bold(true)
 	}
 
 	if status == roadmap.StatusInProgress {
@@ -264,7 +248,7 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, 
 			Foreground(s.theme.PrimaryAccent)
 	}
 
-	line := fmt.Sprintf("  %s %s", marker, labelStyle.Render(label))
+	line := fmt.Sprintf("%s %s", marker, labelStyle.Render(label))
 
 	if isRecommended && status == roadmap.StatusAvailable {
 		line += "  " + lipgloss.NewStyle().
@@ -281,7 +265,7 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, 
 		}
 	}
 
-	return line
+	return renderSelectableBlock(s.theme, focused, line)
 }
 
 func (s *StageDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status {
@@ -346,10 +330,9 @@ func (s *StageDetailScreen) renderFooter() string {
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
 		s.theme.Key.Render("enter") + " problem",
-		s.theme.Key.Render("t") + " theme",
 		s.theme.Key.Render("esc") + " roadmap",
 		s.theme.Key.Render("q") + " quit",
 	}
 
-	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  •  "))
 }

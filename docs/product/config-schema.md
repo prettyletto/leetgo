@@ -11,7 +11,7 @@ workspace = "/home/ada/leetgo-workspace"
 editor = "nvim"
 language = "go"
 roadmap = "from-zero-to-hero"
-theme = "rpg-skill-tree"
+theme = "adaptive"
 symbol_mode = "rich"
 motion_preference = "normal"
 git_export_enabled = true
@@ -26,7 +26,7 @@ git_export_repo = "/home/ada/progress"
 - `editor`: optional; fallback remains `$VISUAL`, then `$EDITOR`.
 - `language`: must match a supported generator Language.
 - `roadmap`: must match a bundled Roadmap ID.
-- `theme`: must be one of `rpg-skill-tree`, `clean-productivity`, `cyber-dashboard`.
+- `theme`: currently `adaptive` only.
 - `symbol_mode`: must be `rich` or `plain`.
 - `motion_preference`: must be `normal`, `reduced`, or `off`.
 - `git_export_enabled`: whether Git Export backup is enabled.
@@ -34,16 +34,13 @@ git_export_repo = "/home/ada/progress"
 
 ## Backward Compatibility
 
-Existing configs may only contain:
+Legacy configs may still contain older theme values such as `rpg-skill-tree`, `clean-productivity`, or `cyber-dashboard`.
 
-```toml
-workspace = "..."
-editor = "..."
-language = "go"
-roadmap = "from-zero-to-hero"
-```
+Rules:
 
-These configs should not be treated as Onboarding complete. The new Onboarding should prefill existing values and ask only for missing Profile and backup/theme choices.
+- Existing configs without onboarding fields should still prefill Onboarding.
+- Legacy theme values should auto-migrate to `adaptive` on load/default application.
+- The TUI should no longer expose user-facing theme switching.
 
 ## Validation
 
@@ -52,7 +49,7 @@ Config validation should fail when:
 - Workspace is empty.
 - Language is unsupported.
 - Roadmap is unknown.
-- Theme is unknown.
+- Theme is neither `adaptive` nor a known legacy value that can be migrated.
 - Symbol mode is unknown.
 - Motion preference is unknown.
 - Onboarding is complete but Display Name is empty.
@@ -66,7 +63,7 @@ Existing command:
 leetgo config set <key> <value>
 ```
 
-Should support new keys:
+Should support these keys:
 
 - `display-name`
 - `theme`
@@ -75,10 +72,6 @@ Should support new keys:
 - `git-export-enabled`
 - `git-export-repo`
 
-Potential future commands:
+Behavior note:
 
-```bash
-leetgo onboarding reset
-leetgo theme list
-leetgo theme use cyber-dashboard
-```
+- Setting `theme` to any legacy value should normalize to `adaptive`.

@@ -1,139 +1,74 @@
 # TUI Rebuild Plan
 
-This plan breaks the Dashboard-first TUI into implementation slices.
+This plan reflects the adaptive rewrite direction.
 
-## Slice 1: Config and Metadata Foundation
+## Slice 1: Config Migration
 
-Goal: make the data model capable of supporting Onboarding and Roadmap Carousel.
-
-Work:
-
-- Add config fields from `docs/product/config-schema.md`.
-- Add Theme validation.
-- Add Git Export preference validation.
-- Add Roadmap metadata fields: `tagline`, `audience`, `promise`, `recommended`, `roadmap_time_estimate`, `difficulty_mix`, `highlights`.
-- Update all bundled Roadmap YAML files with metadata.
-- Validate Roadmap metadata.
-
-Acceptance:
-
-- Existing configs still load with defaults.
-- Missing `onboarding_complete` causes TUI to choose Onboarding.
-- Roadmap metadata validates in tests.
-
-## Slice 2: Screen Shell
-
-Goal: introduce screen-based TUI architecture without rebuilding every screen at once.
+Goal: collapse appearance configuration to one adaptive Theme.
 
 Work:
 
-- Add a `Screen` interface.
-- Add root model that delegates Update/View to active screen.
-- Add navigation events between screens.
-- Move notifications/global footer to root shell.
-- Keep current list behavior behind a temporary legacy screen if needed.
+- default `theme = "adaptive"`
+- normalize legacy theme values during defaulting/loading
+- keep symbol mode and motion preference as first-class settings
 
-Acceptance:
+## Slice 2: Shared Appearance System
 
-- Existing TUI still opens and works through the new shell.
-- Tests cover screen navigation basics.
-
-## Slice 3: Onboarding Screens
-
-Goal: implement first-run Profile and Practice Preferences collection.
+Goal: replace hardcoded theme branching with semantic adaptive components.
 
 Work:
 
-- Welcome/Display Name screen.
-- Git Export backup opt-in screen.
-- Workspace/Language screen.
-- Roadmap Carousel screen.
-- Theme Selection screen.
-- Save config and set `onboarding_complete`.
+- one adaptive theme token set
+- shared panel surfaces
+- shared status pills
+- shared footer and notification styling
 
-Acceptance:
+## Slice 3: Dashboard Rewrite
 
-- Fresh config opens Onboarding.
-- Completed Onboarding writes config and opens Dashboard.
-- Existing partial config pre-fills defaults.
-
-## Slice 4: Dashboard MVP
-
-Goal: replace list default with an action-first Dashboard.
+Goal: make the Dashboard feel like a modern terminal workspace.
 
 Work:
 
-- Add Next Action calculation.
-- Add Profile/game HUD component.
-- Add Roadmap/Stage context component.
-- Add Theme-aware panel styling.
-- Wire actions to existing Start/Test/Submit paths where possible.
+- left-aligned shell
+- primary recommended action region
+- compact supporting queue
+- fixed-width sidebar for Profile and Roadmap context
 
-Acceptance:
+## Slice 4: Screen Cleanup
 
-- Completed Profile opens Dashboard by default.
-- InProgress Problems rank first.
-- Available Problems rank after InProgress.
-- Dashboard shows Display Name, Level, XP, Streak, solved count, Roadmap, Stage context.
-
-## Slice 5: Roadmap, Stage, and Problem Detail
-
-Goal: move browsing and actions into deeper screens.
+Goal: bring deeper screens into the same adaptive system.
 
 Work:
 
-- Roadmap Detail with Unlock Path and Stage progress.
-- Stage Detail with filtered Problem list.
-- Problem Detail with Start/Test/Submit/Practice Log actions.
-- Migrate current list/graph views into these screens.
+- Roadmap Detail labels and footer cleanup
+- Stage Detail labels and footer cleanup
+- Problem Detail labels and footer cleanup
+- Practice Log cleanup
 
-Acceptance:
+## Slice 5: Onboarding Simplification
 
-- Dashboard can drill into Roadmap Detail.
-- Roadmap Detail can drill into Stage Detail.
-- Stage Detail can drill into Problem Detail.
-- Problem Detail can Start, Test, Submit, and Mark Solved.
-
-## Slice 6: Theme Polish and Motion
-
-Goal: make the TUI feel deliberately designed.
+Goal: remove obsolete appearance choice UX.
 
 Work:
 
-- RPG skill tree Theme.
-- Clean productivity Theme.
-- Cyber dashboard Theme.
-- Theme switching from Dashboard.
-- Focus transitions.
-- Submission/export spinners.
-- Achievement/Level-up reveal.
-- Subtle cyber ambient motion.
+- remove Theme Selection from the main flow
+- keep symbol-mode preview behavior where useful
+- update step counts and completion flow
 
-Acceptance:
+## Slice 6: Documentation Lock-In
 
-- Theme is persisted.
-- Theme changes affect all screens consistently.
-- Motion is restrained and does not block readability.
+Goal: make the rewrite the new source of truth.
 
-## Known Rebuild Risks
+Work:
 
-- Current `internal/tui/model.go` mixes app state, list rendering, submission, editor opening, and view mode handling.
-- Moving to screens should avoid duplicating Start/Test/Submit behavior.
-- Existing tests rely on root model details and will need migration.
+- update `CONTEXT.md`
+- update product specs
+- add an ADR for the single adaptive TUI
 
-## Suggested Agent Task Boundaries
+## Success Criteria
 
-Good independent tasks:
-
-- Config and Roadmap metadata validation.
-- Roadmap Carousel component.
-- Theme system and styles.
-- Next Action calculator.
-- Dashboard MVP layout.
-- Roadmap Detail migration.
-- Stage Detail migration.
-- Problem Detail actions.
-
-Avoid splitting too early:
-
-- Root screen shell and navigation should be done first by one agent to prevent incompatible screen contracts.
+- no user-facing multi-theme behavior remains
+- legacy theme values auto-migrate safely
+- Dashboard hierarchy is clearer and denser
+- deeper screens use stable product language
+- tests pass after the rewrite

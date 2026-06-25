@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -183,14 +182,6 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				}
 			}
 
-		case "t":
-			currentIdx := slices.Index(config.ValidThemes, s.cfg.Theme)
-			nextIdx := (currentIdx + 1) % len(config.ValidThemes)
-			nextTheme := config.ValidThemes[nextIdx]
-			return s, func() tea.Msg {
-				return ThemeChangedMsg{ThemeID: nextTheme}
-			}
-
 		case "r":
 			return s, func() tea.Msg {
 				return NavigateMsg{ScreenID: ScreenRoadmapDetail}
@@ -280,35 +271,68 @@ func (s *DashboardScreen) clampFocus() {
 }
 
 func (s *DashboardScreen) View() string {
-	greeting := "Welcome"
+	greeting := "Dashboard"
 	if s.cfg.DisplayName != "" {
-		greeting = fmt.Sprintf("Welcome, %s", s.cfg.DisplayName)
+		greeting = fmt.Sprintf("Welcome back, %s", s.cfg.DisplayName)
 	}
 
-	header := s.theme.Title.MarginBottom(1).Render(greeting)
-	var content string
+	headerLines := []string{s.theme.Title.Render(greeting)}
+	if s.roadmap != nil {
+		headerLines = append(headerLines, s.theme.Subtitle.Render(s.roadmap.Title+"  •  guided practice roadmap"))
+	}
+	header := strings.Join(headerLines, "\n")
 
-	if s.width > 100 {
-		left := s.renderHUD()
-		center := s.renderCenter()
-		right := s.renderRoadmapContext()
-		body := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", center, "  ", right)
-		content = header + "\n" + body + "\n" + s.renderFooter()
-		return s.centerContent(content)
+	shellWidth := s.width - 10
+	if shellWidth > 120 {
+		shellWidth = 120
+	}
+	if shellWidth < 46 {
+		shellWidth = 46
 	}
 
-	if s.width > 60 {
-		center := s.renderCenter()
-		left := s.renderHUD()
-		right := s.renderRoadmapContext()
-		rails := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
-		content = header + "\n" + center + "\n" + rails + "\n" + s.renderFooter()
-		return s.centerContent(content)
+	compactHeight := s.height > 0 && s.height < 34
+	sidebarWidth := 42
+	mainWidth := shellWidth
+	if compactHeight && s.width >= 90 {
+		sidebarWidth = 34
+		mainWidth = shellWidth - sidebarWidth - 2
+	} else if s.width >= 120 {
+		mainWidth = shellWidth - sidebarWidth - 2
+	} else if s.width >= 78 {
+		sidebarWidth = mainWidth
+	}
+	if mainWidth < 34 {
+		mainWidth = 34
 	}
 
-	center := s.renderCenter()
-	content = header + "\n" + center + "\n" + s.renderFooter()
-	return s.centerContent(content)
+	main := s.renderCenter(mainWidth)
+	sidebar := s.renderSidebar(sidebarWidth)
+	if compactHeight && s.width >= 90 {
+		main = s.renderCompactCenter(mainWidth)
+		sidebar = s.renderCompactSidebar(sidebarWidth)
+	}
+	footer := s.renderFooter()
+
+	var body string
+	if compactHeight && s.width >= 90 {
+		body = lipgloss.JoinHorizontal(lipgloss.Top,
+			lipgloss.NewStyle().Width(mainWidth).Render(main),
+			"  ",
+			lipgloss.NewStyle().Width(sidebarWidth).Render(sidebar),
+		)
+	} else if s.width >= 118 {
+		body = lipgloss.JoinHorizontal(lipgloss.Top,
+			lipgloss.NewStyle().Width(mainWidth).Render(main),
+			"  ",
+			lipgloss.NewStyle().Width(sidebarWidth).Render(sidebar),
+		)
+	} else if s.width >= 78 {
+		body = main + "\n\n" + sidebar
+	} else {
+		body = main
+	}
+
+	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
 }
 
 func (s *DashboardScreen) centerContent(content string) string {
@@ -319,6 +343,10 @@ func (s *DashboardScreen) centerContent(content string) string {
 }
 
 func (s *DashboardScreen) renderHUD() string {
+	return s.renderHUDWithWidth(30)
+}
+
+func (s *DashboardScreen) renderHUDWithWidth(width int) string {
 	var lines []string
 	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 	lines = append(lines, s.theme.Key.Render(s.cfg.DisplayName))
@@ -334,11 +362,28 @@ func (s *DashboardScreen) renderHUD() string {
 	}
 
 	lines = append(lines, fmt.Sprintf("Roadmap: %s", s.cfg.Roadmap))
-
-	lines = append(lines, s.renderLatestAchievement())
+	if latest := s.renderLatestAchievement(); latest != "" {
+		lines = append(lines, wrapText(latest, width-4))
+	}
 
 	content := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(27).Render(renderThemedPanel(s.theme, s.theme.Labels.Profile, content, false))
+	return renderRoadmapPanel(s.theme, "Profile", content, false, width)
+}
+
+func (s *DashboardScreen) renderCompactHUD(width int) string {
+	var lines []string
+	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
+	name := s.cfg.DisplayName
+	if name == "" {
+		name = "Profile"
+	}
+	lines = append(lines, s.theme.Key.Render(name))
+	if s.stats != nil {
+		progress := s.stats.Verified + s.stats.Solved
+		lines = append(lines, fmt.Sprintf("%s L%d  %d/%d", symbols.XP, s.stats.Level, progress, s.stats.Total))
+		lines = append(lines, fmt.Sprintf("Streak: %d  XP: %d", s.stats.Streak, s.stats.TotalXP))
+	}
+	return renderRoadmapPanel(s.theme, "Profile", strings.Join(lines, "\n"), false, width)
 }
 
 func (s *DashboardScreen) renderXPProgress() string {
@@ -379,10 +424,14 @@ func (s *DashboardScreen) renderLatestAchievement() string {
 
 	return lipgloss.NewStyle().
 		Foreground(s.theme.Warning).
-		Render(fmt.Sprintf("Latest: %s %s", ach.Icon, ach.Name))
+		Render(fmt.Sprintf("Latest achievement: %s %s", ach.Icon, ach.Name))
 }
 
 func (s *DashboardScreen) renderRoadmapContext() string {
+	return s.renderRoadmapContextWithWidth(30)
+}
+
+func (s *DashboardScreen) renderRoadmapContextWithWidth(width int) string {
 	var lines []string
 	lines = append(lines, s.theme.Key.Render(s.roadmap.Title))
 
@@ -420,27 +469,52 @@ func (s *DashboardScreen) renderRoadmapContext() string {
 	blocker := s.findNextBlocker(solvedMap)
 	if blocker != "" {
 		lines = append(lines, "")
-		lines = append(lines, blocker)
+		lines = append(lines, wrapText(blocker, width-4))
 	}
 
 	if len(s.comingSoon) > 0 {
 		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(s.theme.Labels.LockedItems+":"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Upcoming:"))
 		for _, cs := range s.comingSoon[:min(2, len(s.comingSoon))] {
-			blockerLabels := make([]string, len(cs.blockers))
-			for i, b := range cs.blockers {
-				blockerLabels[i] = fmt.Sprintf("#%d %s", b.ID, b.Title)
-			}
 			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(
-				fmt.Sprintf("  #%d %s", cs.problem.ID, cs.problem.Title)))
+				wrapText(fmt.Sprintf("  #%d %s", cs.problem.ID, cs.problem.Title), width-4)))
 		}
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "Press r for Roadmap Detail")
+	lines = append(lines, s.theme.Subtitle.Render("Press r for Roadmap Detail"))
 
 	content := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(27).Render(renderThemedPanel(s.theme, s.theme.Labels.RoadmapContext, content, false))
+	return renderRoadmapPanel(s.theme, "Roadmap", content, false, width)
+}
+
+func (s *DashboardScreen) renderCompactRoadmapContext(width int) string {
+	var lines []string
+	lines = append(lines, s.theme.Key.Render(s.roadmap.Title))
+
+	solvedMap := s.solvedMap()
+	currentStage := ""
+	for _, stage := range s.roadmap.Stages {
+		for _, p := range s.roadmap.Graph.Problems {
+			if p.Stage == stage.ID && !solvedMap[p.ID] {
+				currentStage = stage.Title
+				break
+			}
+		}
+		if currentStage != "" {
+			break
+		}
+	}
+	if currentStage != "" {
+		lines = append(lines, wrapText("Stage: "+currentStage, width-4))
+	}
+	if len(s.comingSoon) > 0 {
+		cs := s.comingSoon[0]
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(wrapText(fmt.Sprintf("Next locked: #%d %s", cs.problem.ID, cs.problem.Title), width-4)))
+	}
+	lines = append(lines, s.theme.Subtitle.Render("r roadmap"))
+
+	return renderRoadmapPanel(s.theme, "Roadmap", strings.Join(lines, "\n"), false, width)
 }
 
 func (s *DashboardScreen) findNextBlocker(solvedMap map[int]bool) string {
@@ -502,15 +576,16 @@ func (s *DashboardScreen) solvedMap() map[int]bool {
 	return solved
 }
 
-func (s *DashboardScreen) renderCenter() string {
+func (s *DashboardScreen) renderCenter(width int) string {
 	var sections []string
+	sections = append(sections, s.renderSectionLead(width))
 
-	primary := s.renderPrimaryAction()
+	primary := s.renderPrimaryAction(width)
 	if primary != "" {
 		sections = append(sections, primary)
 	}
 
-	also := s.renderAlsoAvailable()
+	also := s.renderAlsoAvailable(width)
 	if also != "" {
 		sections = append(sections, also)
 	}
@@ -518,53 +593,62 @@ func (s *DashboardScreen) renderCenter() string {
 	return strings.Join(sections, "\n")
 }
 
-func (s *DashboardScreen) renderPrimaryAction() string {
+func (s *DashboardScreen) renderCompactCenter(width int) string {
+	var sections []string
+	primary := s.renderPrimaryAction(width)
+	if primary != "" {
+		sections = append(sections, primary)
+	}
+	also := s.renderCompactAlsoAvailable(width)
+	if also != "" {
+		sections = append(sections, also)
+	}
+	return strings.Join(sections, "\n")
+}
+
+func (s *DashboardScreen) renderSectionLead(width int) string {
+	copy := "Your next best action is ranked first. Continue in-progress work before starting something new."
 	if len(s.actions) == 0 {
-		return s.theme.Panel.Width(44).Render("No actions available.\n\nStart a problem from the list view (press l).")
+		copy = "No next action is ready yet. Open the problem list to generate or inspect workspace files."
+	}
+	return s.theme.Subtitle.Render(wrapText(copy, width))
+}
+
+func (s *DashboardScreen) renderPrimaryAction(width int) string {
+	if len(s.actions) == 0 {
+		body := wrapText("No actions available yet.", width-8) + "\n\n" + wrapText("Open the problem list with l to start a Problem manually.", width-8)
+		return renderRoadmapPanel(s.theme, "Recommended", body, true, width)
 	}
 
 	action := s.actions[0]
 	focused := s.focusIndex == 0
-	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
-
-	var style, labelStyle lipgloss.Style
-	_ = symbols
-	marker := ">"
-	if focused {
-		style = s.theme.FocusedPanel.Width(44)
-		labelStyle = lipgloss.NewStyle().Bold(true).Foreground(s.theme.SecondaryAccent)
-	} else {
-		style = s.theme.Panel.Width(44)
-		labelStyle = lipgloss.NewStyle().Foreground(s.theme.Muted)
+	marker := s.theme.Key.Render("Recommended")
+	if !focused {
+		marker = s.theme.Subtitle.Render("Recommended")
 	}
 
 	label := formatActionLabel(action.Kind)
-	header := lipgloss.NewStyle().Bold(true).Foreground(s.theme.PrimaryAccent).Render(s.theme.Labels.PrimaryAction)
-
-	lines := fmt.Sprintf("%s %s %s\n%s  %s\n       %s",
+	lines := []string{
 		marker,
-		labelStyle.Render(label),
-		s.theme.Key.Render(action.Title),
-		header,
-		lipgloss.NewStyle().Foreground(s.theme.Muted).Render(formatReasonType(action.ReasonType)),
-		action.Reason,
-	)
+		lipgloss.NewStyle().Bold(true).Foreground(s.theme.PrimaryAccent).Render(action.Title),
+		lipgloss.NewStyle().Foreground(s.theme.Muted).Render(label),
+		"",
+		formatReasonType(action.ReasonType),
+		wrapText(action.Reason, width-8),
+	}
 
 	if action.ProblemID > 0 {
 		detail := fmt.Sprintf("%s · %s", action.Stage, action.Category)
 		if detail != " · " {
-			lines += "\n" + lipgloss.NewStyle().Foreground(s.theme.Muted).Render("       "+detail)
+			lines = append(lines, "", lipgloss.NewStyle().Foreground(s.theme.Muted).Render(detail))
 		}
 	}
 
-	panelTitle := s.theme.Labels.PrimaryAction
-	if s.theme.ID == "rpg-skill-tree" {
-		panelTitle = "Quest Board"
-	}
-	return renderThemedPanel(s.theme, panelTitle, style.Render(lines), focused) + "\n"
+	body := renderSelectableBlock(s.theme, focused, strings.Join(lines, "\n"))
+	return renderRoadmapPanel(s.theme, "Recommended", body, focused, width)
 }
 
-func (s *DashboardScreen) renderAlsoAvailable() string {
+func (s *DashboardScreen) renderAlsoAvailable(width int) string {
 	if len(s.actions) <= 1 {
 		return ""
 	}
@@ -576,33 +660,64 @@ func (s *DashboardScreen) renderAlsoAvailable() string {
 	}
 
 	var lines []string
-	lines = append(lines, "")
-	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(s.theme.Muted).Render(s.theme.Labels.SecondaryActions))
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(s.theme.Muted).Render("Queue"))
 
 	for i, action := range rest {
 		idx := i + 1
 		focused := s.focusIndex == idx
 
-		marker := "  "
 		style := lipgloss.NewStyle()
 		if focused {
-			marker = "> "
-			style = lipgloss.NewStyle().
-				Foreground(s.theme.SecondaryAccent).Bold(true)
+			style = lipgloss.NewStyle().Bold(true)
 		} else {
 			style = lipgloss.NewStyle().Foreground(s.theme.Muted)
 		}
 
 		label := formatActionLabel(action.Kind)
-		line := fmt.Sprintf("%s%s  %s", marker, label, action.Title)
-		lines = append(lines, style.Render(line))
+		lineText := wrapText(fmt.Sprintf("%s  (%s)", action.Title, label), width-8)
+		line := style.Render(lineText)
+		block := line
 		if focused {
-			reasonLine := fmt.Sprintf("   %s", action.Reason)
-			lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(reasonLine))
+			reasonLine := lipgloss.NewStyle().Foreground(s.theme.SelectionFg).Render(wrapText(action.Reason, width-10))
+			block += "\n" + reasonLine
 		}
+		lines = append(lines, renderSelectableBlock(s.theme, focused, block))
 	}
 
-	return views.Panel("", strings.Join(lines, "\n"), viewPalette(s.theme), false)
+	return renderRoadmapPanel(s.theme, "Up next", strings.Join(lines, "\n"), false, width)
+}
+
+func (s *DashboardScreen) renderCompactAlsoAvailable(width int) string {
+	if len(s.actions) <= 1 {
+		return ""
+	}
+
+	rest := s.actions[1:]
+	if len(rest) > 2 {
+		rest = rest[:2]
+	}
+
+	var lines []string
+	for _, action := range rest {
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(wrapText(action.Title+"  ("+formatActionLabel(action.Kind)+")", width-8)))
+	}
+	return renderRoadmapPanel(s.theme, "Up next", strings.Join(lines, "\n"), false, width)
+}
+
+func (s *DashboardScreen) renderSidebar(width int) string {
+	sections := []string{s.renderHUDWithWidth(width)}
+	if s.width >= 78 {
+		sections = append(sections, s.renderRoadmapContextWithWidth(width))
+	}
+	return strings.Join(sections, "\n\n")
+}
+
+func (s *DashboardScreen) renderCompactSidebar(width int) string {
+	sections := []string{s.renderCompactHUD(width)}
+	if s.width >= 78 {
+		sections = append(sections, s.renderCompactRoadmapContext(width))
+	}
+	return strings.Join(sections, "\n")
 }
 
 func formatReasonType(rt recommendation.ReasonType) string {
@@ -627,8 +742,13 @@ func formatReasonType(rt recommendation.ReasonType) string {
 }
 
 func (s *DashboardScreen) renderFooter() string {
-	keys := map[string]string{"up/down": "navigate", "j/k": "navigate", "enter": "select", "t": "theme", "r": "roadmap", "s": "practice log", "l": "list", "q": "quit"}
-	order := []string{"up/down", "j/k", "enter", "t", "r", "s", "l", "q"}
+	if s.width > 0 && s.width < 100 {
+		keys := map[string]string{"j/k": "nav", "enter": "open", "r": "roadmap", "s": "log", "l": "list", "q": "quit"}
+		order := []string{"j/k", "enter", "r", "s", "l", "q"}
+		return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
+	}
+	keys := map[string]string{"up/down": "navigate", "j/k": "navigate", "enter": "open", "r": "roadmap", "s": "practice log", "l": "list", "q": "quit"}
+	order := []string{"up/down", "j/k", "enter", "r", "s", "l", "q"}
 	return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
 }
 

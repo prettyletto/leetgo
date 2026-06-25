@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,17 +49,17 @@ func TestRoadmapDetail_ViewShowsTitle(t *testing.T) {
 	assert.Contains(t, view, "From Zero To Hero")
 }
 
-func TestRoadmapDetail_RPGWorldMapLabels(t *testing.T) {
+func TestRoadmapDetail_UsesAdaptiveLabels(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 120
 
 	view := rd.View()
-	assert.Contains(t, view, "World Map")
-	assert.Contains(t, view, "Zone:")
-	assert.Contains(t, view, "Locked Branches")
+	assert.Contains(t, view, "Roadmap")
+	assert.Contains(t, view, "Stage:")
+	assert.Contains(t, view, "Upcoming")
 }
 
-func TestRoadmapDetail_CleanThemeLabels(t *testing.T) {
+func TestRoadmapDetail_LegacyThemeValuesRenderAdaptiveLabels(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.cfg.Theme = "clean-productivity"
 	theme, err := LookupTheme(rd.cfg.Theme)
@@ -73,7 +74,7 @@ func TestRoadmapDetail_CleanThemeLabels(t *testing.T) {
 	assert.NotContains(t, view, "World Map")
 }
 
-func TestRoadmapDetail_CyberThemeLabels(t *testing.T) {
+func TestRoadmapDetail_CyberThemeValueNormalizesToAdaptive(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.cfg.Theme = "cyber-dashboard"
 	theme, err := LookupTheme(rd.cfg.Theme)
@@ -82,9 +83,9 @@ func TestRoadmapDetail_CyberThemeLabels(t *testing.T) {
 	rd.width = 120
 
 	view := rd.View()
-	assert.Contains(t, view, "Signal Map")
-	assert.Contains(t, view, "Sector:")
-	assert.Contains(t, view, "Locked Signals")
+	assert.Contains(t, view, "Roadmap")
+	assert.Contains(t, view, "Stage:")
+	assert.Contains(t, view, "Upcoming")
 }
 
 func TestRoadmapDetail_PlainSymbolsPreserveStatusMeaning(t *testing.T) {
@@ -109,15 +110,13 @@ func TestRoadmapDetail_ViewShowsTagline(t *testing.T) {
 func TestRoadmapDetail_ViewShowsStages(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 120
+	rd.height = 40
 
 	view := rd.View()
-
-	groups := rd.groupProblemsByStage()
-	for _, stage := range rd.roadmap.Stages {
-		if problems, ok := groups[stage.ID]; ok && len(problems) > 0 {
-			assert.Contains(t, view, stage.Title, "should show stage %s with problems", stage.Title)
-		}
-	}
+	assert.Contains(t, view, "Arrays & Hashing")
+	assert.Contains(t, view, "Two Pointers")
+	assert.Contains(t, view, "Sliding Window")
+	assert.Contains(t, view, "more Stage below")
 }
 
 func TestRoadmapDetail_ViewShowsProblems(t *testing.T) {
@@ -146,7 +145,7 @@ func TestRoadmapDetail_ViewHasFooter(t *testing.T) {
 	view := rd.View()
 	assert.Contains(t, view, "j/k")
 	assert.Contains(t, view, "enter")
-	assert.Contains(t, view, "graph")
+	assert.NotContains(t, view, "graph")
 	assert.Contains(t, view, "esc")
 	assert.Contains(t, view, "quit")
 }
@@ -182,26 +181,14 @@ func TestRoadmapDetail_BackspaceReturnsToDashboard(t *testing.T) {
 	assert.Equal(t, ScreenDashboard, navigate.ScreenID)
 }
 
-func TestRoadmapDetail_ToggleViewMode(t *testing.T) {
+func TestRoadmapDetail_GraphShortcutDoesNothing(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
-
-	assert.Equal(t, rdViewList, rd.viewMode)
+	before := rd.View()
 
 	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
-	assert.Equal(t, rdViewGraph, rd.viewMode)
 
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
-	assert.Equal(t, rdViewList, rd.viewMode)
-}
-
-func TestRoadmapDetail_GraphViewShowsUnlockPath(t *testing.T) {
-	rd, _ := newTestRoadmapDetail(t)
-
-	rd.viewMode = rdViewGraph
-	rd.width = 120
-
-	view := rd.View()
-	assert.Contains(t, view, "Unlock Path")
+	assert.Equal(t, before, rd.View())
+	assert.NotContains(t, rd.View(), "Unlock Path")
 }
 
 func TestRoadmapDetail_FocusNavigation(t *testing.T) {
@@ -218,7 +205,7 @@ func TestRoadmapDetail_FocusNavigation(t *testing.T) {
 	assert.Equal(t, 0, rd.focusIndex)
 }
 
-func TestRoadmapDetail_FocusWraps(t *testing.T) {
+func TestRoadmapDetail_FocusClampsAtEnds(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 
 	if len(rd.problems) == 0 {
@@ -226,10 +213,40 @@ func TestRoadmapDetail_FocusWraps(t *testing.T) {
 	}
 
 	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
-	assert.Equal(t, len(rd.problems)-1, rd.focusIndex)
-
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	assert.Equal(t, 0, rd.focusIndex)
+
+	rd.focusIndex = len(rd.problems) - 1
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, len(rd.problems)-1, rd.focusIndex)
+}
+
+func TestRoadmapDetail_FocusWalksAllProblemsInOrder(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+
+	if len(rd.problems) < 3 {
+		t.Skip("not enough problems")
+	}
+
+	first := rd.focusIndex
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, first+1, rd.focusIndex)
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, first+2, rd.focusIndex)
+}
+
+func TestRoadmapDetail_FocusWalksRenderedStageOrder(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	require.GreaterOrEqual(t, len(rd.problems), 2)
+
+	assert.Equal(t, "Two Sum", rd.problems[0].Title)
+	assert.Equal(t, "Contains Duplicate", rd.problems[1].Title)
+
+	rd.focusIndex = 0
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+
+	assert.Equal(t, 1, rd.focusIndex)
+	assert.Equal(t, "Contains Duplicate", rd.focusedProblem().Title)
+	assert.NotEqual(t, "Valid Parentheses", rd.focusedProblem().Title)
 }
 
 func TestRoadmapDetail_EnterGoesToStageDetail(t *testing.T) {
@@ -259,6 +276,107 @@ func TestRoadmapDetail_WindowResize(t *testing.T) {
 	assert.Equal(t, 50, rd.height)
 }
 
+func TestRoadmapDetail_ScrollsViewport(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 120
+	rd.height = 32
+
+	before := rd.View()
+	assert.Contains(t, before, "Arrays & Hashing")
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	after := rd.View()
+
+	assert.NotEqual(t, before, after)
+	assert.Contains(t, after, "more Stage above")
+}
+
+func TestRoadmapDetail_ScrolledViewportKeepsStageHeader(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	content, problemLineMap, _ := rd.buildStagesContent(rd.buildStageSolvedCount())
+	require.Greater(t, len(content), 4)
+
+	rd.scrollOffset = 2
+	window := rd.windowLines(content, 6, problemLineMap)
+
+	require.NotEmpty(t, window)
+	assert.Contains(t, window[0], "Arrays & Hashing")
+}
+
+func TestRoadmapDetail_WindowSourceLinesAccountForStickyHeader(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	content := []string{"Stage", "one", "two", "three"}
+	problemLineMap := map[int]int{1: 1, 2: 2, 3: 3}
+	rd.scrollOffset = 2
+
+	window, sources := rd.windowLinesWithSource(content, 3, problemLineMap)
+
+	require.Equal(t, []string{"Stage", "two", "three"}, window)
+	assert.Equal(t, []int{0, 2, 3}, sources)
+}
+
+func TestRoadmapDetail_ProblemLineMapIndexesOnlyFirstWrappedLine(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	require.NotEmpty(t, rd.problems)
+	rd.width = 40
+	rd.problems[0].Title = "This Title Is Intentionally Long Enough To Wrap Across Multiple Lines"
+
+	content, problemLineMap, _ := rd.buildStagesContent(rd.buildStageSolvedCount())
+
+	entries := 0
+	for _, pid := range problemLineMap {
+		if pid == rd.problems[0].ID {
+			entries++
+		}
+	}
+
+	assert.Greater(t, len(content), len(problemLineMap))
+	assert.Equal(t, 1, entries)
+}
+
+func TestRoadmapDetail_MovingToLastProblemScrollsSelectionIntoView(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 190
+	rd.height = 30
+	require.NotEmpty(t, rd.problems)
+
+	for rd.focusIndex < len(rd.problems)-1 {
+		rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	}
+
+	focusedID := rd.focusedProblem().ID
+	content, problemLineMap, _ := rd.buildStagesContent(rd.buildStageSolvedCount())
+	visible := rd.stagesVisible()
+	rd.clampScroll(len(content), visible)
+	_, sources := rd.windowLinesWithSource(content, visible, problemLineMap)
+	targetLine := -1
+	for i := range content {
+		if problemLineMap[i] == focusedID {
+			targetLine = i
+			break
+		}
+	}
+
+	visibleFocused := false
+	for _, source := range sources {
+		if problemLineMap[source] == focusedID {
+			visibleFocused = true
+			break
+		}
+	}
+
+	assert.True(t, visibleFocused, "focused final problem should be visible after navigation: id=%d title=%q target=%d total=%d visible=%d offset=%d sources=%v", focusedID, rd.focusedProblem().Title, targetLine, len(content), visible, rd.scrollOffset, sources)
+}
+
+func TestRoadmapDetail_RendersHeapProblemsInDeclaredHeapStage(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	content, _, _ := rd.buildStagesContent(rd.buildStageSolvedCount())
+	view := strings.Join(content, "\n")
+
+	assert.Contains(t, view, "Heap & Priority Queue")
+	assert.Contains(t, view, "Last Stone Weight")
+}
+
 func TestRoadmapDetail_SolvedProblemStatus(t *testing.T) {
 	rd, db := newTestRoadmapDetail(t)
 	ctx := context.Background()
@@ -277,9 +395,86 @@ func TestRoadmapDetail_SolvedProblemStatus(t *testing.T) {
 func TestRoadmapDetail_BlockerDisplay(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 120
+	rd.height = 40
 
+	lockedIdx := -1
+	for i, p := range rd.problems {
+		if rd.effectiveStatus(p) == roadmap.StatusLocked && len(rd.missingPrerequisites(p)) > 0 {
+			lockedIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, lockedIdx, "should have a locked problem with blockers")
+
+	rd.focusIndex = lockedIdx
 	view := rd.View()
-	assert.Contains(t, view, "blocked by")
+	assert.Contains(t, view, "Blocked")
+	assert.Contains(t, view, "Problem")
+	assert.Contains(t, view, "Blocked by")
+	assert.Contains(t, view, "- #")
+}
+
+func TestRoadmapDetail_ListPaneWidthsUseStableTwoColumnLayout(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 190
+
+	left, right := rd.listPaneWidths()
+
+	assert.Equal(t, 78, left)
+	assert.Equal(t, 56, right)
+}
+
+func TestRoadmapDetail_ListPaneWidthsFitNarrowTwoColumnLayout(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 110
+
+	left, right := rd.listPaneWidths()
+
+	assert.Equal(t, 62, left)
+	assert.Equal(t, 38, right)
+	assert.LessOrEqual(t, left+right+2, rd.width-8)
+}
+
+func TestRoadmapDetail_EnterOnLockedProblemGoesToStage(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+
+	lockedIdx := -1
+	for i, p := range rd.problems {
+		if rd.effectiveStatus(p) == roadmap.StatusLocked && len(rd.missingPrerequisites(p)) > 0 {
+			lockedIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, lockedIdx, "should have a locked problem with blockers")
+
+	rd.focusIndex = lockedIdx
+	_, cmd := rd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	navigate, ok := msg.(NavigateMsg)
+	require.True(t, ok)
+	assert.Equal(t, ScreenStageDetail, navigate.ScreenID)
+	assert.NotEmpty(t, navigate.Stage)
+}
+
+func TestRoadmapDetail_UnlockedProblemShowsOverview(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 120
+
+	unlockedIdx := -1
+	for i, p := range rd.problems {
+		if rd.effectiveStatus(p) != roadmap.StatusLocked {
+			unlockedIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, unlockedIdx, "should have an unlocked problem")
+
+	rd.focusIndex = unlockedIdx
+	view := rd.View()
+	assert.Contains(t, view, "Overview")
+	assert.NotContains(t, view, "Press enter to open the stage.")
 }
 
 func TestRoadmapDetail_LockedProblemsHaveBlockers(t *testing.T) {
@@ -298,15 +493,11 @@ func TestRoadmapDetail_LockedProblemsHaveBlockers(t *testing.T) {
 	assert.Contains(t, view, "LOCKED")
 }
 
-func TestRoadmapDetail_ThemeCycle(t *testing.T) {
+func TestRoadmapDetail_NoThemeCycleShortcut(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 
 	_, cmd := rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	_, ok := msg.(ThemeChangedMsg)
-	assert.True(t, ok)
+	assert.Nil(t, cmd)
 }
 
 func (s *RoadmapDetailScreen) refreshProgress() {

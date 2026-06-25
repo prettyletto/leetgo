@@ -8,32 +8,10 @@ import (
 	"github.com/prettyletto/leetgo/internal/store"
 )
 
-var (
-	statsStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
-
-	xpStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("214")).
-		Bold(true)
-
-	levelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("82")).
-			Bold(true)
-
-	streakStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true)
-
-	progressBarStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("214"))
-
-	progressBarBG = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-)
-
 type StatsBar struct {
-	stats *store.Stats
-	width int
+	stats   *store.Stats
+	width   int
+	palette Palette
 }
 
 func NewStatsBar(stats *store.Stats) *StatsBar {
@@ -47,18 +25,29 @@ func (s *StatsBar) SetWidth(width int) {
 	s.width = width
 }
 
+func (s *StatsBar) SetPalette(p Palette) {
+	s.palette = p
+}
+
 func (s *StatsBar) Render() string {
 	if s.stats == nil {
 		return ""
 	}
 
+	levelStyle := lipgloss.NewStyle().Foreground(s.palette.Success).Bold(true)
+	streakStyle := lipgloss.NewStyle().Foreground(s.palette.Danger).Bold(true)
+	statsStyle := lipgloss.NewStyle().Foreground(s.palette.Muted)
+	xpStyle := lipgloss.NewStyle().Foreground(s.palette.XP).Bold(true)
+	barFillStyle := lipgloss.NewStyle().Foreground(s.palette.XP)
+	barEmptyStyle := lipgloss.NewStyle().Foreground(s.palette.Muted)
+
 	level := levelStyle.Render(fmt.Sprintf("LVL %d", s.stats.Level))
-	streak := streakStyle.Render(fmt.Sprintf("🔥 %d", s.stats.Streak))
+	streak := streakStyle.Render(fmt.Sprintf(" %d", s.stats.Streak))
 	solved := statsStyle.Render(fmt.Sprintf("%d/%d solved", s.stats.Solved, s.stats.Total))
 
-	xpBar := s.renderXPBar()
+	xpBar := s.renderXPBar(barFillStyle, barEmptyStyle, xpStyle)
 
-	left := fmt.Sprintf("%s  %s  %s", level, streak, solved)
+	left := fmt.Sprintf("%s  •  %s  •  %s", level, streak, solved)
 	right := xpBar
 
 	padding := s.width - lipgloss.Width(left) - lipgloss.Width(right)
@@ -69,7 +58,7 @@ func (s *StatsBar) Render() string {
 	return left + strings.Repeat(" ", padding) + right
 }
 
-func (s *StatsBar) renderXPBar() string {
+func (s *StatsBar) renderXPBar(fillStyle, emptyStyle, xpStyle lipgloss.Style) string {
 	currentLevelXP := store.LevelToXP(s.stats.Level)
 	nextLevelXP := store.LevelToXP(s.stats.Level + 1)
 	xpInLevel := s.stats.TotalXP - currentLevelXP
@@ -79,8 +68,8 @@ func (s *StatsBar) renderXPBar() string {
 	barWidth := 20
 	filled := int(percentage * float64(barWidth))
 
-	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
-		progressBarBG.Render(strings.Repeat("░", barWidth-filled))
+	bar := fillStyle.Render(strings.Repeat("█", filled)) +
+		emptyStyle.Render(strings.Repeat("░", barWidth-filled))
 
 	xp := xpStyle.Render(fmt.Sprintf("%d XP", s.stats.TotalXP))
 

@@ -141,7 +141,7 @@ func TestRootModel_NavigationToDashboard(t *testing.T) {
 	updated, _ := m.Update(NavigateMsg{ScreenID: ScreenDashboard})
 	root := updated.(*RootModel)
 	view := root.View()
-	assert.Contains(t, view, "Welcome, Ada")
+	assert.Contains(t, view, "Welcome back, Ada")
 }
 
 func TestRootModel_NavigationToLegacyList(t *testing.T) {
@@ -196,7 +196,7 @@ func TestRootModel_WindowSizeMsg(t *testing.T) {
 	assert.Equal(t, 120, root.width)
 	assert.Equal(t, 40, root.height)
 	view := root.View()
-	assert.Contains(t, view, "Welcome, Ada")
+	assert.Contains(t, view, "Welcome back, Ada")
 }
 
 func TestRootModel_UnsupportedSize(t *testing.T) {
@@ -233,7 +233,7 @@ func TestRootModel_UnsupportedSizeRestoresScreen(t *testing.T) {
 	assert.Contains(t, root.View(), "Unsupported Size")
 	updated, _ = root.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	root = updated.(*RootModel)
-	assert.Contains(t, root.View(), "Welcome, Ada")
+	assert.Contains(t, root.View(), "Welcome back, Ada")
 }
 
 func TestRootModel_ReducedMotionDisablesAmbientBorder(t *testing.T) {
@@ -249,7 +249,7 @@ func TestRootModel_ReducedMotionDisablesAmbientBorder(t *testing.T) {
 
 	m := newTestRootModel(t, cfg)
 	view := m.View()
-	assert.Contains(t, view, "Welcome, Ada")
+	assert.Contains(t, view, "Welcome back, Ada")
 	assert.NotContains(t, view, "░░░░")
 	assert.NotContains(t, view, "▓▓▓▓")
 }
@@ -267,8 +267,8 @@ func TestRootModel_CyberNormalMotionShowsAmbientBorder(t *testing.T) {
 
 	m := newTestRootModel(t, cfg)
 	view := m.View()
-	assert.Contains(t, view, "Welcome, Ada")
-	assert.Contains(t, view, "░░░░")
+	assert.Contains(t, view, "Welcome back, Ada")
+	assert.NotContains(t, view, "░░░░")
 }
 
 func TestRootModel_Quit(t *testing.T) {
@@ -298,8 +298,8 @@ func TestRootModel_ConfigOwnership(t *testing.T) {
 
 	m := newTestRootModel(t, cfg)
 	assert.Equal(t, cfg, m.Config())
-	assert.Equal(t, "cyber-dashboard", m.Theme())
-	assert.Equal(t, "Cyber Dashboard", m.ThemeTokens().Name)
+	assert.Equal(t, "adaptive", m.Theme())
+	assert.Equal(t, "Adaptive", m.ThemeTokens().Name)
 }
 
 func TestNewRootModel_InvalidTheme(t *testing.T) {
@@ -335,7 +335,7 @@ func TestRootModel_ConfigOwnership_DefaultTheme(t *testing.T) {
 	}
 
 	m := newTestRootModel(t, cfg)
-	assert.Equal(t, "rpg-skill-tree", m.Theme())
+	assert.Equal(t, "adaptive", m.Theme())
 	assert.False(t, m.Config().OnboardingComplete)
 }
 
@@ -404,7 +404,7 @@ func TestRootModel_MultipleNotifications(t *testing.T) {
 	m.Notify("second")
 	view := m.View()
 	assert.Contains(t, view, "second")
-	assert.NotContains(t, view, "first")
+	assert.NotContains(t, view, "│ first │")
 }
 
 func TestRootModel_ScreenDelegation_Init(t *testing.T) {
@@ -483,8 +483,8 @@ func TestRootModel_ThemeCycle(t *testing.T) {
 	require.NotNil(t, updated)
 	assert.Nil(t, cmd)
 	root := updated.(*RootModel)
-	assert.Equal(t, "clean-productivity", root.cfg.Theme)
-	assert.Equal(t, "clean-productivity", root.theme.ID)
+	assert.Equal(t, "adaptive", root.cfg.Theme)
+	assert.Equal(t, "adaptive", root.theme.ID)
 
 	_, isDashboard := root.screen.(*DashboardScreen)
 	assert.True(t, isDashboard, "theme change should recreate DashboardScreen")
@@ -534,7 +534,7 @@ func TestRootModel_ThemeCycleRecreatesSolveLogWithSize(t *testing.T) {
 
 	solveLog, ok := root.screen.(*SolveLogScreen)
 	require.True(t, ok)
-	assert.Equal(t, "clean-productivity", solveLog.theme.ID)
+	assert.Equal(t, "adaptive", solveLog.theme.ID)
 	assert.Equal(t, 132, solveLog.width)
 	assert.Equal(t, 37, solveLog.height)
 }

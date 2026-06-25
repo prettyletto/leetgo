@@ -8,14 +8,6 @@ import (
 	"github.com/prettyletto/leetgo/internal/gamification"
 )
 
-var (
-	notificationStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color("214")).
-		Foreground(lipgloss.Color("0")).
-		Padding(0, 1).
-		Bold(true)
-)
-
 type Notification struct {
 	Message   string
 	Timestamp time.Time
@@ -24,12 +16,17 @@ type Notification struct {
 type NotificationManager struct {
 	notifications []Notification
 	maxAge        time.Duration
+	palette       Palette
 }
 
 func NewNotificationManager() *NotificationManager {
 	return &NotificationManager{
 		maxAge: 5 * time.Second,
 	}
+}
+
+func (m *NotificationManager) SetPalette(p Palette) {
+	m.palette = p
 }
 
 func (m *NotificationManager) Add(msg string) {
@@ -51,7 +48,15 @@ func (m *NotificationManager) Render() string {
 	}
 
 	latest := m.notifications[len(m.notifications)-1]
-	return notificationStyle.Render(latest.Message)
+
+	style := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.palette.Primary).
+		Foreground(m.palette.Primary).
+		Padding(0, 1).
+		Bold(true)
+
+	return style.Render(latest.Message)
 }
 
 func (m *NotificationManager) prune() {

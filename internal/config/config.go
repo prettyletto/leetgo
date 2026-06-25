@@ -14,6 +14,10 @@ const MaxDisplayNameLength = 40
 const CurrentOnboardingVersion = 1
 
 var ValidThemes = []string{
+	"adaptive",
+}
+
+var legacyThemes = []string{
 	"rpg-skill-tree",
 	"clean-productivity",
 	"cyber-dashboard",
@@ -58,7 +62,7 @@ func DefaultConfig() (*Config, error) {
 		Editor:             "",
 		Language:           "go",
 		Roadmap:            "from-zero-to-hero",
-		Theme:              "rpg-skill-tree",
+		Theme:              "adaptive",
 		SymbolMode:         "rich",
 		MotionPreference:   "normal",
 		GitExportEnabled:   false,
@@ -116,8 +120,8 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) ApplyDefaults() {
-	if c.Theme == "" {
-		c.Theme = "rpg-skill-tree"
+	if c.Theme == "" || slices.Contains(legacyThemes, c.Theme) {
+		c.Theme = "adaptive"
 	}
 	if c.SymbolMode == "" {
 		c.SymbolMode = "rich"

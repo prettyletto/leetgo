@@ -50,23 +50,22 @@ func TestDashboard_ViewShowsGreeting(t *testing.T) {
 	d.height = 40
 
 	view := d.View()
-	assert.Contains(t, view, "Welcome, Ada")
+	assert.Contains(t, view, "Welcome back, Ada")
 }
 
-func TestDashboard_RPGLabels(t *testing.T) {
+func TestDashboard_AdaptiveLayoutLabels(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.width = 120
 	d.height = 40
 
 	view := d.View()
-	assert.Contains(t, view, "Quest Board")
-	assert.Contains(t, view, "Main Quest")
-	assert.Contains(t, view, "Side Quests")
-	assert.Contains(t, view, "Character HUD")
-	assert.Contains(t, view, "Map Fragment")
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Up next")
+	assert.Contains(t, view, "Profile")
+	assert.Contains(t, view, "Roadmap")
 }
 
-func TestDashboard_CleanThemeLabels(t *testing.T) {
+func TestDashboard_LegacyThemeValuesRenderAdaptiveLayout(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.cfg.Theme = "clean-productivity"
 	theme, err := LookupTheme(d.cfg.Theme)
@@ -77,13 +76,13 @@ func TestDashboard_CleanThemeLabels(t *testing.T) {
 
 	view := d.View()
 	assert.Contains(t, view, "Recommended")
-	assert.Contains(t, view, "Available")
+	assert.Contains(t, view, "Queue")
 	assert.Contains(t, view, "Profile")
 	assert.Contains(t, view, "Upcoming")
 	assert.NotContains(t, view, "Character HUD")
 }
 
-func TestDashboard_CyberThemeLabels(t *testing.T) {
+func TestDashboard_CyberThemeValueNormalizesToAdaptive(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.cfg.Theme = "cyber-dashboard"
 	theme, err := LookupTheme(d.cfg.Theme)
@@ -93,11 +92,9 @@ func TestDashboard_CyberThemeLabels(t *testing.T) {
 	d.height = 40
 
 	view := d.View()
-	assert.Contains(t, view, "Primary Signal")
-	assert.Contains(t, view, "Secondary Targets")
-	assert.Contains(t, view, "Operator")
-	assert.Contains(t, view, "Locked Signals")
-	assert.Contains(t, view, "SYS:")
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Roadmap")
+	assert.NotContains(t, view, "SYS:")
 }
 
 func TestDashboard_CleanPlainSymbolsNoRichGlyphs(t *testing.T) {
@@ -162,24 +159,11 @@ func TestDashboard_NavigateToList(t *testing.T) {
 	assert.Equal(t, ScreenLegacyList, navigate.ScreenID)
 }
 
-func TestDashboard_ThemeCycle(t *testing.T) {
+func TestDashboard_TKeyDoesNotChangeTheme(t *testing.T) {
 	d, _ := newTestDashboard(t)
 
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	themeChange, ok := msg.(ThemeChangedMsg)
-	require.True(t, ok)
-	assert.Equal(t, "clean-productivity", themeChange.ThemeID)
-
-	d.cfg.Theme = "clean-productivity"
-
-	_, cmd = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	msg = cmd()
-	themeChange, ok = msg.(ThemeChangedMsg)
-	require.True(t, ok)
-	assert.Equal(t, "cyber-dashboard", themeChange.ThemeID)
+	assert.Nil(t, cmd)
 }
 
 func TestDashboard_FocusNavigation(t *testing.T) {
@@ -270,7 +254,8 @@ func TestDashboard_FocusedActionShowsCursor(t *testing.T) {
 	}
 
 	view := d.View()
-	assert.Contains(t, view, "> Start")
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Kth Largest Element in a Stream")
 }
 
 func TestDashboard_EnterOnSubmitAction(t *testing.T) {
@@ -567,15 +552,12 @@ func TestDashboard_RoadmapContextInWideView(t *testing.T) {
 	assert.True(t, hasRoadmapContext, "wide view should include roadmap context with stage/progress info")
 }
 
-func TestDashboard_ThemeChangedMsgRecreatesScreen(t *testing.T) {
+func TestDashboard_NoThemeChangeShortcut(t *testing.T) {
 	d, _ := newTestDashboard(t)
 	d.width = 120
 
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	assert.IsType(t, ThemeChangedMsg{}, msg)
+	assert.Nil(t, cmd)
 }
 
 func TestDashboard_RKeyShowsRoadmapDetail(t *testing.T) {
@@ -694,7 +676,8 @@ func TestDashboard_LatestAchievement(t *testing.T) {
 	d.width = 120
 
 	view := d.View()
-	assert.Contains(t, view, "First Blood")
+	assert.Contains(t, view, "Latest achievement:")
+	assert.Contains(t, view, "First")
 }
 
 func TestDashboard_NoAchievement(t *testing.T) {

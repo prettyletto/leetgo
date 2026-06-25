@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/prettyletto/leetgo/internal/config"
 	"github.com/prettyletto/leetgo/internal/store"
-	"github.com/prettyletto/leetgo/internal/tui/views"
 )
 
 type SolveLogScreen struct {
@@ -96,51 +95,51 @@ func (s *SolveLogScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				}
 			}
 
-		case "t":
-			currentIdx := sliceIndex(config.ValidThemes, s.cfg.Theme)
-			nextIdx := (currentIdx + 1) % len(config.ValidThemes)
-			return s, func() tea.Msg {
-				return ThemeChangedMsg{ThemeID: config.ValidThemes[nextIdx]}
-			}
 		}
 	}
 	return s, nil
 }
 
 func (s *SolveLogScreen) View() string {
-	var lines []string
-
-	lines = append(lines, s.theme.Title.MarginBottom(1).Render("Practice Log"))
+	header := renderScreenHeader(s.theme, "Practice Log", "Recent submissions and manual solves across your workspace.")
+	var body string
 
 	if len(s.logs) == 0 && len(s.provenance) == 0 {
-		lines = append(lines, "")
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(s.theme.Muted).
-			Render("No entries yet."))
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(s.theme.Muted).
-			Render("Practice Log entries are created when you submit solutions or manually solve problems."))
+		body = renderThemedPanel(s.theme, "History", strings.Join([]string{
+			lipgloss.NewStyle().
+				Foreground(s.theme.Muted).
+				Render("No entries yet."),
+			lipgloss.NewStyle().
+				Foreground(s.theme.Muted).
+				Render("Practice Log entries are created when you submit solutions or manually solve problems."),
+		}, "\n\n"), false)
 	} else {
+		var sections []string
 		if len(s.logs) > 0 {
-			lines = append(lines, views.PixelFrame("Learning History", fmt.Sprintf("Recent submissions: %d", len(s.logs)), viewPalette(s.theme)))
+			sections = append(sections, renderThemedPanel(s.theme, "Summary", fmt.Sprintf("Recent submissions: %d", len(s.logs)), false))
 		}
 
+		var provenanceLines []string
 		for _, sp := range s.provenance {
 			if sp.Kind == "manual" {
-				lines = append(lines, s.renderProvenanceLine(sp))
+				provenanceLines = append(provenanceLines, s.renderProvenanceLine(sp))
 			}
 		}
+		if len(provenanceLines) > 0 {
+			sections = append(sections, renderThemedPanel(s.theme, "Manual Solves", strings.Join(provenanceLines, "\n"), false))
+		}
 
-		lines = append(lines, "")
-
+		var logLines []string
 		for i, log := range s.logs {
 			line := s.renderLogLine(log, i == s.focusIndex)
-			lines = append(lines, line)
+			logLines = append(logLines, line)
 		}
+		sections = append(sections, renderThemedPanel(s.theme, "Submissions", strings.Join(logLines, "\n"), false))
+		body = strings.Join(sections, "\n\n")
 	}
 
 	footer := s.renderFooter()
-	return strings.Join(lines, "\n") + "\n" + footer
+	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
 }
 
 func (s *SolveLogScreen) renderProvenanceLine(sp *store.SolveProvenance) string {
@@ -174,25 +173,21 @@ func (s *SolveLogScreen) renderLogLine(log *store.SolveLogRecord, focused bool) 
 	line := fmt.Sprintf("  %s  %s  %s  %s%s", when, prefix, log.Language, result, solveLabel)
 
 	if focused {
-		return lipgloss.NewStyle().
-			Foreground(s.theme.SecondaryAccent).
-			Bold(true).
-			Render(line)
+		return renderSelectableBlock(s.theme, true, line)
 	}
 	return lipgloss.NewStyle().
 		Foreground(s.theme.Muted).
-		Render(line)
+		Render(renderSelectableBlock(s.theme, false, line))
 }
 
 func (s *SolveLogScreen) renderFooter() string {
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
-		s.theme.Key.Render("t") + " theme",
 		s.theme.Key.Render("esc") + " dashboard",
 		s.theme.Key.Render("q") + " quit",
 	}
 
-	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  •  "))
 }
 
 type ProblemLogEntry struct {

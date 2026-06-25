@@ -98,7 +98,7 @@ func TestOnboardingPrefill_Theme(t *testing.T) {
 	cfg.Theme = "cyber-dashboard"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	assert.Equal(t, "cyber-dashboard", config.ValidThemes[s.themeFocus])
+	assert.Equal(t, "adaptive", s.cfg.Theme)
 }
 
 func TestOnboardingThemeSelectionShowsPreview(t *testing.T) {
@@ -113,7 +113,7 @@ func TestOnboardingThemeSelectionShowsPreview(t *testing.T) {
 	view := s.View()
 
 	assert.Contains(t, view, "Theme Preview")
-	assert.Contains(t, view, "Main Quest")
+	assert.Contains(t, view, "Recommended")
 	assert.Contains(t, view, "Status Preview")
 	assert.Contains(t, view, "Can you see these symbols?")
 	assert.Contains(t, view, "p plain/rich")
@@ -128,14 +128,9 @@ func TestOnboardingThemePreviewUsesSelectedThemeLabels(t *testing.T) {
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
 	s.step = stepThemeSelection
-	s.themeFocus = 1
-	cleanView := s.View()
-	assert.Contains(t, cleanView, "Recommended")
-
-	s.themeFocus = 2
-	cyberView := s.View()
-	assert.Contains(t, cyberView, "Primary Signal")
-	assert.Contains(t, cyberView, "SYS: Theme Preview")
+	view := s.View()
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Theme Preview")
 }
 
 func TestOnboardingThemeSelectionTogglesSymbolMode(t *testing.T) {
@@ -602,7 +597,7 @@ func TestOnboarding_RoadmapCarouselRendersThreeCards(t *testing.T) {
 	s.roadmapFocus = 0
 
 	view := s.View()
-	assert.Contains(t, view, "Step 4/7")
+	assert.Contains(t, view, "Step 4/6")
 	assert.Contains(t, view, "From Zero To Hero")
 	assert.Contains(t, view, "Interview Sprint")
 	assert.Contains(t, view, "Hard Mode")
@@ -640,7 +635,7 @@ func TestOnboarding_RoadmapConfirmSetsRoadmap(t *testing.T) {
 	s.step = stepRoadmapCarousel
 	s.roadmapFocus = 2
 	s.handleNext()
-	assert.Equal(t, stepThemeSelection, s.step)
+	assert.Equal(t, stepSession, s.step)
 	assert.Equal(t, "interview-sprint", s.cfg.Roadmap)
 }
 
@@ -654,15 +649,15 @@ func TestOnboarding_CompletionSavesAndNavigates(t *testing.T) {
 	cfg.Workspace = t.TempDir()
 	cfg.Language = "go"
 	cfg.Roadmap = "from-zero-to-hero"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
-	s.handleNext()
-	s.handleNext()
 	nextScreen, cmd := s.handleNext()
+	assert.NotNil(t, nextScreen)
+	assert.Nil(t, cmd)
+	nextScreen, cmd = s.handleNext()
 	assert.NotNil(t, nextScreen)
 	assert.Nil(t, cmd)
 	nextScreen, cmd = s.handleNext()
@@ -681,11 +676,10 @@ func TestOnboarding_CompletionValidationFails_NoWorkspace(t *testing.T) {
 	cfg.Workspace = ""
 	cfg.Language = "go"
 	cfg.Roadmap = "from-zero-to-hero"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
 	s.handleNext()
 	s.handleNext()
@@ -707,11 +701,10 @@ func TestOnboarding_CompletionValidationFails_UnsupportedLanguage(t *testing.T) 
 	cfg.Workspace = t.TempDir()
 	cfg.Language = "ruby"
 	cfg.Roadmap = "from-zero-to-hero"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
 	s.handleNext()
 	s.handleNext()
@@ -733,11 +726,10 @@ func TestOnboarding_CompletionValidationFails_UnknownRoadmap(t *testing.T) {
 	cfg.Workspace = t.TempDir()
 	cfg.Language = "go"
 	cfg.Roadmap = "unknown-roadmap"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
 	s.handleNext()
 	s.handleNext()
@@ -758,11 +750,10 @@ func TestOnboarding_CompletionValidationFails_DisplayNameEmpty(t *testing.T) {
 	cfg.Workspace = t.TempDir()
 	cfg.Language = "go"
 	cfg.Roadmap = "from-zero-to-hero"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
 	s.handleNext()
 	s.handleNext()
@@ -847,7 +838,7 @@ func TestOnboarding_FullFlowNoGitExport(t *testing.T) {
 	assert.False(t, s.cfg.GitExportEnabled)
 	assert.Equal(t, "go", s.cfg.Language)
 	assert.Equal(t, "from-zero-to-hero", s.cfg.Roadmap)
-	assert.Equal(t, "rpg-skill-tree", s.cfg.Theme)
+	assert.Equal(t, "adaptive", s.cfg.Theme)
 }
 
 func TestOnboarding_CompletionReturnsNavigateCmd(t *testing.T) {
@@ -860,13 +851,11 @@ func TestOnboarding_CompletionReturnsNavigateCmd(t *testing.T) {
 	cfg.Workspace = t.TempDir()
 	cfg.Language = "go"
 	cfg.Roadmap = "from-zero-to-hero"
-	cfg.Theme = "rpg-skill-tree"
+	cfg.Theme = "adaptive"
 
 	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
-	s.step = stepThemeSelection
-	s.themeFocus = 0
+	s.step = stepSession
 
-	s.handleNext()
 	s.handleNext()
 	s.handleNext()
 	_, cmd := s.handleNext()

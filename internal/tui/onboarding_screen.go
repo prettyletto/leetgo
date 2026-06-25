@@ -31,61 +31,11 @@ const (
 	stepCompletion
 )
 
-var onboardingTitleStyle = lipgloss.NewStyle().
-	Bold(true).
-	Foreground(lipgloss.Color("205")).
-	Align(lipgloss.Center).
-	MarginBottom(1)
-
-var onboardingPromptStyle = lipgloss.NewStyle().
-	Bold(true).
-	Foreground(lipgloss.Color("219")).
-	Align(lipgloss.Center).
-	MarginTop(1).
-	MarginBottom(1)
-
 var onboardingInputStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("238")).
 	Padding(0, 1).
 	Width(56)
-
-var onboardingFooterStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("245")).
-	Align(lipgloss.Center).
-	PaddingTop(1)
-
-var onboardingKeyStyle = lipgloss.NewStyle().
-	Bold(true).
-	Foreground(lipgloss.Color("219"))
-
-var onboardingErrorStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("196")).
-	Align(lipgloss.Center).
-	MarginTop(1)
-
-var onboardingBodyStyle = lipgloss.NewStyle().
-	Align(lipgloss.Center)
-
-var onboardingShellStyle = lipgloss.NewStyle().
-	Align(lipgloss.Center)
-
-var carouselCardStyle = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder()).
-	Padding(0, 1).
-	Width(40)
-
-var carouselFocusedCardStyle = lipgloss.NewStyle().
-	Border(lipgloss.ThickBorder()).
-	BorderForeground(lipgloss.Color("219")).
-	Padding(0, 1).
-	Width(36)
-
-var carouselPreviewCardStyle = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240")).
-	Padding(0, 1).
-	Width(22)
 
 var carouselStageStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("243")).
@@ -121,6 +71,7 @@ type OnboardingScreen struct {
 }
 
 func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roadmap.Roadmap, db store.Store, activeRoadmap *roadmap.Roadmap, themes ...*Theme) *OnboardingScreen {
+	cfg.ApplyDefaults()
 	theme := firstTheme(themes)
 	workspaceInput := onboardingWorkspaceDefault(cfg.Workspace)
 	s := &OnboardingScreen{
@@ -133,9 +84,8 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 		displayNameInput: cfg.DisplayName,
 		workspaceInput:   workspaceInput,
 		roadmapFocus:     0,
-		themeFocus:       0,
 		sessionChoice:    1,
-		width:            100,
+		width:            128,
 		height:           30,
 	}
 
@@ -167,12 +117,6 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 		}
 	}
 
-	for i, theme := range config.ValidThemes {
-		if theme == cfg.Theme {
-			s.themeFocus = i
-			break
-		}
-	}
 	return s
 }
 
@@ -203,7 +147,7 @@ func firstTheme(themes []*Theme) *Theme {
 	if len(themes) > 0 && themes[0] != nil {
 		return themes[0]
 	}
-	theme, _ := LookupTheme("rpg-skill-tree")
+	theme, _ := LookupTheme("adaptive")
 	return theme
 }
 
@@ -325,9 +269,6 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 		s.step = stepRoadmapCarousel
 	case stepRoadmapCarousel:
 		s.cfg.Roadmap = s.roadmaps[s.roadmapFocus].ID
-		s.step = stepThemeSelection
-	case stepThemeSelection:
-		s.cfg.Theme = config.ValidThemes[s.themeFocus]
 		s.cfg.ApplyDefaults()
 		s.step = stepSession
 	case stepSession:
@@ -482,112 +423,114 @@ func (s *OnboardingScreen) handleThemeKey(msg tea.KeyMsg) {
 
 func (s *OnboardingScreen) View() string {
 	var title string
+	var subtitle string
 	switch s.step {
 	case stepDisplayName:
-		title = "Step 1/7: Who are you, challenger?"
+		title = "Step 1/6: Who are you, challenger?"
+		subtitle = "Create your local profile before the Dashboard opens."
 	case stepGitExport:
-		title = "Step 2/7: Git Export Backup"
+		title = "Step 2/6: Git Export Backup"
+		subtitle = "Optional backup for generated work and progress snapshots."
 	case stepWorkspaceLang:
-		title = "Step 3/7: Workspace & Language"
+		title = "Step 3/6: Workspace & Language"
+		subtitle = "Confirm where Problem files live and which language to generate."
 	case stepRoadmapCarousel:
-		title = "Step 4/7: Choose Your Roadmap"
+		title = "Step 4/6: Choose Your Roadmap"
+		subtitle = "Pick the guided Problem progression you want Leetgo to rank against."
 	case stepThemeSelection:
-		title = "Step 5/7: Pick a Theme"
+		title = "Appearance Preview"
+		subtitle = "Leetgo now uses one adaptive appearance system. Preview symbol modes here."
 	case stepSession:
-		title = "Step 6/7: LeetCode Session"
+		title = "Step 5/6: LeetCode Session"
+		subtitle = "Accepted submissions unlock trusted Solve progress and submission XP."
 	case stepCompletion:
-		title = "Step 7/7: Ready to Start"
+		title = "Step 6/6: Ready to Start"
+		subtitle = "Review your setup and launch into the guided Dashboard."
 	}
 
-	contentWidth := s.contentWidth()
-	content := s.theme.Title.Width(contentWidth).MarginBottom(1).Render(title) + "\n"
+	header := renderScreenHeader(s.theme, title, subtitle)
+	var body string
 
 	switch s.step {
 	case stepDisplayName:
-		content += s.renderDisplayName()
+		body = s.renderDisplayName()
 	case stepGitExport:
-		content += s.renderGitExport()
+		body = s.renderGitExport()
 	case stepWorkspaceLang:
-		content += s.renderWorkspaceLang()
+		body = s.renderWorkspaceLang()
 	case stepRoadmapCarousel:
-		content += s.renderRoadmapCarousel()
+		body = s.renderRoadmapCarousel()
 	case stepThemeSelection:
-		content += s.renderThemeSelection()
+		body = s.renderThemeSelection()
 	case stepSession:
-		content += s.renderSession()
+		body = s.renderSession()
 	case stepCompletion:
-		content += s.renderCompletion()
+		body = s.renderCompletion()
 	}
 
 	if s.errorMsg != "" {
-		content += "\n" + lipgloss.NewStyle().Foreground(s.theme.Danger).Align(lipgloss.Center).Width(contentWidth).Render(s.errorMsg)
+		errorBody := lipgloss.NewStyle().Foreground(s.theme.Danger).Render(s.errorMsg)
+		body += "\n\n" + renderThemedPanel(s.theme, "Validation", errorBody, false)
 	}
 
-	content += "\n" + s.renderFooter()
-	return lipgloss.Place(
-		s.width,
-		s.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		onboardingShellStyle.Width(contentWidth).Render(content),
-	)
+	return renderScreenShell(s.theme, s.width, s.height, header, body, s.renderFooter())
 }
 
 func (s *OnboardingScreen) renderDisplayName() string {
 	input := onboardingInputStyle.Width(s.formWidth()).Render(s.displayNameInput + "█")
-	lines := []string{
-		s.promptStyle().Width(s.contentWidth()).Render("Enter your display name:"),
-		lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, input),
+	body := strings.Join([]string{
+		"Enter your display name:",
 		"",
-		s.theme.Footer.Width(s.contentWidth()).Render(fmt.Sprintf("max %d characters", config.MaxDisplayNameLength)),
-	}
-	return strings.Join(lines, "\n")
+		input,
+		"",
+		s.theme.Subtitle.Render(fmt.Sprintf("Maximum %d characters.", config.MaxDisplayNameLength)),
+	}, "\n")
+	return renderThemedPanel(s.theme, "Profile", body, true)
 }
 
 func (s *OnboardingScreen) renderGitExport() string {
-	yesLabel := "  [Yes, use Git Export backup]"
-	noLabel := "  [Not now]"
+	yesLabel := lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Yes, use Git Export backup")
+	noLabel := lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Not now")
 	if s.gitExportChoice == 0 {
-		yesLabel = "> [Yes, use Git Export backup]"
+		yesLabel = renderSelectableBlock(s.theme, true, "Yes, use Git Export backup")
 	} else {
-		noLabel = "> [Not now]"
+		noLabel = renderSelectableBlock(s.theme, true, "Not now")
 	}
 
-	lines := []string{
-		s.promptStyle().Width(s.contentWidth()).Render("Do you want Leetgo to back up progress to a Git repo?"),
-		lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, yesLabel),
-		lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, noLabel),
-	}
+	lines := []string{"Do you want Leetgo to back up progress to a Git repo?", "", yesLabel, noLabel}
 
 	if s.gitExportChoice == 0 {
 		lines = append(lines, "")
-		lines = append(lines, s.promptStyle().Width(s.contentWidth()).Render("Git repository path:"))
+		lines = append(lines, "Git repository path:")
 		input := onboardingInputStyle.Width(s.formWidth()).Render(s.gitExportRepo + "█")
-		lines = append(lines, lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, input))
-		lines = append(lines, s.theme.Footer.Width(s.contentWidth()).Render("must contain .git directory"))
+		lines = append(lines, input)
+		lines = append(lines, s.theme.Subtitle.Render("Must contain a .git directory."))
 	}
 
-	return strings.Join(lines, "\n")
+	return renderThemedPanel(s.theme, "Backup", strings.Join(lines, "\n"), true)
 }
 
 func (s *OnboardingScreen) renderWorkspaceLang() string {
 	langLines := make([]string, len(s.languages))
 	for i, lang := range s.languages {
-		marker := "  "
+		line := lang
 		if i == s.languageIndex {
-			marker = "> "
+			langLines[i] = renderSelectableBlock(s.theme, true, line)
+			continue
 		}
-		langLines[i] = marker + lang
+		langLines[i] = lipgloss.NewStyle().Foreground(s.theme.Muted).Render(renderSelectableBlock(s.theme, false, line))
 	}
 
-	lines := []string{
-		s.promptStyle().Width(s.contentWidth()).Render("Workspace path:"),
-		lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, onboardingInputStyle.Width(s.formWidth()).Render(s.workspaceInput+"█")),
+	left := renderThemedPanel(s.theme, "Workspace", strings.Join([]string{
+		"Workspace path:",
 		"",
-		s.promptStyle().Width(s.contentWidth()).Render("Language"),
-		lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, strings.Join(langLines, "\n")),
+		onboardingInputStyle.Width(s.formWidth()).Render(s.workspaceInput + "█"),
+	}, "\n"), true)
+	right := renderThemedPanel(s.theme, "Language", strings.Join(langLines, "\n"), false)
+	if s.width >= 96 {
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 	}
-	return strings.Join(lines, "\n")
+	return left + "\n\n" + right
 }
 
 func (s *OnboardingScreen) renderRoadmapCarousel() string {
@@ -606,18 +549,18 @@ func (s *OnboardingScreen) renderRoadmapCarousel() string {
 	leftCard := s.renderPreviewCard(s.roadmaps[leftIdx])
 	centerCard := s.renderFocusedCard(s.roadmaps[s.roadmapFocus], total)
 	rightCard := s.renderPreviewCard(s.roadmaps[rightIdx])
-	if s.contentWidth() < 88 {
-		return lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, centerCard)
+	if s.contentWidth() < 108 {
+		return centerCard
 	}
 
-	carousel := lipgloss.JoinHorizontal(lipgloss.Center,
+	carousel := lipgloss.JoinHorizontal(lipgloss.Top,
 		leftCard,
 		"  ",
 		centerCard,
 		"  ",
 		rightCard,
 	)
-	return lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, carousel)
+	return carousel
 }
 
 func (s *OnboardingScreen) renderFocusedCard(rm *roadmap.Roadmap, total int) string {
@@ -626,9 +569,12 @@ func (s *OnboardingScreen) renderFocusedCard(rm *roadmap.Roadmap, total int) str
 		title += " " + roadmapMarker(true)
 	}
 
-	cardWidth := 32
+	cardWidth := s.focusedRoadmapCardWidth() - 12
+	if cardWidth < 26 {
+		cardWidth = 26
+	}
 	content := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\nProblems: %d | Est. hours: %d",
-		title,
+		wrapText(title, cardWidth),
 		wrapText(rm.Tagline, cardWidth),
 		wrapText("Audience: "+rm.Audience, cardWidth),
 		wrapText("Promise: "+rm.Promise, cardWidth),
@@ -664,7 +610,7 @@ func (s *OnboardingScreen) renderFocusedCard(rm *roadmap.Roadmap, total int) str
 	nav := fmt.Sprintf("< %d/%d >", s.roadmapFocus+1, total)
 	content += "\n\n" + nav
 
-	return s.theme.FocusedPanel.Width(36).Render(content)
+	return lipgloss.NewStyle().Width(s.focusedRoadmapCardWidth()).Render(renderThemedPanel(s.theme, "Roadmap", content, true))
 }
 
 func (s *OnboardingScreen) renderPreviewCard(rm *roadmap.Roadmap) string {
@@ -674,14 +620,14 @@ func (s *OnboardingScreen) renderPreviewCard(rm *roadmap.Roadmap) string {
 	}
 
 	content := fmt.Sprintf("%s\n\n%s",
-		title,
-		wrapText(rm.Tagline, 18),
+		wrapText(title, 22),
+		wrapText(rm.Tagline, 22),
 	)
 
 	nav := fmt.Sprintf("<  >")
 	content += "\n\n" + nav
 
-	return s.theme.Panel.Width(22).BorderForeground(s.theme.Muted).Render(content)
+	return lipgloss.NewStyle().Width(28).Render(renderThemedPanel(s.theme, "Preview", content, false))
 }
 
 func formatDifficultyMix(mix map[roadmap.Difficulty]int) string {
@@ -700,31 +646,31 @@ func (s *OnboardingScreen) renderThemeSelection() string {
 		"rpg-skill-tree":     "RPG Skill Tree",
 		"clean-productivity": "Clean Productivity",
 		"cyber-dashboard":    "Cyber Dashboard",
+		"adaptive":           "Adaptive",
 	}
 	themeDescs := map[string]string{
 		"rpg-skill-tree":     "Strong status colors, bordered cards, reward animations.",
 		"clean-productivity": "Minimal color, low motion, high readability.",
 		"cyber-dashboard":    "High contrast, neon accents, subtle ambient motion.",
+		"adaptive":           "Adjusts to your terminal's background and color profile.",
 	}
 
-	lines := []string{
-		s.promptStyle().Width(s.contentWidth()).Render("Choose your visual style:"),
-	}
+	lines := []string{"Adaptive appearance follows your terminal. Use this preview only to confirm symbol rendering.", ""}
 
 	for i, theme := range config.ValidThemes {
-		marker := "  "
-		if i == s.themeFocus {
-			marker = "> "
-		}
 		label := themeLabels[theme]
-		line := fmt.Sprintf("%s%s - %s", marker, label, themeDescs[theme])
-		lines = append(lines, lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, wrapText(line, s.formWidth())))
+		line := fmt.Sprintf("%s - %s", label, themeDescs[theme])
+		if i == s.themeFocus {
+			lines = append(lines, renderSelectableBlock(s.theme, true, wrapText(line, s.formWidth())))
+			continue
+		}
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render(renderSelectableBlock(s.theme, false, wrapText(line, s.formWidth()))))
 	}
 
 	lines = append(lines, "")
 	lines = append(lines, s.renderThemePreview(config.ValidThemes[s.themeFocus]))
 
-	return strings.Join(lines, "\n")
+	return renderThemedPanel(s.theme, "Appearance", strings.Join(lines, "\n"), false)
 }
 
 func (s *OnboardingScreen) renderThemePreview(themeID string) string {
@@ -740,7 +686,7 @@ func (s *OnboardingScreen) renderThemePreview(themeID string) string {
 	}, "  ")
 	progress := views.ProgressBar(3, 5, 10, "█", "░")
 	body := strings.Join([]string{
-		previewTheme.Key.Render(previewTheme.Labels.PreviewAction) + "  Start Two Sum",
+		previewTheme.Key.Render("Recommended") + "  Start Two Sum",
 		"Why: learn complement lookup",
 		"",
 		"Status Preview",
@@ -753,7 +699,7 @@ func (s *OnboardingScreen) renderThemePreview(themeID string) string {
 		"Symbol mode: " + s.cfg.SymbolMode,
 		views.KeytipFooter(map[string]string{"p": "plain/rich", "enter": "select"}, []string{"p", "enter"}, viewPalette(previewTheme)),
 	}, "\n")
-	return lipgloss.PlaceHorizontal(s.contentWidth(), lipgloss.Center, renderThemedPanel(previewTheme, "Theme Preview", body, false))
+	return renderThemedPanel(previewTheme, "Theme Preview", body, false)
 }
 
 func (s *OnboardingScreen) renderFooter() string {
@@ -785,9 +731,17 @@ func (s *OnboardingScreen) renderFooter() string {
 		}
 	case stepThemeSelection:
 		items = []string{
-			s.theme.Key.Render("left/right") + " browse",
 			s.theme.Key.Render("p") + " plain/rich symbols",
-			s.theme.Key.Render("enter") + " finish",
+			s.theme.Key.Render("enter") + " continue",
+		}
+	case stepSession:
+		items = []string{
+			s.theme.Key.Render("up/down") + " choose",
+			s.theme.Key.Render("enter") + " next",
+		}
+	case stepCompletion:
+		items = []string{
+			s.theme.Key.Render("enter") + " open dashboard",
 		}
 	}
 
@@ -800,14 +754,14 @@ func (s *OnboardingScreen) renderFooter() string {
 		items = append(items, s.theme.Key.Render("ctrl+c")+" quit")
 	}
 
-	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
+	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  •  "))
 }
 
 func (s *OnboardingScreen) promptStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Bold(true).
 		Foreground(s.theme.SecondaryAccent).
-		Align(lipgloss.Center).
+		Align(lipgloss.Left).
 		MarginTop(1).
 		MarginBottom(1)
 }
@@ -823,9 +777,9 @@ func roadmapMarker(recommended bool) string {
 }
 
 func (s *OnboardingScreen) contentWidth() int {
-	width := s.width - 4
-	if width > 112 {
-		return 112
+	width := s.width - 8
+	if width > 156 {
+		return 156
 	}
 	if width < 48 {
 		return 48
@@ -833,10 +787,21 @@ func (s *OnboardingScreen) contentWidth() int {
 	return width
 }
 
+func (s *OnboardingScreen) focusedRoadmapCardWidth() int {
+	width := s.contentWidth()
+	if width > 52 {
+		return 52
+	}
+	if width < 36 {
+		return 36
+	}
+	return width
+}
+
 func (s *OnboardingScreen) formWidth() int {
-	width := s.contentWidth() - 8
-	if width > 64 {
-		return 64
+	width := s.contentWidth() - 10
+	if width > 76 {
+		return 76
 	}
 	if width < 36 {
 		return 36
@@ -904,20 +869,18 @@ func (s *OnboardingScreen) handleCompletionKey(msg tea.KeyMsg) {
 func (s *OnboardingScreen) renderSession() string {
 	var content strings.Builder
 
-	content.WriteString(s.promptStyle().Render("Accepted Submissions unlock Roadmap progress and XP."))
-	content.WriteString("\n")
-	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("You can skip and use Manual Solve, but Manual Solve earns no XP."))
+	content.WriteString("Accepted Submissions unlock Roadmap progress and XP.\n\n")
+	content.WriteString(s.theme.Subtitle.Render("You can skip and use Manual Solve, but Manual Solve earns no XP."))
 	content.WriteString("\n\n")
 
 	choices := []string{"Connect now", "Skip for now"}
 	for i, choice := range choices {
-		marker := "  "
-		style := lipgloss.NewStyle()
 		if i == s.sessionChoice {
-			marker = "> "
-			style = lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true)
+			content.WriteString(renderSelectableBlock(s.theme, true, choice))
+			content.WriteString("\n")
+			continue
 		}
-		content.WriteString(style.Render(marker + choice))
+		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Render(renderSelectableBlock(s.theme, false, choice)))
 		content.WriteString("\n")
 	}
 
@@ -925,7 +888,7 @@ func (s *OnboardingScreen) renderSession() string {
 		content.WriteString("\n" + lipgloss.NewStyle().Foreground(s.theme.Danger).Align(lipgloss.Center).Render(s.errorMsg))
 	}
 
-	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+	return renderThemedPanel(s.theme, "LeetCode Session", content.String(), true)
 }
 
 func (s *OnboardingScreen) renderCompletion() string {
@@ -934,65 +897,60 @@ func (s *OnboardingScreen) renderCompletion() string {
 	}
 
 	var content strings.Builder
-	content.WriteString(s.promptStyle().Render("You're all set!"))
-	content.WriteString("\n")
-	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render(fmt.Sprintf("Roadmap: %s", s.cfg.Roadmap)))
-	content.WriteString("\n")
-	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render(fmt.Sprintf("Language: %s", s.cfg.Language)))
-	content.WriteString("\n\n")
+	content.WriteString("You're all set!\n\n")
+	content.WriteString(fmt.Sprintf("Roadmap: %s\n", s.cfg.Roadmap))
+	content.WriteString(fmt.Sprintf("Language: %s\n", s.cfg.Language))
+	content.WriteString(fmt.Sprintf("Workspace: %s\n\n", s.cfg.Workspace))
 
 	if s.nextAction != nil {
-		content.WriteString(s.promptStyle().Render("Recommended First Action"))
-		content.WriteString("\n")
+		content.WriteString("Recommended First Action\n")
 		label := formatActionLabel(s.nextAction.Kind)
-		content.WriteString(lipgloss.NewStyle().Bold(true).Align(lipgloss.Center).Render(fmt.Sprintf("  %s: %s", label, s.nextAction.Title)))
+		content.WriteString(lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%s: %s", label, s.nextAction.Title)))
 		content.WriteString("\n")
 		reason := s.nextAction.Reason
 		if len(reason) > 60 {
 			reason = reason[:57] + "..."
 		}
-		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Align(lipgloss.Center).Render(fmt.Sprintf("  %s", reason)))
+		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Render(reason))
 	}
 
-	content.WriteString("\n\n")
-	content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("Press enter to save and continue."))
+	content.WriteString("\n\nPress enter to save and continue.")
 
-	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+	return renderThemedPanel(s.theme, "Ready", content.String(), true)
 }
 
 func (s *OnboardingScreen) renderCompletionDone() string {
 	var content strings.Builder
 
-	content.WriteString(s.promptStyle().Render("Setup complete!"))
+	content.WriteString("Setup complete!")
 
 	if s.nextAction != nil {
 		content.WriteString("\n\n")
-		content.WriteString(s.promptStyle().Render(fmt.Sprintf("Recommended: %s", s.nextAction.Title)))
+		content.WriteString(fmt.Sprintf("Recommended: %s", s.nextAction.Title))
 		content.WriteString("\n")
 		reason := s.nextAction.Reason
 		if len(reason) > 60 {
 			reason = reason[:57] + "..."
 		}
-		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Align(lipgloss.Center).Width(s.contentWidth()).Render(reason))
+		content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Render(reason))
 		content.WriteString("\n\n")
 
 		choices := []string{"Start now", "Go to Dashboard"}
 		for i, choice := range choices {
-			marker := "  "
-			style := lipgloss.NewStyle()
 			if i == s.sessionChoice {
-				marker = "> "
-				style = lipgloss.NewStyle().Foreground(s.theme.Warning).Bold(true)
+				content.WriteString(renderSelectableBlock(s.theme, true, choice))
+				content.WriteString("\n")
+				continue
 			}
-			content.WriteString(style.Render(marker + choice))
+			content.WriteString(lipgloss.NewStyle().Foreground(s.theme.Muted).Render(renderSelectableBlock(s.theme, false, choice)))
 			content.WriteString("\n")
 		}
 	} else {
 		content.WriteString("\n\n")
-		content.WriteString(lipgloss.NewStyle().Align(lipgloss.Center).Render("Press enter to go to the Dashboard."))
+		content.WriteString("Press enter to go to the Dashboard.")
 	}
 
-	return lipgloss.NewStyle().Align(lipgloss.Center).Width(s.contentWidth()).Render(content.String())
+	return renderThemedPanel(s.theme, "Complete", content.String(), true)
 }
 
 func (s *OnboardingScreen) calcAndStart() {

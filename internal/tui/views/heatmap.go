@@ -8,21 +8,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	heatmapEmpty  = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
-	heatmapLow    = lipgloss.NewStyle().Foreground(lipgloss.Color("22"))
-	heatmapMedium = lipgloss.NewStyle().Foreground(lipgloss.Color("64"))
-	heatmapHigh   = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
-	heatmapLabel  = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Width(3)
-	heatmapHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Bold(true)
-	heatmapToday  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	heatmapStats  = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
-)
-
 type HeatmapView struct {
-	days   []time.Time
-	width  int
-	height int
+	days    []time.Time
+	width   int
+	height  int
+	palette Palette
 }
 
 func NewHeatmapView(days []time.Time) *HeatmapView {
@@ -36,6 +26,10 @@ func NewHeatmapView(days []time.Time) *HeatmapView {
 func (v *HeatmapView) SetSize(width, height int) {
 	v.width = width
 	v.height = height
+}
+
+func (v *HeatmapView) SetPalette(p Palette) {
+	v.palette = p
 }
 
 func (v *HeatmapView) Render() string {
@@ -57,11 +51,17 @@ func (v *HeatmapView) Render() string {
 	dayIndices := []int{1, 3, 5}
 	header := "   "
 	for _, name := range dayNames {
-		header += heatmapLabel.Render(name) + "    "
+		header += lipgloss.NewStyle().Foreground(v.palette.Muted).Width(3).Render(name) + "    "
 	}
-	lines = append(lines, heatmapHeader.Render(header))
+	lines = append(lines, lipgloss.NewStyle().Foreground(v.palette.Muted).Bold(true).Render(header))
 
 	weeks := v.computeWeeks(startDate, today)
+
+	emptyStyle := lipgloss.NewStyle().Foreground(v.palette.Muted)
+	highStyle := lipgloss.NewStyle().Foreground(v.palette.Success)
+	todayStyle := lipgloss.NewStyle().Foreground(v.palette.Warning).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(v.palette.Muted).Width(3)
+	statsStyle := lipgloss.NewStyle().Foreground(v.palette.Muted)
 
 	for row := 0; row < 7; row++ {
 		var cells []string
@@ -75,7 +75,7 @@ func (v *HeatmapView) Render() string {
 				break
 			}
 		}
-		cells = append(cells, heatmapLabel.Render(dayLabel))
+		cells = append(cells, labelStyle.Render(dayLabel))
 
 		for _, week := range weeks {
 			if row < len(week) {
@@ -84,12 +84,12 @@ func (v *HeatmapView) Render() string {
 					cells = append(cells, " ")
 				} else if daySet[day.Format("2006-01-02")] {
 					if day.YearDay() == today.YearDay() && day.Year() == today.Year() {
-						cells = append(cells, heatmapToday.Render("■"))
+						cells = append(cells, todayStyle.Render("■"))
 					} else {
-						cells = append(cells, heatmapHigh.Render("■"))
+						cells = append(cells, highStyle.Render("■"))
 					}
 				} else {
-					cells = append(cells, heatmapEmpty.Render("·"))
+					cells = append(cells, emptyStyle.Render("·"))
 				}
 			} else {
 				cells = append(cells, " ")
@@ -99,8 +99,8 @@ func (v *HeatmapView) Render() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, v.renderLegend())
-	lines = append(lines, v.renderStats())
+	lines = append(lines, v.renderLegend(emptyStyle, highStyle, statsStyle))
+	lines = append(lines, v.renderStats(statsStyle))
 
 	return strings.Join(lines, "\n")
 }
@@ -110,11 +110,12 @@ func (v *HeatmapView) renderMonthLabels(start, end time.Time) string {
 	var parts []string
 	current := start
 	lastMonth := -1
+	labelStyle := lipgloss.NewStyle().Foreground(v.palette.Muted).Width(3)
 
 	for current.Before(end) || current.Equal(end) {
 		if current.Month() != time.Month(lastMonth+1) || lastMonth == -1 {
 			if current.Month() != time.Month(lastMonth) {
-				parts = append(parts, heatmapLabel.Render(months[current.Month()-1]))
+				parts = append(parts, labelStyle.Render(months[current.Month()-1]))
 				lastMonth = int(current.Month()) - 1
 			} else {
 				parts = append(parts, "   ")
@@ -144,23 +145,19 @@ func (v *HeatmapView) computeWeeks(start, end time.Time) [][]time.Time {
 	return weeks
 }
 
-func (v *HeatmapView) renderLegend() string {
-	return heatmapStats.Render("Less ") +
-		heatmapEmpty.Render("·") + " " +
-		heatmapHigh.Render("■") +
-		heatmapStats.Render(" More")
+func (v *HeatmapView) renderLegend(emptyStyle, highStyle, statsStyle lipgloss.Style) string {
+	return statsStyle.Render("Less ") +
+		emptyStyle.Render("·") + " " +
+		highStyle.Render("■") +
+		statsStyle.Render(" More")
 }
 
-func (v *HeatmapView) renderStats() string {
+func (v *HeatmapView) renderStats(statsStyle lipgloss.Style) string {
 	total := len(v.days)
 	current := v.currentStreak()
 	longest := v.longestStreak()
 
-	return fmt.Sprintf(
-		"\n%s  Total days: %d  |  Current streak: %d  |  Longest streak: %d",
-		heatmapStats.Render("📊"),
-		total, current, longest,
-	)
+	return fmt.Sprintf("\nActivity  Total days: %d  |  Current streak: %d  |  Longest streak: %d", total, current, longest)
 }
 
 func (v *HeatmapView) currentStreak() int {

@@ -10,12 +10,13 @@ type Theme struct {
 	ID               string
 	Name             string
 	HasAmbientMotion bool
-	Labels           ThemeLabels
 	Palette          TerminalPalette
 	PrimaryAccent    lipgloss.Color
 	SecondaryAccent  lipgloss.Color
 	Border           lipgloss.Color
 	Muted            lipgloss.Color
+	SelectionBg      lipgloss.Color
+	SelectionFg      lipgloss.Color
 	Success          lipgloss.Color
 	Warning          lipgloss.Color
 	Danger           lipgloss.Color
@@ -25,18 +26,10 @@ type Theme struct {
 	FocusedPanel     lipgloss.Style
 	CompactPanel     lipgloss.Style
 	Title            lipgloss.Style
+	Subtitle         lipgloss.Style
 	Footer           lipgloss.Style
 	Key              lipgloss.Style
 	Spinner          lipgloss.Style
-}
-
-type ThemeLabels struct {
-	PrimaryAction    string
-	SecondaryActions string
-	Profile          string
-	RoadmapContext   string
-	LockedItems      string
-	PreviewAction    string
 }
 
 type TerminalPalette struct {
@@ -97,66 +90,56 @@ func LookupSymbolSet(mode string) (SymbolSet, error) {
 }
 
 func LookupTheme(id string) (*Theme, error) {
+	term := detectTerminal()
 	switch id {
-	case "", "rpg-skill-tree":
-		return newTheme(
-			"rpg-skill-tree",
-			"RPG Skill Tree",
-			false,
-			lipgloss.Color("205"),
-			lipgloss.Color("219"),
-			lipgloss.Color("99"),
-			lipgloss.Color("245"),
-			lipgloss.Color("82"),
-			lipgloss.Color("214"),
-			lipgloss.Color("196"),
-			lipgloss.Color("220"),
-			lipgloss.Color("147"),
-		), nil
-	case "clean-productivity":
-		return newTheme(
-			"clean-productivity",
-			"Clean Productivity",
-			false,
-			lipgloss.Color("252"),
-			lipgloss.Color("245"),
-			lipgloss.Color("240"),
-			lipgloss.Color("244"),
-			lipgloss.Color("71"),
-			lipgloss.Color("179"),
-			lipgloss.Color("167"),
-			lipgloss.Color("220"),
-			lipgloss.Color("111"),
-		), nil
-	case "cyber-dashboard":
-		return newTheme(
-			"cyber-dashboard",
-			"Cyber Dashboard",
-			true,
-			lipgloss.Color("51"),
-			lipgloss.Color("201"),
-			lipgloss.Color("45"),
-			lipgloss.Color("86"),
-			lipgloss.Color("48"),
-			lipgloss.Color("226"),
-			lipgloss.Color("198"),
-			lipgloss.Color("226"),
-			lipgloss.Color("135"),
-		), nil
+	case "", "adaptive", "rpg-skill-tree", "clean-productivity", "cyber-dashboard":
+		return newAdaptiveTheme(term), nil
 	default:
 		return nil, fmt.Errorf("unknown theme %q", id)
 	}
 }
 
-func newTheme(id, name string, ambient bool, primary, secondary, border, muted, success, warning, danger, xp, review lipgloss.Color) *Theme {
+func newAdaptiveTheme(term terminalProfile) *Theme {
+	var primary, secondary, border, muted, selectionBg, selectionFg, success, warning, danger, xp, review lipgloss.Color
+
+	if term.HasDarkBackground {
+		primary = lipgloss.Color("111")
+		secondary = lipgloss.Color("153")
+		border = lipgloss.Color("239")
+		muted = lipgloss.Color("245")
+		selectionBg = lipgloss.Color("238")
+		selectionFg = lipgloss.Color("255")
+		success = lipgloss.Color("114")
+		warning = lipgloss.Color("221")
+		danger = lipgloss.Color("210")
+		xp = lipgloss.Color("223")
+		review = lipgloss.Color("182")
+	} else {
+		primary = lipgloss.Color("25")
+		secondary = lipgloss.Color("32")
+		border = lipgloss.Color("250")
+		muted = lipgloss.Color("244")
+		selectionBg = lipgloss.Color("254")
+		selectionFg = lipgloss.Color("235")
+		success = lipgloss.Color("28")
+		warning = lipgloss.Color("130")
+		danger = lipgloss.Color("124")
+		xp = lipgloss.Color("130")
+		review = lipgloss.Color("61")
+	}
+
+	return buildTheme(term, primary, secondary, border, muted, selectionBg, selectionFg, success, warning, danger, xp, review)
+}
+
+func buildTheme(term terminalProfile, primary, secondary, border, muted, selectionBg, selectionFg, success, warning, danger, xp, review lipgloss.Color) *Theme {
 	panel := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderForeground(border).
 		Padding(0, 1)
 
 	focusedPanel := panel.Copy().
-		Border(lipgloss.ThickBorder()).
-		BorderForeground(secondary)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(primary)
 
 	compactPanel := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
@@ -167,28 +150,10 @@ func newTheme(id, name string, ambient bool, primary, secondary, border, muted, 
 		Foreground(warning).
 		Bold(true)
 
-	if id == "rpg-skill-tree" {
-		panel = panel.BorderForeground(border).BorderBackground(lipgloss.Color("235"))
-		focusedPanel = focusedPanel.BorderForeground(secondary).BorderBackground(lipgloss.Color("235"))
-	}
-
-	if id == "clean-productivity" {
-		panel = compactPanel
-		focusedPanel = compactPanel.Copy().
-			Border(lipgloss.ThickBorder()).
-			BorderForeground(primary)
-	}
-
-	if id == "cyber-dashboard" {
-		spinner = spinner.Foreground(lipgloss.Color("51"))
-		focusedPanel = focusedPanel.BorderForeground(lipgloss.Color("201"))
-	}
-
 	return &Theme{
-		ID:               id,
-		Name:             name,
-		HasAmbientMotion: ambient,
-		Labels:           themeLabels(id),
+		ID:               "adaptive",
+		Name:             "Adaptive",
+		HasAmbientMotion: false,
 		Palette: TerminalPalette{
 			Primary: primary,
 			Success: success,
@@ -203,6 +168,8 @@ func newTheme(id, name string, ambient bool, primary, secondary, border, muted, 
 		SecondaryAccent: secondary,
 		Border:          border,
 		Muted:           muted,
+		SelectionBg:     selectionBg,
+		SelectionFg:     selectionFg,
 		Success:         success,
 		Warning:         warning,
 		Danger:          danger,
@@ -214,45 +181,15 @@ func newTheme(id, name string, ambient bool, primary, secondary, border, muted, 
 		Title: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primary).
-			Align(lipgloss.Center),
+			Align(lipgloss.Left),
+		Subtitle: lipgloss.NewStyle().
+			Foreground(muted),
 		Footer: lipgloss.NewStyle().
 			Foreground(muted).
-			Align(lipgloss.Center),
+			Align(lipgloss.Left),
 		Key: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(secondary),
 		Spinner: spinner,
-	}
-}
-
-func themeLabels(id string) ThemeLabels {
-	switch id {
-	case "clean-productivity":
-		return ThemeLabels{
-			PrimaryAction:    "Recommended",
-			SecondaryActions: "Available",
-			Profile:          "Profile",
-			RoadmapContext:   "Roadmap",
-			LockedItems:      "Upcoming",
-			PreviewAction:    "Recommended",
-		}
-	case "cyber-dashboard":
-		return ThemeLabels{
-			PrimaryAction:    "Primary Signal",
-			SecondaryActions: "Secondary Targets",
-			Profile:          "Operator",
-			RoadmapContext:   "Signal Map",
-			LockedItems:      "Locked Signals",
-			PreviewAction:    "Primary Signal",
-		}
-	default:
-		return ThemeLabels{
-			PrimaryAction:    "Main Quest",
-			SecondaryActions: "Side Quests",
-			Profile:          "Character HUD",
-			RoadmapContext:   "Map Fragment",
-			LockedItems:      "Locked Branches",
-			PreviewAction:    "Main Quest",
-		}
 	}
 }

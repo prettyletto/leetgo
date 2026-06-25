@@ -84,8 +84,7 @@ func (s *RoadmapCompletionScreen) View() string {
 		}
 	}
 
-	var lines []string
-	lines = append(lines, s.theme.Title.Render("Roadmap Completion"))
+	header := renderScreenHeader(s.theme, "Roadmap Completion", s.roadmap.Title)
 	reward := views.RewardMoment{
 		Title:   "Roadmap Completion",
 		Subject: s.roadmap.Title,
@@ -109,43 +108,47 @@ func (s *RoadmapCompletionScreen) View() string {
 		fmt.Sprintf("Total Solve Duration: %s", s.solveDuration(ctx).Round(time.Minute)),
 		fmt.Sprintf("Active Review Cycles: %d", activeReviews),
 	}
-	lines = append(lines, views.RenderRewardMoment(reward, viewPalette(s.theme)))
-	lines = append(lines, "")
+	rewardPanel := views.RenderRewardMoment(reward, viewPalette(s.theme))
+	var summaryLines []string
 	if solved == total {
-		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Success).Render("Roadmap complete"))
+		summaryLines = append(summaryLines, lipgloss.NewStyle().Foreground(s.theme.Success).Render("Roadmap complete"))
 	} else {
-		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Warning).Render("Roadmap in progress"))
+		summaryLines = append(summaryLines, lipgloss.NewStyle().Foreground(s.theme.Warning).Render("Roadmap in progress"))
 	}
-	lines = append(lines, fmt.Sprintf("Problems Solved: %d/%d", solved, total))
-	lines = append(lines, fmt.Sprintf("Accepted Solves: %d", accepted))
-	lines = append(lines, fmt.Sprintf("Manual Solves: %d", manual))
+	summaryLines = append(summaryLines, fmt.Sprintf("Problems Solved: %d/%d", solved, total))
+	summaryLines = append(summaryLines, fmt.Sprintf("Accepted Solves: %d", accepted))
+	summaryLines = append(summaryLines, fmt.Sprintf("Manual Solves: %d", manual))
 	if stats != nil {
-		lines = append(lines, fmt.Sprintf("Total XP: %d", stats.TotalXP))
+		summaryLines = append(summaryLines, fmt.Sprintf("Total XP: %d", stats.TotalXP))
 	}
-	lines = append(lines, fmt.Sprintf("Total Solve Duration: %s", s.solveDuration(ctx).Round(time.Minute)))
-	lines = append(lines, fmt.Sprintf("Active Review Cycles: %d", activeReviews))
+	summaryLines = append(summaryLines, fmt.Sprintf("Total Solve Duration: %s", s.solveDuration(ctx).Round(time.Minute)))
+	summaryLines = append(summaryLines, fmt.Sprintf("Active Review Cycles: %d", activeReviews))
 
+	var nextLines []string
 	if strongest := s.strongestCategory(progress); strongest != "" {
-		lines = append(lines, fmt.Sprintf("Strongest Category: %s", strongest))
+		nextLines = append(nextLines, fmt.Sprintf("Strongest Category: %s", strongest))
 	}
 	if len(s.roadmap.NextRoadmaps) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, fmt.Sprintf("Suggested next Roadmap: %s", s.roadmap.NextRoadmaps[0]))
+		nextLines = append(nextLines, fmt.Sprintf("Suggested next Roadmap: %s", s.roadmap.NextRoadmaps[0]))
 	}
 	if manual > 0 {
-		lines = append(lines, "")
-		lines = append(lines, "Recommended next: validate Manual Solves with Accepted Submissions for confidence and XP.")
+		nextLines = append(nextLines, "Validate Manual Solves with Accepted Submissions for confidence and XP.")
 	}
 	if activeReviews > 0 {
-		lines = append(lines, "Recommended review: finish active Review Cycles before starting harder Roadmaps.")
+		nextLines = append(nextLines, "Finish active Review Cycles before starting harder Roadmaps.")
+	}
+
+	body := rewardPanel + "\n\n" + renderThemedPanel(s.theme, "Summary", strings.Join(summaryLines, "\n"), false)
+	if len(nextLines) > 0 {
+		body += "\n\n" + renderThemedPanel(s.theme, "Next", strings.Join(nextLines, "\n"), false)
 	}
 
 	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
 		s.theme.Key.Render("r") + " roadmap",
 		s.theme.Key.Render("esc") + " dashboard",
 		s.theme.Key.Render("q") + " quit",
-	}, "  "))
-	return strings.Join(lines, "\n") + "\n" + footer
+	}, "  •  "))
+	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
 }
 
 func (s *RoadmapCompletionScreen) solveDuration(ctx context.Context) time.Duration {

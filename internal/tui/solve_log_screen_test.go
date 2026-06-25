@@ -133,7 +133,7 @@ func TestSolveLog_RendersAccepted(t *testing.T) {
 	sl.width = 120
 	view := sl.View()
 	assert.Contains(t, view, "two-sum")
-	assert.Contains(t, view, "Learning History")
+	assert.Contains(t, view, "Submissions")
 	assert.Contains(t, view, "✓ Accepted")
 	assert.Contains(t, view, "Accepted")
 	assert.Contains(t, view, "1 ms")
@@ -185,15 +185,11 @@ func TestSolveLog_FocusNavigation(t *testing.T) {
 	assert.Equal(t, 0, sl.focusIndex)
 }
 
-func TestSolveLog_ThemeCycle(t *testing.T) {
+func TestSolveLog_NoThemeCycleShortcut(t *testing.T) {
 	sl, _ := newTestSolveLog(t)
 
 	_, cmd := sl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	_, ok := msg.(ThemeChangedMsg)
-	assert.True(t, ok)
+	assert.Nil(t, cmd)
 }
 
 func TestSolveLog_WindowResize(t *testing.T) {

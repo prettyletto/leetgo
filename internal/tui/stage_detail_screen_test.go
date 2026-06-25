@@ -48,28 +48,28 @@ func TestStageDetail_ViewShowsStageTitle(t *testing.T) {
 	assert.Contains(t, view, "Arrays & Hashing")
 }
 
-func TestStageDetail_RPGZoneLabels(t *testing.T) {
+func TestStageDetail_UsesAdaptiveLabels(t *testing.T) {
 	sd, _ := newTestStageDetail(t, "arrays-hashing")
 	sd.width = 120
 
 	view := sd.View()
-	assert.Contains(t, view, "Zone: Arrays & Hashing")
-	assert.Contains(t, view, "Encounter Grid")
-	assert.Contains(t, view, "Recommended Encounter")
+	assert.Contains(t, view, "Stage: Arrays & Hashing")
+	assert.Contains(t, view, "Problems")
+	assert.Contains(t, view, "[Recommended]")
 }
 
-func TestStageDetail_ReviewShrine(t *testing.T) {
+func TestStageDetail_ReviewSection(t *testing.T) {
 	sd, db := newTestStageDetail(t, "arrays-hashing")
 	ctx := context.Background()
 	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
 	sd.width = 120
 
 	view := sd.View()
-	assert.Contains(t, view, "Review Shrine")
+	assert.Contains(t, view, "Review")
 	assert.Contains(t, view, "Two Sum")
 }
 
-func TestStageDetail_ReviewShrinePlainSymbols(t *testing.T) {
+func TestStageDetail_ReviewSectionPlainSymbols(t *testing.T) {
 	sd, db := newTestStageDetail(t, "arrays-hashing")
 	sd.cfg.SymbolMode = "plain"
 	ctx := context.Background()
@@ -77,7 +77,7 @@ func TestStageDetail_ReviewShrinePlainSymbols(t *testing.T) {
 	sd.width = 120
 
 	view := sd.View()
-	assert.Contains(t, view, "Review Shrine")
+	assert.Contains(t, view, "Review")
 	assert.Contains(t, view, "R #1 Two Sum")
 	assert.NotContains(t, view, "↻")
 }
@@ -242,15 +242,11 @@ func TestStageDetail_WindowResize(t *testing.T) {
 	assert.Equal(t, 50, sd.height)
 }
 
-func TestStageDetail_ThemeCycle(t *testing.T) {
+func TestStageDetail_NoThemeCycleShortcut(t *testing.T) {
 	sd, _ := newTestStageDetail(t, "arrays-hashing")
 
 	_, cmd := sd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	_, ok := msg.(ThemeChangedMsg)
-	assert.True(t, ok)
+	assert.Nil(t, cmd)
 }
 
 func TestStageDetail_UnknownStageShowsID(t *testing.T) {

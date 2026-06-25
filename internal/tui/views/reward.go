@@ -20,7 +20,7 @@ type RewardMoment struct {
 }
 
 func RenderRewardMoment(moment RewardMoment, palette Palette) string {
-	return PixelFrame(moment.Title, renderRewardMomentBody(moment), palette)
+	return Panel(moment.Title, renderRewardMomentBody(moment), palette, true)
 }
 
 func RenderCLIRewardMoment(moment RewardMoment) string {

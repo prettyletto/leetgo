@@ -78,7 +78,7 @@ func TestPanel_Render(t *testing.T) {
 }
 
 func TestPixelFrame_Render(t *testing.T) {
-	view := PixelFrame("Character HUD", "LVL 2", Palette{})
+	view := PixelFrame("Character HUD", "LVL 2", Palette{}, false)
 	assert.Contains(t, view, "Character HUD")
 	assert.Contains(t, view, "LVL 2")
 }

@@ -13,10 +13,11 @@ func TestLookupTheme(t *testing.T) {
 		name    string
 		ambient bool
 	}{
-		{"rpg-skill-tree", "RPG Skill Tree", false},
-		{"clean-productivity", "Clean Productivity", false},
-		{"cyber-dashboard", "Cyber Dashboard", true},
-		{"", "RPG Skill Tree", false},
+		{"adaptive", "Adaptive", false},
+		{"rpg-skill-tree", "Adaptive", false},
+		{"clean-productivity", "Adaptive", false},
+		{"cyber-dashboard", "Adaptive", false},
+		{"", "Adaptive", false},
 	}
 
 	for _, tt := range tests {
@@ -34,24 +35,8 @@ func TestLookupTheme(t *testing.T) {
 		assert.NotEmpty(t, theme.XP)
 		assert.NotEmpty(t, theme.Review)
 		assert.NotEmpty(t, theme.Spinner.Foreground)
-		assert.NotEmpty(t, theme.Labels.PrimaryAction)
-		assert.NotEmpty(t, theme.Labels.Profile)
+		assert.Equal(t, "adaptive", theme.ID)
 	}
-}
-
-func TestThemeLabels(t *testing.T) {
-	rpg, _ := LookupTheme("rpg-skill-tree")
-	clean, _ := LookupTheme("clean-productivity")
-	cyber, _ := LookupTheme("cyber-dashboard")
-
-	assert.Equal(t, "Main Quest", rpg.Labels.PrimaryAction)
-	assert.Equal(t, "Character HUD", rpg.Labels.Profile)
-	assert.Equal(t, "Recommended", clean.Labels.PrimaryAction)
-	assert.Equal(t, "Available", clean.Labels.SecondaryActions)
-	assert.Equal(t, "Profile", clean.Labels.Profile)
-	assert.Equal(t, "Primary Signal", cyber.Labels.PrimaryAction)
-	assert.Equal(t, "Secondary Targets", cyber.Labels.SecondaryActions)
-	assert.Equal(t, "Operator", cyber.Labels.Profile)
 }
 
 func TestLookupTheme_Invalid(t *testing.T) {
@@ -59,47 +44,23 @@ func TestLookupTheme_Invalid(t *testing.T) {
 	assert.ErrorContains(t, err, "unknown theme")
 }
 
-func TestTheme_SpinnerPerTheme(t *testing.T) {
-	rpg, _ := LookupTheme("rpg-skill-tree")
-	clean, _ := LookupTheme("clean-productivity")
-	cyber, _ := LookupTheme("cyber-dashboard")
+func TestTheme_AdaptiveCompatibility(t *testing.T) {
+	adaptive, _ := LookupTheme("adaptive")
+	legacy, _ := LookupTheme("rpg-skill-tree")
 
-	assert.NotNil(t, rpg.Spinner.Render("loading"))
-	assert.NotNil(t, clean.Spinner.Render("loading"))
-	assert.NotNil(t, cyber.Spinner.Render("loading"))
-}
-
-func TestTheme_CompactPanel(t *testing.T) {
-	rpg, _ := LookupTheme("rpg-skill-tree")
-	clean, _ := LookupTheme("clean-productivity")
-	cyber, _ := LookupTheme("cyber-dashboard")
-
-	assert.NotNil(t, rpg.CompactPanel.Render("test"))
-	assert.NotNil(t, clean.CompactPanel.Render("test"))
-	assert.NotNil(t, cyber.CompactPanel.Render("test"))
-}
-
-func TestTheme_AmbientMotion(t *testing.T) {
-	rpg, _ := LookupTheme("rpg-skill-tree")
-	clean, _ := LookupTheme("clean-productivity")
-	cyber, _ := LookupTheme("cyber-dashboard")
-
-	assert.False(t, rpg.HasAmbientMotion)
-	assert.False(t, clean.HasAmbientMotion)
-	assert.True(t, cyber.HasAmbientMotion)
+	assert.Equal(t, adaptive.Name, legacy.Name)
+	assert.Equal(t, adaptive.PrimaryAccent, legacy.PrimaryAccent)
+	assert.False(t, adaptive.HasAmbientMotion)
+	assert.NotEmpty(t, adaptive.Spinner.Render("loading"))
+	assert.NotEmpty(t, adaptive.CompactPanel.Render("test"))
 }
 
 func TestTheme_FocusedPanelDiffersFromPanel(t *testing.T) {
-	rpg, _ := LookupTheme("rpg-skill-tree")
-	clean, _ := LookupTheme("clean-productivity")
+	theme, _ := LookupTheme("adaptive")
 
-	rpgPanel := rpg.Panel.Render("test")
-	rpgFocused := rpg.FocusedPanel.Render("test")
-	assert.NotEqual(t, rpgPanel, rpgFocused, "focused should differ from normal panel in RPG theme")
-
-	cleanPanel := clean.Panel.Render("test")
-	cleanFocused := clean.FocusedPanel.Render("test")
-	assert.NotEqual(t, cleanPanel, cleanFocused, "focused should differ from normal panel in Clean theme")
+	panel := theme.Panel.Render("test")
+	focused := theme.FocusedPanel.Render("test")
+	assert.NotEqual(t, panel, focused, "focused should differ from normal panel")
 }
 
 func TestLookupSymbolSet(t *testing.T) {

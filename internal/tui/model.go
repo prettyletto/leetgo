@@ -22,49 +22,10 @@ import (
 	"github.com/prettyletto/leetgo/internal/workspace"
 )
 
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("205")).
-			MarginBottom(1)
-
-	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
-			PaddingTop(1)
-
-	keyStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("219"))
-
-	statusStyle = lipgloss.NewStyle().Width(12)
-	lockedStyle = statusStyle.Foreground(lipgloss.Color("240"))
-	availStyle  = statusStyle.Foreground(lipgloss.Color("214"))
-	activeStyle = statusStyle.Foreground(lipgloss.Color("39"))
-	solvedStyle = statusStyle.Foreground(lipgloss.Color("82"))
-
-	diffStyle   = lipgloss.NewStyle().Width(8)
-	easyStyle   = diffStyle.Foreground(lipgloss.Color("82"))
-	mediumStyle = diffStyle.Foreground(lipgloss.Color("214"))
-	hardStyle   = diffStyle.Foreground(lipgloss.Color("196"))
-
-	catStyle = lipgloss.NewStyle().
-			Width(20).
-			Foreground(lipgloss.Color("243"))
-
-	detailStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			Padding(0, 1).
-			MarginTop(1)
-
-	detailTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("219"))
-)
-
 type problemItem struct {
 	problem *roadmap.Problem
 	status  roadmap.Status
+	theme   *Theme
 }
 
 func (i problemItem) Title() string {
@@ -72,9 +33,9 @@ func (i problemItem) Title() string {
 }
 
 func (i problemItem) Description() string {
-	status := renderStatus(i.status)
-	diff := renderDifficulty(i.problem.Difficulty)
-	cat := catStyle.Render(string(i.problem.Category))
+	status := renderStatus(i.status, i.theme)
+	diff := renderDifficulty(i.problem.Difficulty, i.theme)
+	cat := lipgloss.NewStyle().Width(20).Foreground(i.theme.Muted).Render(string(i.problem.Category))
 	return fmt.Sprintf("%s %s %s", status, diff, cat)
 }
 
@@ -82,33 +43,53 @@ func (i problemItem) FilterValue() string {
 	return i.problem.Title
 }
 
-func renderStatus(s roadmap.Status) string {
+func renderStatus(s roadmap.Status, theme *Theme) string {
+	statusStyle := lipgloss.NewStyle().Width(12)
+	if theme == nil {
+		theme = &Theme{
+			PrimaryAccent:   lipgloss.Color("205"),
+			SecondaryAccent: lipgloss.Color("219"),
+			Muted:           lipgloss.Color("245"),
+			Success:         lipgloss.Color("82"),
+			Warning:         lipgloss.Color("214"),
+			Danger:          lipgloss.Color("196"),
+		}
+	}
 	switch s {
 	case roadmap.StatusLocked:
-		return lockedStyle.Render("[LOCKED]")
+		return statusStyle.Foreground(theme.Muted).Render("[LOCKED]")
 	case roadmap.StatusAvailable:
-		return availStyle.Render("[READY]")
+		return statusStyle.Foreground(theme.Warning).Render("[READY]")
 	case roadmap.StatusInProgress:
-		return activeStyle.Render("[ACTIVE]")
+		return statusStyle.Foreground(theme.PrimaryAccent).Render("[ACTIVE]")
 	case roadmap.StatusSolved:
-		return solvedStyle.Render("[SOLVED]")
+		return statusStyle.Foreground(theme.Success).Render("[SOLVED]")
 	case roadmap.StatusVerified:
-		return availStyle.Render("[VERIFIED]")
+		return statusStyle.Foreground(theme.Warning).Render("[VERIFIED]")
 	default:
 		return statusStyle.Render("[???]")
 	}
 }
 
-func renderDifficulty(d roadmap.Difficulty) string {
+func renderDifficulty(d roadmap.Difficulty, theme *Theme) string {
+	diffStyle := lipgloss.NewStyle().Width(8)
+	if theme == nil {
+		theme = &Theme{
+			Success: lipgloss.Color("82"),
+			Warning: lipgloss.Color("214"),
+			Danger:  lipgloss.Color("196"),
+			Muted:   lipgloss.Color("243"),
+		}
+	}
 	switch d {
 	case roadmap.DifficultyEasy:
-		return easyStyle.Render("Easy")
+		return diffStyle.Foreground(theme.Success).Render("Easy")
 	case roadmap.DifficultyMedium:
-		return mediumStyle.Render("Medium")
+		return diffStyle.Foreground(theme.Warning).Render("Medium")
 	case roadmap.DifficultyHard:
-		return hardStyle.Render("Hard")
+		return diffStyle.Foreground(theme.Danger).Render("Hard")
 	default:
-		return diffStyle.Render("???")
+		return diffStyle.Foreground(theme.Muted).Render("???")
 	}
 }
 
@@ -116,7 +97,6 @@ type viewMode int
 
 const (
 	viewList viewMode = iota
-	viewGraph
 	viewHeatmap
 )
 
@@ -146,7 +126,6 @@ type testRunResultMsg struct {
 
 type Model struct {
 	list          list.Model
-	graphView     *views.GraphView
 	heatmapView   *views.HeatmapView
 	statsBar      *views.StatsBar
 	notifications *views.NotificationManager
@@ -160,6 +139,7 @@ type Model struct {
 	store         store.Store
 	workspace     *workspace.Manager
 	config        *config.Config
+	theme         *Theme
 	quitting      bool
 	submitting    bool
 }
@@ -191,6 +171,8 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 		return nil, fmt.Errorf("sort problems: %w", err)
 	}
 
+	theme, _ := LookupTheme(cfg.Theme)
+
 	items := make([]list.Item, len(sorted))
 	for i, p := range sorted {
 		status := roadmap.StatusLocked
@@ -199,7 +181,7 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 		} else if graph.IsUnlocked(p.ID, solved) {
 			status = roadmap.StatusAvailable
 		}
-		items[i] = problemItem{problem: p, status: status}
+		items[i] = problemItem{problem: p, status: status, theme: theme}
 	}
 
 	delegate := list.NewDefaultDelegate()
@@ -208,16 +190,16 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 
-	graphView := views.NewGraphView(rm, progress)
-
 	stats, err := db.GetStats(context.Background())
 	if err != nil {
 		stats = &store.Stats{}
 	}
 	stats.Total = len(sorted)
 	statsBar := views.NewStatsBar(stats)
+	statsBar.SetPalette(viewPalette(theme))
 
 	notifications := views.NewNotificationManager()
+	notifications.SetPalette(viewPalette(theme))
 	gamificationEngine := gamification.NewEngine(db, graph)
 
 	streakDays, err := db.GetStreakDays(context.Background())
@@ -225,6 +207,7 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 		streakDays = nil
 	}
 	heatmapView := views.NewHeatmapView(streakDays)
+	heatmapView.SetPalette(viewPalette(theme))
 
 	lcClient, err := leetcode.NewClient()
 	if err != nil {
@@ -233,7 +216,6 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 
 	return &Model{
 		list:          l,
-		graphView:     graphView,
 		heatmapView:   heatmapView,
 		statsBar:      statsBar,
 		notifications: notifications,
@@ -247,6 +229,7 @@ func NewModel(cfg *config.Config, db store.Store) (*Model, error) {
 		store:         db,
 		workspace:     ws,
 		config:        cfg,
+		theme:         theme,
 	}, nil
 }
 
@@ -285,7 +268,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.list.SetSize(msg.Width, msg.Height-10)
-		m.graphView.SetSize(msg.Width, msg.Height)
 		m.heatmapView.SetSize(msg.Width, msg.Height)
 		m.statsBar.SetWidth(msg.Width)
 		return m, nil
@@ -295,14 +277,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
-
-		case "g":
-			if m.viewMode == viewList {
-				m.viewMode = viewGraph
-			} else {
-				m.viewMode = viewList
-			}
-			return m, nil
 
 		case "h":
 			if m.viewMode == viewHeatmap {
@@ -349,17 +323,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "up", "k":
-			if m.viewMode == viewGraph {
-				m.graphView.Scroll(-1)
-				return m, nil
-			}
-
-		case "down", "j":
-			if m.viewMode == viewGraph {
-				m.graphView.Scroll(1)
-				return m, nil
-			}
 		}
 	}
 
@@ -379,13 +342,16 @@ func (m *Model) View() string {
 
 	var view string
 	switch m.viewMode {
-	case viewGraph:
-		view = m.graphView.Render()
 	case viewHeatmap:
 		view = m.heatmapView.Render()
 	default:
 		view = m.list.View() + "\n" + m.renderProblemDetails()
 	}
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.PrimaryAccent).
+		MarginBottom(1)
 
 	header := titleStyle.Render("Leetgo · "+m.roadmap.Title) + "\n" + m.statsBar.Render()
 	if m.viewMode == viewList {
@@ -408,7 +374,7 @@ func (m *Model) renderProblemDetails() string {
 	}
 	p := item.problem
 	lines := []string{
-		detailTitleStyle.Render(fmt.Sprintf("#%d %s", p.ID, p.Title)),
+		lipgloss.NewStyle().Bold(true).Foreground(m.theme.SecondaryAccent).Render(fmt.Sprintf("#%d %s", p.ID, p.Title)),
 		fmt.Sprintf("Status: %s  Difficulty: %s  Stage: %s  Category: %s", string(item.status), string(p.Difficulty), m.stageTitle(p.Stage), string(p.Category)),
 	}
 	if len(p.Prerequisites) == 0 {
@@ -425,6 +391,11 @@ func (m *Model) renderProblemDetails() string {
 	if item.status == roadmap.StatusAvailable {
 		lines = append(lines, "Next: press enter to Start and generate the Stub/TestSuite.")
 	}
+	detailStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.Border).
+		Padding(0, 1).
+		MarginTop(1)
 	return detailStyle.Width(max(40, m.list.Width()-4)).Render(strings.Join(lines, "\n"))
 }
 
@@ -479,29 +450,22 @@ func max(a, b int) int {
 }
 
 func (m *Model) renderKeytips() string {
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(m.theme.SecondaryAccent)
+	footerStyle := lipgloss.NewStyle().Foreground(m.theme.Muted).PaddingTop(1)
+
 	items := []string{
 		keyStyle.Render("enter") + " start",
 		keyStyle.Render("m") + " solve",
 		keyStyle.Render("s") + " submit",
-		keyStyle.Render("g") + " unlock path",
 		keyStyle.Render("h") + " heatmap",
 		keyStyle.Render("tab") + " stage",
 		keyStyle.Render("0") + " all",
 		keyStyle.Render("/") + " filter",
 		keyStyle.Render("q") + " quit",
 	}
-	if m.viewMode == viewGraph {
-		items = []string{
-			keyStyle.Render("j/k") + " scroll",
-			keyStyle.Render("g") + " list",
-			keyStyle.Render("h") + " heatmap",
-			keyStyle.Render("q") + " quit",
-		}
-	}
 	if m.viewMode == viewHeatmap {
 		items = []string{
 			keyStyle.Render("h") + " list",
-			keyStyle.Render("g") + " unlock path",
 			keyStyle.Render("q") + " quit",
 		}
 	}
@@ -509,6 +473,7 @@ func (m *Model) renderKeytips() string {
 }
 
 func (m *Model) renderStageFilter() string {
+	footerStyle := lipgloss.NewStyle().Foreground(m.theme.Muted).PaddingTop(1)
 	if m.stageFilter < 0 || m.stageFilter >= len(m.roadmap.Stages) {
 		return footerStyle.Render("Stage: All")
 	}
@@ -675,6 +640,7 @@ func (m *Model) refreshStats() {
 	}
 	stats.Total = len(m.graph.Problems)
 	m.statsBar = views.NewStatsBar(stats)
+	m.statsBar.SetPalette(viewPalette(m.theme))
 }
 
 func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
