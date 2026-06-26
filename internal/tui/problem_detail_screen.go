@@ -165,6 +165,13 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		if s.submitting {
+			switch msg.String() {
+			case "q", "ctrl+c":
+				return s, tea.Quit
+			}
+			return s, nil
+		}
 		if s.testResultMsg != "" {
 			switch msg.String() {
 			case "esc", "backspace":
@@ -1050,6 +1057,9 @@ func (s *ProblemDetailScreen) View() string {
 	if s.testResultMsg != "" {
 		return s.renderTestResult()
 	}
+	if s.submitting {
+		return s.renderSubmitProgress()
+	}
 	if s.manualSolveMode {
 		return s.renderManualSolveConfirmation()
 	}
@@ -1141,6 +1151,41 @@ func (s *ProblemDetailScreen) View() string {
 	}
 	body := strings.Join(bodySections, "\n\n")
 	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
+}
+
+func (s *ProblemDetailScreen) renderSubmitProgress() string {
+	width := responsiveShellContentWidth(s.width)
+	if width <= 0 {
+		width = 86
+	}
+	panelWidth := minProblemDetailInt(width-4, 86)
+	if panelWidth < 40 {
+		panelWidth = 40
+	}
+
+	status := strings.TrimSpace(s.errorMsg)
+	if status == "" {
+		status = "Submitting to LeetCode..."
+	}
+	if s.allowsSpinnerMotion() {
+		frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
+		status = frame + " " + status
+	}
+
+	lines := []string{
+		s.theme.Spinner.Render(status),
+		"",
+		lipgloss.NewStyle().Foreground(s.theme.Muted).Render("Keep this screen open while Leetgo runs local checks and submits your current Stub."),
+	}
+	body := renderProblemDetailPanel(s.theme, "Submitting", strings.Join(lines, "\n"), true, panelWidth)
+	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
+		s.theme.Key.Render("q") + " quit",
+	}, "  "))
+	content := body + "\n\n" + footer
+	if s.width <= 0 || s.height <= 0 {
+		return content
+	}
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (s *ProblemDetailScreen) renderTransientStatusLines() []string {

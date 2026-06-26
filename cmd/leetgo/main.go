@@ -52,6 +52,8 @@ func run(args []string) error {
 		return authenticate()
 	case "status":
 		return showStatus(cfg)
+	case "paths":
+		return showPaths()
 	case "solve-log":
 		return showSolveLog(args[1:])
 	case "solve":
@@ -88,17 +90,7 @@ func startTUI(cfg *config.Config) error {
 		return err
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return fmt.Errorf("get data dir: %w", err)
-	}
-
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return fmt.Errorf("create data dir: %w", err)
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -129,6 +121,29 @@ func startTUI(cfg *config.Config) error {
 	return nil
 }
 
+func openStore() (*store.SQLiteStore, error) {
+	dataDir, err := config.EnsureDataDir()
+	if err != nil {
+		return nil, err
+	}
+	return store.NewSQLiteStore(filepath.Join(dataDir, "leetgo.db"))
+}
+
+func showPaths() error {
+	paths, err := config.AppPaths()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Leetgo Paths\n")
+	fmt.Printf("  Home:       %s\n", paths.Home)
+	fmt.Printf("  Data dir:   %s\n", paths.DataDir)
+	fmt.Printf("  Config:     %s\n", paths.ConfigFile)
+	fmt.Printf("  Database:   %s\n", paths.Database)
+	fmt.Printf("  Session:    %s\n", paths.Session)
+	fmt.Printf("  Exports:    %s\n", paths.ExportsDir)
+	return nil
+}
+
 func validateConfig(cfg *config.Config) error {
 	roadmaps, err := roadmapIDs()
 	if err != nil {
@@ -155,13 +170,7 @@ func showStatus(cfg *config.Config) error {
 		return err
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -272,11 +281,7 @@ func showSolveLog(args []string) error {
 		limit = parsed
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-	db, err := store.NewSQLiteStore(filepath.Join(dataDir, "leetgo.db"))
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -326,13 +331,7 @@ func runProblemTests(cfg *config.Config, args []string) error {
 		return fmt.Errorf("stat problem dir: %w", err)
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -450,13 +449,7 @@ func runProblemSubmit(cfg *config.Config, args []string) error {
 		return fmt.Errorf("stat problem dir: %w", err)
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -733,13 +726,7 @@ func runManualSolve(cfg *config.Config, args []string) error {
 		return err
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -812,13 +799,7 @@ func runNext(cfg *config.Config, args []string) error {
 		}
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -918,13 +899,7 @@ func doStartProblem(cfg *config.Config, problemID int) error {
 		return fmt.Errorf("problem %d not found in roadmap %q", problemID, cfg.Roadmap)
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -996,14 +971,9 @@ func runInfo(cfg *config.Config, args []string) error {
 	var problem *roadmap.Problem
 	var rm *roadmap.Roadmap
 	var db store.Store
+	var err error
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err = store.NewSQLiteStore(dbPath)
+	db, err = openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -1641,13 +1611,12 @@ func authenticate() error {
 }
 
 func exportData(cfg *config.Config) error {
-	dataDir, err := config.DataDir()
+	dataDir, err := config.EnsureDataDir()
 	if err != nil {
 		return err
 	}
 
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -1686,13 +1655,12 @@ func exportDataToGit(cfg *config.Config, args []string) error {
 		return fmt.Errorf("repo dir is not a git repository: %s", repoDir)
 	}
 
-	dataDir, err := config.DataDir()
+	dataDir, err := config.EnsureDataDir()
 	if err != nil {
 		return err
 	}
 
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -1750,13 +1718,7 @@ func importData(cfg *config.Config, args []string) error {
 		return fmt.Errorf("usage: leetgo import <file.json>")
 	}
 
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return err
-	}
-
-	dbPath := filepath.Join(dataDir, "leetgo.db")
-	db, err := store.NewSQLiteStore(dbPath)
+	db, err := openStore()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -1828,7 +1790,7 @@ func runReset(cfg *config.Config, args []string) error {
 		return fmt.Errorf("this will delete all progress, XP, and workspace files.\nRun `leetgo reset --force` to confirm.")
 	}
 
-	dataDir, err := config.DataDir()
+	dataDir, err := config.EnsureDataDir()
 	if err != nil {
 		return err
 	}

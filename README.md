@@ -91,6 +91,7 @@ leetgo test <id-or-slug>       # Run generated local tests
 leetgo submit <id-or-slug>     # Submit current Stub to LeetCode
 leetgo solve <id-or-slug>      # Record a manual solve
 leetgo solve-log               # Print practice history
+leetgo paths                   # Show active config/database/session paths
 leetgo roadmap list            # List bundled roadmaps
 leetgo config                  # Print config
 leetgo export                  # Export local data to JSON
@@ -130,6 +131,8 @@ Leetgo is local-first. Progress, XP, attempts, review cycles, and LeetCode Sessi
 ```
 
 Do not commit `~/.leetgo/`, `session.json`, local database files, or generated workspace directories.
+
+Run `leetgo paths` after installing or updating to confirm the binary is using the same `~/.leetgo/leetgo.db`. If progress appears missing, compare `leetgo paths` from the old and new binary; a different `Home` or `Data dir` means the binary is running under a different user or environment.
 
 ## LeetCode Session Setup
 

@@ -93,6 +93,44 @@ func TestSetConfigValue_WorkspacePersists(t *testing.T) {
 	assert.Equal(t, workspace, loaded.Workspace)
 }
 
+func TestShowPaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, showPaths())
+	})
+
+	assert.Contains(t, out, "Leetgo Paths")
+	assert.Contains(t, out, filepath.Join(home, ".leetgo"))
+	assert.Contains(t, out, filepath.Join(home, ".leetgo", "config.toml"))
+	assert.Contains(t, out, filepath.Join(home, ".leetgo", "leetgo.db"))
+	assert.Contains(t, out, filepath.Join(home, ".leetgo", "session.json"))
+}
+
+func TestRunPathsCommand(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, run([]string{"paths"}))
+	})
+
+	assert.Contains(t, out, filepath.Join(home, ".leetgo", "leetgo.db"))
+}
+
+func TestOpenStoreCreatesStableDataDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	db, err := openStore()
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	_, err = os.Stat(filepath.Join(home, ".leetgo", "leetgo.db"))
+	require.NoError(t, err)
+}
+
 func TestShowSolveLog(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

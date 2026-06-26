@@ -73,6 +73,34 @@ func TestSaveAndLoad(t *testing.T) {
 	assert.Equal(t, "reduced", loaded.MotionPreference)
 }
 
+func TestAppPathsUseStableHomeDataDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	paths, err := AppPaths()
+	require.NoError(t, err)
+
+	assert.Equal(t, tmp, paths.Home)
+	assert.Equal(t, filepath.Join(tmp, ".leetgo"), paths.DataDir)
+	assert.Equal(t, filepath.Join(tmp, ".leetgo", "config.toml"), paths.ConfigFile)
+	assert.Equal(t, filepath.Join(tmp, ".leetgo", "leetgo.db"), paths.Database)
+	assert.Equal(t, filepath.Join(tmp, ".leetgo", "session.json"), paths.Session)
+	assert.Equal(t, filepath.Join(tmp, ".leetgo", "exports"), paths.ExportsDir)
+}
+
+func TestEnsureDataDirCreatesStableDataDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	dataDir, err := EnsureDataDir()
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(tmp, ".leetgo"), dataDir)
+	info, err := os.Stat(dataDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
 func TestValidate(t *testing.T) {
 	cfg := &Config{
 		Workspace: "/tmp/leetgo",

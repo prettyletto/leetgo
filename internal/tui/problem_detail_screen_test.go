@@ -84,6 +84,9 @@ func TestProblemDetail_MotionOffUsesStaticSubmittingText(t *testing.T) {
 
 	view := pd.View()
 	assert.Contains(t, view, "Submitting to LeetCode")
+	assert.Contains(t, view, "Keep this screen open")
+	assert.NotContains(t, view, "Problem Brief")
+	assert.NotContains(t, view, "Workspace Files")
 	assert.NotContains(t, view, "⣾")
 	assert.False(t, pd.allowsSpinnerMotion())
 }
@@ -783,6 +786,19 @@ func TestProblemDetail_SpinnerWhileSubmitting(t *testing.T) {
 
 	view := pd.View()
 	assert.Contains(t, view, "Submitting")
+	assert.Contains(t, view, "Keep this screen open")
+	assert.NotContains(t, view, "Problem Brief")
+}
+
+func TestProblemDetail_SubmittingIgnoresProblemActions(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.submitting = true
+	pd.status = roadmap.StatusAvailable
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+
+	assert.Nil(t, cmd)
+	assert.True(t, pd.submitting)
 }
 
 func TestProblemDetail_SpinnerAdvances(t *testing.T) {

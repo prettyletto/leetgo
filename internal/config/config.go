@@ -49,6 +49,15 @@ type Config struct {
 	GitExportRepo      string `toml:"git_export_repo"`
 }
 
+type Paths struct {
+	Home       string
+	DataDir    string
+	ConfigFile string
+	Database   string
+	Session    string
+	ExportsDir string
+}
+
 func DefaultConfig() (*Config, error) {
 	workspace, err := DefaultWorkspace()
 	if err != nil {
@@ -93,6 +102,33 @@ func DataDir() (string, error) {
 	return filepath.Join(home, ".leetgo"), nil
 }
 
+func AppPaths() (*Paths, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("get home dir: %w", err)
+	}
+	dataDir := filepath.Join(home, ".leetgo")
+	return &Paths{
+		Home:       home,
+		DataDir:    dataDir,
+		ConfigFile: filepath.Join(dataDir, "config.toml"),
+		Database:   filepath.Join(dataDir, "leetgo.db"),
+		Session:    filepath.Join(dataDir, "session.json"),
+		ExportsDir: filepath.Join(dataDir, "exports"),
+	}, nil
+}
+
+func EnsureDataDir() (string, error) {
+	dataDir, err := DataDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return "", fmt.Errorf("create data dir: %w", err)
+	}
+	return dataDir, nil
+}
+
 func Load() (*Config, error) {
 	dataDir, err := DataDir()
 	if err != nil {
@@ -134,13 +170,9 @@ func (c *Config) ApplyDefaults() {
 func (c *Config) Save() error {
 	c.ApplyDefaults()
 
-	dataDir, err := DataDir()
+	dataDir, err := EnsureDataDir()
 	if err != nil {
 		return err
-	}
-
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return fmt.Errorf("create data dir: %w", err)
 	}
 
 	data, err := toml.Marshal(c)
