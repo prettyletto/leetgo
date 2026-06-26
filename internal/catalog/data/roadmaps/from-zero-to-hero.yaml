@@ -993,6 +993,7 @@ problems:
     slug: "implement-trie-prefix-tree"
     difficulty: medium
     category: "tries"
+    stage: "trees"
     prerequisites: []
     practice_focus: "Trie data structure with insert/search/startsWith"
     problem_time_estimate: "20-30 minutes"
@@ -1008,6 +1009,7 @@ problems:
     slug: "design-add-and-search-words-data-structure"
     difficulty: medium
     category: "tries"
+    stage: "trees"
     prerequisites: [208]
     practice_focus: "Trie with wildcard-char DFS search"
     problem_time_estimate: "20-30 minutes"
@@ -1023,6 +1025,7 @@ problems:
     slug: "word-search-ii"
     difficulty: hard
     category: "tries"
+    stage: "trees"
     prerequisites: [211]
     practice_focus: "Trie-pruned DFS on a 2D board"
     problem_time_estimate: "35-45 minutes"
@@ -1038,7 +1041,7 @@ problems:
     title: "Kth Largest Element in a Stream"
     slug: "kth-largest-element-in-a-stream"
     difficulty: easy
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: []
     practice_focus: "Min-heap to maintain top-k elements"
     problem_time_estimate: "10-15 minutes"
@@ -1053,7 +1056,7 @@ problems:
     title: "Last Stone Weight"
     slug: "last-stone-weight"
     difficulty: easy
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: []
     practice_focus: "Max-heap for repeated extraction of largest"
     problem_time_estimate: "10-15 minutes"
@@ -1068,7 +1071,7 @@ problems:
     title: "K Closest Points to Origin"
     slug: "k-closest-points-to-origin"
     difficulty: medium
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: [703]
     practice_focus: "Max-heap to maintain k-closest elements"
     problem_time_estimate: "15-20 minutes"
@@ -1083,7 +1086,7 @@ problems:
     title: "Kth Largest Element in an Array"
     slug: "kth-largest-element-in-an-array"
     difficulty: medium
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: [703]
     practice_focus: "Min-heap of size k for k-th largest"
     problem_time_estimate: "15-20 minutes"
@@ -1098,7 +1101,7 @@ problems:
     title: "Task Scheduler"
     slug: "task-scheduler"
     difficulty: medium
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: [703]
     practice_focus: "Max-heap with cooling-time scheduling"
     problem_time_estimate: "20-30 minutes"
@@ -1113,7 +1116,7 @@ problems:
     title: "Design Twitter"
     slug: "design-twitter"
     difficulty: medium
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: [703]
     practice_focus: "K-way merge of sorted feeds with heap"
     problem_time_estimate: "25-35 minutes"
@@ -1128,7 +1131,7 @@ problems:
     title: "Find Median from Data Stream"
     slug: "find-median-from-data-stream"
     difficulty: hard
-    category: "heap"
+    category: "heap-priority-queue"
     prerequisites: [703]
     practice_focus: "Dual-heap (max + min) for median tracking"
     problem_time_estimate: "25-35 minutes"
@@ -1447,6 +1450,7 @@ problems:
     slug: "reconstruct-itinerary"
     difficulty: hard
     category: "advanced-graphs"
+    stage: "graphs"
     prerequisites: [207]
     practice_focus: "Eulerian path with hierarchical ordering"
     problem_time_estimate: "35-45 minutes"
@@ -1462,6 +1466,7 @@ problems:
     slug: "network-delay-time"
     difficulty: medium
     category: "advanced-graphs"
+    stage: "graphs"
     prerequisites: [207]
     practice_focus: "Dijkstra's shortest path from single source"
     problem_time_estimate: "20-30 minutes"
@@ -1477,6 +1482,7 @@ problems:
     slug: "swim-in-rising-water"
     difficulty: hard
     category: "advanced-graphs"
+    stage: "graphs"
     prerequisites: [207]
     practice_focus: "Dijkstra variant on elevation/time grid"
     problem_time_estimate: "30-45 minutes"
@@ -1492,6 +1498,7 @@ problems:
     slug: "cheapest-flights-within-k-stops"
     difficulty: medium
     category: "advanced-graphs"
+    stage: "graphs"
     prerequisites: [743]
     practice_focus: "Bellman-Ford or Dijkstra with stop constraint"
     problem_time_estimate: "25-35 minutes"

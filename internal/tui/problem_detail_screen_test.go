@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,6 +122,15 @@ func TestProblemDetail_ViewShowsDifficultyCategory(t *testing.T) {
 	assert.Contains(t, view, "easy")
 	assert.Contains(t, view, "Category")
 	assert.Contains(t, view, "arrays-hashing")
+}
+
+func TestProblemDetail_DifficultyTagIsStyled(t *testing.T) {
+	theme, err := LookupTheme("rpg-skill-tree")
+	require.NoError(t, err)
+
+	tag := renderProblemDetailDifficultyTag(theme, roadmap.DifficultyEasy)
+
+	assert.Equal(t, " easy ", tag)
 }
 
 func TestProblemDetail_ViewShowsStatusAvailable(t *testing.T) {
@@ -509,6 +519,58 @@ func TestProblemDetail_WindowResize(t *testing.T) {
 	pd.Update(tea.WindowSizeMsg{Width: 150, Height: 50})
 	assert.Equal(t, 150, pd.width)
 	assert.Equal(t, 50, pd.height)
+}
+
+func TestProblemDetail_NarrowLayoutCyclesContextAndProgression(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.Update(tea.WindowSizeMsg{Width: 96, Height: 32})
+
+	view := pd.View()
+	assert.Contains(t, view, "Context")
+	assert.Contains(t, view, "Problem Brief")
+	assert.NotContains(t, view, "#167 Two Sum II (medium)")
+	assert.Contains(t, view, "left/right")
+
+	pd.Update(tea.KeyMsg{Type: tea.KeyRight})
+	view = pd.View()
+	assert.Contains(t, view, "Progression")
+	assert.Contains(t, view, "#167 Two Sum II (medium)")
+	assert.NotContains(t, view, "Requires: none")
+
+	pd.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	view = pd.View()
+	assert.Contains(t, view, "Context")
+	assert.Contains(t, view, "Problem Brief")
+}
+
+func TestProblemDetail_NarrowContextScrollsLongBrief(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.problem.Summary = strings.Join([]string{
+		"brief-line-00",
+		"brief-line-01",
+		"brief-line-02",
+		"brief-line-03",
+		"brief-line-04",
+		"brief-line-05",
+		"brief-line-06",
+		"brief-line-07",
+		"brief-line-08",
+		"brief-line-09",
+	}, "\n")
+	pd.problem.PracticeFocus = ""
+	pd.problem.WhyNow = ""
+	pd.problem.UnlockImpact = ""
+	pd.Update(tea.WindowSizeMsg{Width: 96, Height: 28})
+
+	view := pd.View()
+	assert.Contains(t, view, "brief-line-00")
+	assert.NotContains(t, view, "brief-line-09")
+	assert.Contains(t, view, "scroll")
+
+	pd.Update(tea.KeyMsg{Type: tea.KeyDown})
+	view = pd.View()
+	assert.Contains(t, view, "brief-line-01")
+	assert.Contains(t, view, "scroll 2/")
 }
 
 func TestProblemDetail_NoThemeCycleShortcut(t *testing.T) {

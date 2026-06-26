@@ -107,8 +107,8 @@ func TestStageDetail_ViewShowsBlockers(t *testing.T) {
 	sd.width = 120
 
 	view := sd.View()
-	assert.Contains(t, view, "blocked by")
 	assert.Contains(t, view, "LOCKED")
+	assert.NotContains(t, view, "blocked by")
 }
 
 func TestStageDetail_ViewShowsAvailable(t *testing.T) {

@@ -1,113 +1,168 @@
 # leetgo
 
-A gamified CLI engine for structured LeetCode practice. Generates a DAG-based roadmap, manages problem files and tests, tracks progress with XP/levels/streaks, and surfaces weaknesses — all from the terminal.
+Leetgo is a local-first Go CLI/TUI for structured LeetCode practice. It gives you a curated DAG roadmap, generates problem workspaces and tests, tracks progress in SQLite, awards XP, and keeps the next useful action visible from the terminal.
+
+## Status
+
+`v0.1.0` is the first public release candidate. The core local practice loop is ready: onboarding, roadmap navigation, problem generation, local test runs, manual solves, progress tracking, and browser-assisted LeetCode Session setup.
 
 ## Install
+
+### Go install
+
+```bash
+go install github.com/prettyletto/leetgo/cmd/leetgo@v0.1.0
+```
+
+For the latest commit on the default branch:
 
 ```bash
 go install github.com/prettyletto/leetgo/cmd/leetgo@latest
 ```
 
-Or build from source:
+### Build from source
 
 ```bash
-git clone https://github.com/prettyletto/leetgo
+git clone https://github.com/prettyletto/leetgo.git
 cd leetgo
 go build -o leetgo ./cmd/leetgo
+./leetgo
 ```
+
+## Requirements
+
+- Go 1.26 or newer.
+- A terminal with at least `60x18` cells for the TUI.
+- Optional: Chrome, Chromium, Brave, Edge, or Vivaldi for `leetgo auth`.
+- Optional: language toolchains for generated problem tests, depending on your configured language.
 
 ## Quick Start
 
 ```bash
-leetgo init          # Create config at ~/.leetgo/config.toml
-leetgo               # Launch the TUI
+leetgo init
+leetgo
 ```
 
-## Usage
+The first TUI launch walks you through onboarding: display name, workspace path, language, roadmap, theme, and optional LeetCode Session setup.
 
-### TUI
+Default local paths:
 
+```text
+~/.leetgo/config.toml
+~/.leetgo/leetgo.db
+~/leetgo-workspace/
 ```
-leetgo               # Launch interactive roadmap
-leetgo start         # Same as above
-```
 
-**Keybindings:**
+## TUI Workflow
+
+Leetgo opens on a dashboard with your next recommended action. From there:
+
+- Open the roadmap to see stages, locked gates, solved Problems, and upcoming blockers.
+- Open a Problem Detail screen for the brief, prerequisites, unlock impact, workspace files, and progress actions.
+- Start a Problem to generate a Stub and TestSuite in your workspace.
+- Run local tests, submit to LeetCode, or mark a manual solve when needed.
+
+Common keys:
 
 | Key | Action |
-|-----|--------|
-| `j`/`k` or arrows | Navigate problem list |
-| `enter` | Start problem (generates files + opens editor) |
-| `m` | Mark problem as solved (awards XP) |
-| `s` | Submit solution to LeetCode |
-| `g` | Toggle graph view (DAG visualization) |
-| `h` | Toggle heatmap view (streak calendar) |
-| `/` | Filter/search problems |
+| --- | --- |
+| `j` / `k`, arrows | Move focus |
+| `enter` | Primary action |
+| `r` | Open roadmap from dashboard |
+| `l` | Open/close legacy list mode |
+| `h` / `l`, `<` / `>` | Switch roadmap groups where available |
+| `x` | Run local TestSuite on Problem Detail |
+| `s` | Submit on Problem Detail |
+| `m` | Mark manual solve on Problem Detail |
+| `esc` / `backspace` | Go back |
 | `q` | Quit |
 
-### CLI Commands
+## CLI Commands
 
 ```bash
-leetgo auth          # Connect LeetCode Session through Chrome/Chromium
-leetgo export        # Export progress to JSON (~/.leetgo/exports/)
-leetgo import <file> # Import progress from JSON
-leetgo status        # Show progress summary
+leetgo                         # Launch TUI
+leetgo start                   # Launch TUI
+leetgo init                    # Write default config
+leetgo auth                    # Browser-assisted LeetCode Session setup
+leetgo status                  # Print progress summary
+leetgo next                    # Print next recommended action
+leetgo info <id-or-slug>       # Show Problem metadata
+leetgo test <id-or-slug>       # Run generated local tests
+leetgo submit <id-or-slug>     # Submit current Stub to LeetCode
+leetgo solve <id-or-slug>      # Record a manual solve
+leetgo solve-log               # Print practice history
+leetgo roadmap list            # List bundled roadmaps
+leetgo config                  # Print config
+leetgo export                  # Export local data to JSON
+leetgo import <file>           # Import exported JSON
+leetgo git-export <repo>       # Export portable progress files to a Git repo
 ```
 
 ## Configuration
 
-Config lives at `~/.leetgo/config.toml`:
+Config is stored as TOML at `~/.leetgo/config.toml`.
+
+Useful fields:
 
 ```toml
-workspace = "~/leetgo-workspace"  # Where problem files are generated
-editor = "nvim"                   # Editor command (or set $VISUAL/$EDITOR)
-language = "go"                   # go, python, typescript, java
+display_name = "Ada"
+workspace = "~/leetgo-workspace"
+language = "go"
+roadmap = "from-zero-to-hero"
+theme = "rpg-skill-tree"
+editor = "nvim"
 ```
 
-## How It Works
+Editor resolution order is `editor`, then `$VISUAL`, then `$EDITOR`.
 
-1. **Roadmap**: 132 curated problems across 16 categories form a DAG with prerequisite edges. Solving "Two Sum" unlocks "3Sum", etc.
-2. **Start**: Press Enter on an available problem. Leetgo generates a stub file and test file in your workspace, then opens them in your editor.
-3. **Solve**: Write your solution, run the tests locally, then press `m` to mark it solved. XP is awarded based on difficulty.
-4. **Submit**: Press `s` to submit your solution to LeetCode's judge (requires `leetgo auth` first; Linux/Windows need Chrome or another Chromium-based browser).
-5. **Track**: Watch your XP bar grow, maintain streaks, unlock achievements, and review weakness analytics.
+Supported generator languages in this release include Go, Python, TypeScript, JavaScript, Java, C++, Rust, and C#.
 
-## Architecture
+## Data And Privacy
 
-```
-cmd/leetgo/          — CLI entry point
-internal/
-  roadmap/           — DAG types, topological sort, unlock logic
-  catalog/           — Embedded YAML problem graph (132 problems)
-  generator/         — Stub + test file generation (Go, Python, TS, Java)
-  workspace/         — File system management
-  store/             — SQLite persistence (progress, XP, streaks)
-  leetcode/          — Session setup + submission client
-  tui/               — Bubbletea TUI (list, graph, heatmap views)
-  gamification/      — XP, levels, achievements
-  analytics/         — Weakness detection, category stats
-  config/            — TOML configuration
-```
+Leetgo is local-first. Progress, XP, attempts, review cycles, and LeetCode Session credentials are stored under `~/.leetgo/`.
 
-## Data
-
-All data stored locally at `~/.leetgo/`:
-
-```
+```text
 ~/.leetgo/
-  config.toml        # Configuration
-  leetgo.db          # SQLite database
-  session.json       # LeetCode Session credentials
-  browser-profile/   # Browser profile used by `leetgo auth`
-  exports/           # JSON export/import
+  config.toml
+  leetgo.db
+  session.json
+  exports/
 ```
+
+Do not commit `~/.leetgo/`, `session.json`, local database files, or generated workspace directories.
 
 ## LeetCode Session Setup
 
-`leetgo auth` opens Chrome or another Chromium-based browser, lets you log in to LeetCode normally, extracts the required Session cookies through Chrome DevTools Protocol, then closes the browser after a successful connection.
+`leetgo auth` launches a Chromium-based browser, lets you log in to LeetCode normally, reads the required cookies through the browser debugging protocol, and writes them to `~/.leetgo/session.json`.
 
-Supported initially: Chrome, Chromium, Brave, Edge, and Vivaldi on Linux and Windows. Firefox and Safari are not supported yet.
+There is no password storage and no OAuth flow. If auth fails, rerun `leetgo auth` and complete login in the opened browser window.
+
+## Development
+
+```bash
+go test ./...
+go vet ./...
+go build -o leetgo ./cmd/leetgo
+```
+
+Project layout:
+
+```text
+cmd/leetgo/          CLI entry point
+internal/catalog/    embedded roadmap catalog
+internal/config/     TOML config
+internal/generator/  stubs and tests per language
+internal/leetcode/   Session setup and submission client
+internal/roadmap/    DAG and prerequisite logic
+internal/store/      SQLite persistence
+internal/tui/        Bubbletea screens
+internal/workspace/  generated workspace management
+```
+
+## Release
+
+This repository uses semantic version tags. The first release is `v0.1.0`.
 
 ## License
 
-MIT
+MIT. See `LICENSE`.

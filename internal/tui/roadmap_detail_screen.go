@@ -21,6 +21,7 @@ type RoadmapDetailScreen struct {
 
 	focusIndex int
 	problems   []*roadmap.Problem
+	groupMode  roadmapGroupMode
 
 	progress     map[int]roadmap.Status
 	scrollOffset int
@@ -28,6 +29,13 @@ type RoadmapDetailScreen struct {
 	width  int
 	height int
 }
+
+type roadmapGroupMode int
+
+const (
+	roadmapGroupStages roadmapGroupMode = iota
+	roadmapGroupSolved
+)
 
 func NewRoadmapDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm *roadmap.Roadmap) *RoadmapDetailScreen {
 	progress, _ := db.GetAllProgress(context.Background())
@@ -78,8 +86,7 @@ func (s *RoadmapDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			}
 
 		case "enter":
-			if s.focusIndex < len(s.problems) {
-				p := s.problems[s.focusIndex]
+			if p := s.focusedProblem(); p != nil {
 				if s.effectiveStatus(p) == roadmap.StatusLocked {
 					missing := s.missingPrerequisites(p)
 					if len(missing) > 0 {
@@ -101,6 +108,12 @@ func (s *RoadmapDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "k", "up":
 			s.moveFocus(-1)
+
+		case "h", "left", "<":
+			s.cycleGroup(-1)
+
+		case "l", "right", ">":
+			s.cycleGroup(1)
 
 		case "ctrl+d":
 			s.scrollOffset += s.bodyHeight() / 2
@@ -140,9 +153,12 @@ func (s *RoadmapDetailScreen) renderHeader() string {
 
 func (s *RoadmapDetailScreen) renderListView() string {
 	solvedCount := s.buildStageSolvedCount()
-	stagesContent, problemLineMap, _ := s.buildStagesContent(solvedCount)
+	stagesContent, problemLineMap, _ := s.buildActiveGroupContent(solvedCount)
 
 	_, stagePrefix, _ := themeRoadmapLabels(s.theme)
+	if s.groupMode == roadmapGroupSolved {
+		stagePrefix = "Problem"
+	}
 	avail := s.bodyHeight()
 	leftWidth, rightWidth := s.listPaneWidths()
 
@@ -191,7 +207,10 @@ func (s *RoadmapDetailScreen) renderListView() string {
 	if indicator != "" {
 		stagesText = indicator + "\n" + stagesText
 	}
-	stagesPanel := renderRoadmapPanel(s.theme, "Stage Progress", strings.TrimSpace(stagesText), false, leftWidth)
+	if tabs := s.renderGroupTabs(); tabs != "" {
+		stagesText = tabs + "\n\n" + stagesText
+	}
+	stagesPanel := renderRoadmapPanel(s.theme, s.activeGroupPanelTitle(), strings.TrimSpace(stagesText), false, leftWidth)
 
 	if s.width >= 110 {
 		left := lipgloss.NewStyle().Width(leftWidth).Render(stagesPanel)
@@ -390,6 +409,39 @@ func (s *RoadmapDetailScreen) buildStagesContent(solvedCount map[string]int) ([]
 	return lines, problemLineMap, problemFirstLine
 }
 
+func (s *RoadmapDetailScreen) buildActiveGroupContent(solvedCount map[string]int) ([]string, map[int]int, map[int]bool) {
+	if s.groupMode == roadmapGroupSolved {
+		return s.buildSolvedContent()
+	}
+	return s.buildStagesContent(solvedCount)
+}
+
+func (s *RoadmapDetailScreen) buildSolvedContent() ([]string, map[int]int, map[int]bool) {
+	var lines []string
+	problemLineMap := make(map[int]int)
+	problemFirstLine := make(map[int]bool)
+	solved := s.activeProblems()
+
+	lines = append(lines, s.theme.Key.Render(fmt.Sprintf("Solved  %d Problems", len(solved))))
+	if len(solved) == 0 {
+		lines = append(lines, lipgloss.NewStyle().Foreground(s.theme.Muted).Render("No solved Problems yet."))
+		return lines, problemLineMap, problemFirstLine
+	}
+
+	for _, p := range solved {
+		first := true
+		for _, line := range s.renderProblemLines(p) {
+			if first {
+				problemLineMap[len(lines)] = p.ID
+				problemFirstLine[len(lines)] = true
+				first = false
+			}
+			lines = append(lines, line)
+		}
+	}
+	return lines, problemLineMap, problemFirstLine
+}
+
 func (s *RoadmapDetailScreen) renderUpcomingPanel(comingSoon []comingSoonItem, lockedLabel string, panelWidth int) string {
 	width := panelBodyWidth(panelWidth)
 	var upcomingLines []string
@@ -413,7 +465,7 @@ func (s *RoadmapDetailScreen) renderUpcomingPanel(comingSoon []comingSoonItem, l
 }
 
 func (s *RoadmapDetailScreen) scrollToProblem(problemID int) {
-	content, problemLineMap, _ := s.buildStagesContent(s.buildStageSolvedCount())
+	content, problemLineMap, _ := s.buildActiveGroupContent(s.buildStageSolvedCount())
 	visible := s.stagesVisible()
 	lineIdx := -1
 	for i := range content {
@@ -459,33 +511,35 @@ func (s *RoadmapDetailScreen) problemVisibleInWindow(problemID int, content []st
 
 func (s *RoadmapDetailScreen) stagesVisible() int {
 	avail := s.bodyHeight()
-	stagesContent, _, _ := s.buildStagesContent(s.buildStageSolvedCount())
+	stagesContent, _, _ := s.buildActiveGroupContent(s.buildStageSolvedCount())
 	return s.stagesVisibleFromBudget(avail, stagesContent)
 }
 
 func (s *RoadmapDetailScreen) moveFocus(delta int) {
-	if len(s.problems) == 0 {
+	problems := s.activeProblems()
+	if len(problems) == 0 {
 		return
 	}
 	next := s.focusIndex + delta
 	if next < 0 {
 		next = 0
 	}
-	if next >= len(s.problems) {
-		next = len(s.problems) - 1
+	if next >= len(problems) {
+		next = len(problems) - 1
 	}
 	if next == s.focusIndex {
 		return
 	}
 	s.focusIndex = next
-	s.scrollToProblem(s.problems[s.focusIndex].ID)
+	s.scrollToProblem(problems[s.focusIndex].ID)
 }
 
 func (s *RoadmapDetailScreen) focusedProblem() *roadmap.Problem {
-	if s.focusIndex < 0 || s.focusIndex >= len(s.problems) {
+	problems := s.activeProblems()
+	if s.focusIndex < 0 || s.focusIndex >= len(problems) {
 		return nil
 	}
-	return s.problems[s.focusIndex]
+	return problems[s.focusIndex]
 }
 
 func (s *RoadmapDetailScreen) renderBlockedInfo(p *roadmap.Problem, panelWidth int) string {
@@ -541,6 +595,48 @@ func (s *RoadmapDetailScreen) renderSummaryPanel(solvedCount map[string]int, pan
 		lines = append(lines, "", fmt.Sprintf("Current Stage: %s", currentStage))
 	}
 	return renderRoadmapPanel(s.theme, "Overview", strings.Join(lines, "\n"), false, panelWidth)
+}
+
+func (s *RoadmapDetailScreen) cycleGroup(delta int) {
+	groups := []roadmapGroupMode{roadmapGroupStages, roadmapGroupSolved}
+	idx := 0
+	for i, group := range groups {
+		if group == s.groupMode {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(groups)
+	if idx < 0 {
+		idx += len(groups)
+	}
+	if s.groupMode == groups[idx] {
+		return
+	}
+	s.groupMode = groups[idx]
+	s.focusIndex = 0
+	s.scrollOffset = 0
+}
+
+func (s *RoadmapDetailScreen) renderGroupTabs() string {
+	return strings.Join([]string{
+		s.renderGroupTab(roadmapGroupStages, "Stages"),
+		s.renderGroupTab(roadmapGroupSolved, "Solved"),
+	}, "  ")
+}
+
+func (s *RoadmapDetailScreen) renderGroupTab(group roadmapGroupMode, label string) string {
+	if s.groupMode == group {
+		return s.theme.Key.Render("[" + label + "]")
+	}
+	return lipgloss.NewStyle().Foreground(s.theme.Muted).Render(label)
+}
+
+func (s *RoadmapDetailScreen) activeGroupPanelTitle() string {
+	if s.groupMode == roadmapGroupSolved {
+		return "Solved Problems"
+	}
+	return "Stage Progress"
 }
 
 func (s *RoadmapDetailScreen) listPaneWidths() (int, int) {
@@ -638,6 +734,19 @@ func (s *RoadmapDetailScreen) groupProblemsByStage() map[string][]*roadmap.Probl
 		groups[stage] = append(groups[stage], p)
 	}
 	return groups
+}
+
+func (s *RoadmapDetailScreen) activeProblems() []*roadmap.Problem {
+	if s.groupMode != roadmapGroupSolved {
+		return s.problems
+	}
+	solved := make([]*roadmap.Problem, 0)
+	for _, p := range s.problems {
+		if s.effectiveStatus(p) == roadmap.StatusSolved {
+			solved = append(solved, p)
+		}
+	}
+	return solved
 }
 
 func (s *RoadmapDetailScreen) problemsInStageOrder(problems []*roadmap.Problem) []*roadmap.Problem {
@@ -812,6 +921,7 @@ func (s *RoadmapDetailScreen) renderMiniBar(percentage float64) string {
 func (s *RoadmapDetailScreen) renderFooter() string {
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
+		s.theme.Key.Render("h/l") + " group",
 		s.theme.Key.Render("enter") + " problem",
 		s.theme.Key.Render("esc") + " dashboard",
 		s.theme.Key.Render("q") + " quit",

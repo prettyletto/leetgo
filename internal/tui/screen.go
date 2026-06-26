@@ -9,9 +9,11 @@ type Screen interface {
 }
 
 type NavigateMsg struct {
-	ScreenID  string
-	Stage     string
-	ProblemID int
+	ScreenID     string
+	Stage        string
+	ProblemID    int
+	ReturnScreen string
+	ReturnStage  string
 }
 
 type GlobalNotificationMsg struct {

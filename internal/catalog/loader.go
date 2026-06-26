@@ -260,6 +260,9 @@ func validateRawCatalog(raw rawCatalog) error {
 		if len(stageIDs) > 0 && problem.Stage != "" && !stageIDs[problem.Stage] {
 			return fmt.Errorf("problem %d references unknown stage %q", problem.ID, problem.Stage)
 		}
+		if len(stageIDs) > 0 && problem.Stage == "" && problem.Category != "" && !stageIDs[problem.Category] {
+			return fmt.Errorf("problem %d has no stage but category %q does not match any known stage ID; add an explicit stage field or rename the category", problem.ID, problem.Category)
+		}
 	}
 	return nil
 }

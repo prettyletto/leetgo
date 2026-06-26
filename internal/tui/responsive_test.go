@@ -70,7 +70,7 @@ func TestDashboardSplitPaneWidthUsesFullStackedCards(t *testing.T) {
 	shellWidth := dash.width - 10
 	mainWidth := shellWidth
 	sidebarWidth := 42
-	if dash.width >= 120 {
+	if dash.width >= 118 {
 		mainWidth = shellWidth - sidebarWidth - 2
 	} else if dash.width >= 78 {
 		sidebarWidth = mainWidth
@@ -107,5 +107,68 @@ func TestDashboardShortSplitPaneFitsHeight(t *testing.T) {
 	assert.LessOrEqual(t, renderedLineCount(view), 28)
 	assert.Contains(t, view, "Up next")
 	assert.Contains(t, view, "Profile")
-	assert.Contains(t, view, "Roadmap")
+	assert.NotContains(t, view, "Current Stage:")
+}
+
+func TestDashboardWidth118_UsesHorizontalLayout(t *testing.T) {
+	dashboard, _ := newTestDashboard(t)
+	updated, _ := dashboard.Update(tea.WindowSizeMsg{Width: 118, Height: 35})
+	require.NotNil(t, updated)
+	dash := updated.(*DashboardScreen)
+
+	view := dash.View()
+	assertResponsiveWidth(t, view, 118)
+
+	mainWidth := dash.width - 10 - 42 - 2
+	center := dash.renderCenter(mainWidth)
+	sidebar := dash.renderSidebar(42)
+
+	assert.LessOrEqual(t, maxRenderedLineWidth(center), mainWidth)
+	assert.LessOrEqual(t, maxRenderedLineWidth(sidebar), 42)
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Profile")
+}
+
+func TestDashboardWidth119_UsesHorizontalLayout(t *testing.T) {
+	dashboard, _ := newTestDashboard(t)
+	updated, _ := dashboard.Update(tea.WindowSizeMsg{Width: 119, Height: 35})
+	require.NotNil(t, updated)
+	dash := updated.(*DashboardScreen)
+
+	view := dash.View()
+	assertResponsiveWidth(t, view, 119)
+
+	mainWidth := dash.width - 10 - 42 - 2
+	center := dash.renderCenter(mainWidth)
+	sidebar := dash.renderSidebar(42)
+
+	assert.LessOrEqual(t, maxRenderedLineWidth(center), mainWidth)
+	assert.LessOrEqual(t, maxRenderedLineWidth(sidebar), 42)
+	assert.Contains(t, view, "Recommended")
+	assert.Contains(t, view, "Profile")
+}
+
+func TestDashboardMediumWidth_HidesRoadmapContext(t *testing.T) {
+	dashboard, _ := newTestDashboard(t)
+	updated, _ := dashboard.Update(tea.WindowSizeMsg{Width: 100, Height: 26})
+	require.NotNil(t, updated)
+	dash := updated.(*DashboardScreen)
+
+	sidebar := dash.renderSidebar(dash.width - 10)
+
+	assert.Contains(t, sidebar, "Profile")
+	assert.Contains(t, sidebar, "Streak:")
+	assert.NotContains(t, sidebar, "Current Stage:")
+}
+
+func TestDashboardWideWidth_ShowsRoadmapContext(t *testing.T) {
+	dashboard, _ := newTestDashboard(t)
+	updated, _ := dashboard.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
+	require.NotNil(t, updated)
+	dash := updated.(*DashboardScreen)
+
+	sidebar := dash.renderSidebar(42)
+
+	assert.Contains(t, sidebar, "Profile")
+	assert.Contains(t, sidebar, "Current Stage:")
 }

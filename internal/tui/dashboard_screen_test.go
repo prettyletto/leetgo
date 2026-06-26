@@ -255,7 +255,7 @@ func TestDashboard_FocusedActionShowsCursor(t *testing.T) {
 
 	view := d.View()
 	assert.Contains(t, view, "Recommended")
-	assert.Contains(t, view, "Kth Largest Element in a Stream")
+	assert.Contains(t, view, "Two Sum")
 }
 
 func TestDashboard_EnterOnSubmitAction(t *testing.T) {

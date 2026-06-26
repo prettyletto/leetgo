@@ -138,12 +138,46 @@ func TestRoadmapDetail_ViewShowsSolvedCount(t *testing.T) {
 	assert.Contains(t, view, "/")
 }
 
+func TestRoadmapDetail_GroupTabsSwitchToSolved(t *testing.T) {
+	rd, db := newTestRoadmapDetail(t)
+	ctx := context.Background()
+	require.NoError(t, db.SetProgress(ctx, 1, roadmap.StatusSolved))
+	progress, err := db.GetAllProgress(ctx)
+	require.NoError(t, err)
+	rd.progress = progress
+	rd.width = 120
+	rd.height = 40
+
+	view := rd.View()
+	assert.Contains(t, view, "[Stages]")
+	assert.Contains(t, view, "Solved")
+	assert.Contains(t, view, "Contains Duplicate")
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	view = rd.View()
+	assert.Contains(t, view, "[Solved]")
+	assert.Contains(t, view, "Solved Problems")
+	assert.Contains(t, view, "Two Sum")
+	assert.NotContains(t, view, "Contains Duplicate")
+}
+
+func TestRoadmapDetail_GroupTabsSwitchWithAngles(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")})
+	assert.Equal(t, roadmapGroupSolved, rd.groupMode)
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("<")})
+	assert.Equal(t, roadmapGroupStages, rd.groupMode)
+}
+
 func TestRoadmapDetail_ViewHasFooter(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 120
 
 	view := rd.View()
 	assert.Contains(t, view, "j/k")
+	assert.Contains(t, view, "h/l")
 	assert.Contains(t, view, "enter")
 	assert.NotContains(t, view, "graph")
 	assert.Contains(t, view, "esc")

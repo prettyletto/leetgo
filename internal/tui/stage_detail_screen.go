@@ -14,11 +14,13 @@ import (
 )
 
 type StageDetailScreen struct {
-	cfg     *config.Config
-	theme   *Theme
-	db      store.Store
-	roadmap *roadmap.Roadmap
-	stageID string
+	cfg          *config.Config
+	theme        *Theme
+	db           store.Store
+	roadmap      *roadmap.Roadmap
+	stageID      string
+	returnScreen string
+	returnStage  string
 
 	focusIndex int
 	problems   []*roadmap.Problem
@@ -35,12 +37,13 @@ func NewStageDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm *
 	}
 
 	s := &StageDetailScreen{
-		cfg:      cfg,
-		theme:    theme,
-		db:       db,
-		roadmap:  rm,
-		stageID:  stageID,
-		progress: progress,
+		cfg:          cfg,
+		theme:        theme,
+		db:           db,
+		roadmap:      rm,
+		stageID:      stageID,
+		returnScreen: ScreenRoadmapDetail,
+		progress:     progress,
 	}
 
 	sorted, err := rm.Graph.TopologicalSort()
@@ -82,14 +85,14 @@ func (s *StageDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "esc", "backspace":
 			return s, func() tea.Msg {
-				return NavigateMsg{ScreenID: ScreenRoadmapDetail}
+				return s.backNavigationMsg()
 			}
 
 		case "enter":
 			if s.focusIndex < len(s.problems) {
 				p := s.problems[s.focusIndex]
 				return s, func() tea.Msg {
-					return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: p.ID}
+					return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: p.ID, ReturnScreen: s.returnScreen, ReturnStage: s.returnStage}
 				}
 			}
 			return s, nil
@@ -110,6 +113,14 @@ func (s *StageDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		}
 	}
 	return s, nil
+}
+
+func (s *StageDetailScreen) backNavigationMsg() tea.Msg {
+	returnScreen := s.returnScreen
+	if returnScreen == "" {
+		returnScreen = ScreenRoadmapDetail
+	}
+	return NavigateMsg{ScreenID: returnScreen, Stage: s.returnStage}
 }
 
 func (s *StageDetailScreen) View() string {
@@ -150,7 +161,7 @@ func (s *StageDetailScreen) View() string {
 			Foreground(s.theme.Muted).
 			Render("  No problems in this stage."))
 	}
-	problems := renderThemedPanel(s.theme, "Problems", strings.Join(problemLines, "\n"), false)
+	problems := renderRoadmapPanel(s.theme, "Stage Progress", strings.Join(problemLines, "\n"), false, s.stagePanelWidth())
 
 	reviewLines := s.renderReviewShrine(reviewLabel)
 	parts := []string{summary, problems}
@@ -229,26 +240,17 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, 
 	status := s.effectiveStatus(p)
 	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 	marker := renderStatusPill(s.theme, symbols, status)
-
-	label := fmt.Sprintf("#%d %s · %s", p.ID, p.Title, p.Difficulty)
-	labelStyle := lipgloss.NewStyle()
-
-	if focused {
-		labelStyle = lipgloss.NewStyle().Bold(true)
+	prefix := marker + " "
+	label := fmt.Sprintf("#%d %s", p.ID, p.Title)
+	wrapWidth := s.stageProblemTextWidth() - lipgloss.Width(prefix)
+	if wrapWidth < 20 {
+		wrapWidth = 20
 	}
-
-	if status == roadmap.StatusInProgress {
-		labelStyle = lipgloss.NewStyle().
-			Foreground(s.theme.Warning).
-			Bold(true)
+	wrapped := strings.Split(wrapText(label, wrapWidth), "\n")
+	line := prefix
+	if len(wrapped) > 0 {
+		line += wrapped[0]
 	}
-
-	if status == roadmap.StatusAvailable && !focused {
-		labelStyle = lipgloss.NewStyle().
-			Foreground(s.theme.PrimaryAccent)
-	}
-
-	line := fmt.Sprintf("%s %s", marker, labelStyle.Render(label))
 
 	if isRecommended && status == roadmap.StatusAvailable {
 		line += "  " + lipgloss.NewStyle().
@@ -256,16 +258,36 @@ func (s *StageDetailScreen) renderProblemLine(p *roadmap.Problem, focused bool, 
 			Render("["+recommendedLabel+"]")
 	}
 
-	if status == roadmap.StatusLocked {
-		blocked := s.missingPrerequisites(p)
-		if len(blocked) > 0 {
-			line += "  " + lipgloss.NewStyle().
-				Foreground(s.theme.Muted).
-				Render("Locked Gate: "+strings.Join(blocked, ", ")+" (blocked by "+strings.Join(blocked, ", ")+")")
-		}
+	lines := []string{line}
+	indent := strings.Repeat(" ", lipgloss.Width(prefix))
+	for _, wrappedLine := range wrapped[1:] {
+		lines = append(lines, indent+wrappedLine)
 	}
 
-	return renderSelectableBlock(s.theme, focused, line)
+	return renderSelectableBlock(s.theme, focused, strings.Join(lines, "\n"))
+}
+
+func (s *StageDetailScreen) stagePanelWidth() int {
+	width := responsiveShellContentWidth(s.width)
+	if width <= 0 {
+		return 96
+	}
+	width -= 4
+	if width < 40 {
+		return 40
+	}
+	return width
+}
+
+func (s *StageDetailScreen) stageProblemTextWidth() int {
+	w := s.stagePanelWidth() - 8
+	if w < 40 {
+		w = 40
+	}
+	if w > 72 {
+		w = 72
+	}
+	return w
 }
 
 func (s *StageDetailScreen) effectiveStatus(p *roadmap.Problem) roadmap.Status {

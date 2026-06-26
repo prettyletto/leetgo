@@ -71,25 +71,17 @@ func renderStatus(s roadmap.Status, theme *Theme) string {
 	}
 }
 
-func renderDifficulty(d roadmap.Difficulty, theme *Theme) string {
+func renderDifficulty(d roadmap.Difficulty, _ *Theme) string {
 	diffStyle := lipgloss.NewStyle().Width(8)
-	if theme == nil {
-		theme = &Theme{
-			Success: lipgloss.Color("82"),
-			Warning: lipgloss.Color("214"),
-			Danger:  lipgloss.Color("196"),
-			Muted:   lipgloss.Color("243"),
-		}
-	}
 	switch d {
 	case roadmap.DifficultyEasy:
-		return diffStyle.Foreground(theme.Success).Render("Easy")
+		return diffStyle.Render("Easy")
 	case roadmap.DifficultyMedium:
-		return diffStyle.Foreground(theme.Warning).Render("Medium")
+		return diffStyle.Render("Medium")
 	case roadmap.DifficultyHard:
-		return diffStyle.Foreground(theme.Danger).Render("Hard")
+		return diffStyle.Render("Hard")
 	default:
-		return diffStyle.Foreground(theme.Muted).Render("???")
+		return diffStyle.Render("???")
 	}
 }
 

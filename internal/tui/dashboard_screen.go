@@ -296,7 +296,7 @@ func (s *DashboardScreen) View() string {
 	if compactHeight && s.width >= 90 {
 		sidebarWidth = 34
 		mainWidth = shellWidth - sidebarWidth - 2
-	} else if s.width >= 120 {
+	} else if s.width >= 118 {
 		mainWidth = shellWidth - sidebarWidth - 2
 	} else if s.width >= 78 {
 		sidebarWidth = mainWidth
@@ -655,6 +655,9 @@ func (s *DashboardScreen) renderAlsoAvailable(width int) string {
 
 	rest := s.actions[1:]
 	maxShow := 4
+	if s.height > 0 && s.height < 30 && s.width < 118 {
+		maxShow = 2
+	}
 	if len(rest) > maxShow {
 		rest = rest[:maxShow]
 	}
@@ -675,13 +678,7 @@ func (s *DashboardScreen) renderAlsoAvailable(width int) string {
 
 		label := formatActionLabel(action.Kind)
 		lineText := wrapText(fmt.Sprintf("%s  (%s)", action.Title, label), width-8)
-		line := style.Render(lineText)
-		block := line
-		if focused {
-			reasonLine := lipgloss.NewStyle().Foreground(s.theme.SelectionFg).Render(wrapText(action.Reason, width-10))
-			block += "\n" + reasonLine
-		}
-		lines = append(lines, renderSelectableBlock(s.theme, focused, block))
+		lines = append(lines, renderSelectableBlock(s.theme, focused, style.Render(lineText)))
 	}
 
 	return renderRoadmapPanel(s.theme, "Up next", strings.Join(lines, "\n"), false, width)
@@ -706,7 +703,7 @@ func (s *DashboardScreen) renderCompactAlsoAvailable(width int) string {
 
 func (s *DashboardScreen) renderSidebar(width int) string {
 	sections := []string{s.renderHUDWithWidth(width)}
-	if s.width >= 78 {
+	if s.width >= 118 {
 		sections = append(sections, s.renderRoadmapContextWithWidth(width))
 	}
 	return strings.Join(sections, "\n\n")
@@ -714,7 +711,7 @@ func (s *DashboardScreen) renderSidebar(width int) string {
 
 func (s *DashboardScreen) renderCompactSidebar(width int) string {
 	sections := []string{s.renderCompactHUD(width)}
-	if s.width >= 78 {
+	if s.width >= 118 {
 		sections = append(sections, s.renderCompactRoadmapContext(width))
 	}
 	return strings.Join(sections, "\n")

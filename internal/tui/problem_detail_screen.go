@@ -48,7 +48,18 @@ type ProblemDetailScreen struct {
 
 	width  int
 	height int
+
+	returnScreen string
+	returnStage  string
+
+	detailTab    int
+	detailScroll int
 }
+
+const (
+	problemDetailTabContext = iota
+	problemDetailTabProgression
+)
 
 type spinnerTickMsg time.Time
 
@@ -59,11 +70,12 @@ func NewProblemDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm
 	}
 
 	s := &ProblemDetailScreen{
-		cfg:     cfg,
-		theme:   theme,
-		db:      db,
-		roadmap: rm,
-		problem: p,
+		cfg:          cfg,
+		theme:        theme,
+		db:           db,
+		roadmap:      rm,
+		problem:      p,
+		returnScreen: ScreenStageDetail,
 	}
 
 	s.refresh()
@@ -148,6 +160,7 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
+		s.detailScroll = 0
 		return s, nil
 
 	case tea.KeyMsg:
@@ -163,7 +176,7 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "esc", "backspace":
 			return s, func() tea.Msg {
-				return NavigateMsg{ScreenID: ScreenStageDetail, Stage: s.problemStage()}
+				return s.backNavigationMsg()
 			}
 
 		case "enter":
@@ -181,9 +194,50 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "m":
 			return s.handleMarkSolved()
 
+		case "left", "h":
+			if s.canCycleContextProgression() {
+				s.detailTab = problemDetailTabContext
+				s.detailScroll = 0
+			}
+			return s, nil
+
+		case "right", "l":
+			if s.canCycleContextProgression() {
+				s.detailTab = problemDetailTabProgression
+				s.detailScroll = 0
+			}
+			return s, nil
+
+		case "up", "k":
+			if s.canScrollContextProgression() && s.detailScroll > 0 {
+				s.detailScroll--
+			}
+			return s, nil
+
+		case "down", "j":
+			if s.canScrollContextProgression() {
+				s.detailScroll++
+			}
+			return s, nil
+
 		}
 	}
 	return s, nil
+}
+
+func (s *ProblemDetailScreen) backNavigationMsg() tea.Msg {
+	returnScreen := s.returnScreen
+	if returnScreen == "" {
+		returnScreen = ScreenStageDetail
+	}
+	msg := NavigateMsg{ScreenID: returnScreen}
+	if returnScreen == ScreenStageDetail {
+		msg.Stage = s.returnStage
+		if msg.Stage == "" {
+			msg.Stage = s.problemStage()
+		}
+	}
+	return msg
 }
 
 func (s *ProblemDetailScreen) handlePrimaryAction() (Screen, tea.Cmd) {
@@ -1002,16 +1056,13 @@ func (s *ProblemDetailScreen) View() string {
 	}
 
 	screenLabel, briefLabel, filesLabel := themeProblemLabels(s.theme)
-	header := renderScreenHeader(s.theme, fmt.Sprintf("%s: #%d %s", screenLabel, s.problem.ID, s.problem.Title), fmt.Sprintf("Difficulty: %s  •  Category: %s  •  Stage: %s", s.problem.Difficulty, s.problem.Category, s.stageName()))
+	header := s.renderProblemDetailHeader(screenLabel)
 	if s.problem.ProblemTimeEstimate != "" {
 		header += "\n" + s.theme.Subtitle.Render("Time estimate: "+s.problem.ProblemTimeEstimate)
 	}
 
-	statusLabel := s.renderStatusDetail()
-	leftSections := []string{statusLabel}
+	statusLabel := s.renderStatusDetailBody()
 	var contextLines []string
-
-	contextLines = append(contextLines, s.renderProblemBriefBlock(briefLabel))
 
 	if len(s.problem.Prerequisites) == 0 {
 		contextLines = append(contextLines, "Requires: none")
@@ -1028,8 +1079,6 @@ func (s *ProblemDetailScreen) View() string {
 				Render("Blocked by: "+strings.Join(blocked, ", ")+". Clear a prerequisite to unlock this Problem."))
 		}
 	}
-	leftSections = append(leftSections, renderThemedPanel(s.theme, "Context", strings.Join(contextLines, "\n\n"), false))
-
 	var progressionLines []string
 	unlocks := s.directUnlocks()
 	if len(unlocks) > 0 {
@@ -1049,9 +1098,6 @@ func (s *ProblemDetailScreen) View() string {
 			progressionLines = append(progressionLines, fmt.Sprintf("  #%d %s", u.ID, u.Title))
 		}
 	}
-	if len(progressionLines) > 0 {
-		leftSections = append(leftSections, renderThemedPanel(s.theme, "Progression", strings.Join(progressionLines, "\n"), false))
-	}
 
 	var workspaceLines []string
 	if s.status != roadmap.StatusLocked {
@@ -1060,7 +1106,6 @@ func (s *ProblemDetailScreen) View() string {
 			fmt.Sprintf("Stub: %s", stubPath),
 			fmt.Sprintf("Test: %s", testPath),
 		)
-		leftSections = append(leftSections, renderThemedPanel(s.theme, filesLabel, strings.Join(workspaceLines, "\n"), false))
 	}
 
 	rightSections := []string{}
@@ -1076,7 +1121,7 @@ func (s *ProblemDetailScreen) View() string {
 			}
 			logLines = append(logLines, line)
 		}
-		rightSections = append(rightSections, renderThemedPanel(s.theme, "Practice Log", strings.Join(logLines, "\n"), false))
+		rightSections = append(rightSections, renderProblemDetailPanel(s.theme, "Practice Log", strings.Join(logLines, "\n"), false, s.problemDetailBodyWidth()))
 	}
 
 	statusLines := []string{}
@@ -1101,26 +1146,236 @@ func (s *ProblemDetailScreen) View() string {
 		statusLines = append(statusLines, style.Render(s.errorMsg))
 	}
 	if len(statusLines) > 0 {
-		rightSections = append(rightSections, renderThemedPanel(s.theme, "Status", strings.Join(statusLines, "\n"), false))
+		rightSections = append(rightSections, renderProblemDetailPanel(s.theme, "Status", strings.Join(statusLines, "\n"), false, s.problemDetailBodyWidth()))
 	}
 
 	footer := s.renderFooter()
-	left := strings.Join(leftSections, "\n\n")
-	right := strings.Join(rightSections, "\n\n")
-	body := left
-	if right != "" {
-		if s.width >= 110 {
-			leftWidth := maxInt(46, s.width-44)
-			body = lipgloss.JoinHorizontal(lipgloss.Top,
-				lipgloss.NewStyle().Width(leftWidth).Render(left),
-				"  ",
-				lipgloss.NewStyle().Width(34).Render(right),
-			)
-		} else {
-			body = left + "\n\n" + right
-		}
+	bodyWidth := s.problemDetailBodyWidth()
+	bodySections := []string{
+		renderProblemDetailPanel(s.theme, "Status", statusLabel, false, minProblemDetailInt(58, bodyWidth)),
+		s.renderContextProgressionRow(briefLabel, contextLines, progressionLines, bodyWidth),
 	}
+	if len(workspaceLines) > 0 {
+		bodySections = append(bodySections, renderProblemDetailPanel(s.theme, filesLabel, strings.Join(workspaceLines, "\n"), false, bodyWidth))
+	}
+	if len(rightSections) > 0 {
+		bodySections = append(bodySections, rightSections...)
+	}
+	body := strings.Join(bodySections, "\n\n")
 	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
+}
+
+func (s *ProblemDetailScreen) renderProblemDetailHeader(screenLabel string) string {
+	title := s.theme.Title.Render(fmt.Sprintf("%s: #%d %s", screenLabel, s.problem.ID, s.problem.Title))
+	subtitle := strings.Join([]string{
+		s.theme.Subtitle.Render("Difficulty: ") + renderProblemDetailDifficultyTag(s.theme, s.problem.Difficulty),
+		s.theme.Subtitle.Render("Category: " + string(s.problem.Category)),
+		s.theme.Subtitle.Render("Stage: " + s.stageName()),
+	}, s.theme.Subtitle.Render("  •  "))
+	return title + "\n" + subtitle
+}
+
+func (s *ProblemDetailScreen) renderContextProgressionRow(briefLabel string, contextLines, progressionLines []string, bodyWidth int) string {
+	activeHeight := s.activeDetailPanelBodyLines()
+	if len(progressionLines) == 0 {
+		return s.renderContextPanel(briefLabel, contextLines, bodyWidth, activeHeight, s.detailScroll)
+	}
+
+	progressionBody := strings.Join(progressionLines, "\n")
+	if bodyWidth >= 104 {
+		progressionWidth := 40
+		contextWidth := bodyWidth - progressionWidth - 2
+		return lipgloss.JoinHorizontal(lipgloss.Top,
+			s.renderContextPanel(briefLabel, contextLines, contextWidth, 0, 0),
+			"  ",
+			renderProblemDetailPanel(s.theme, "Progression", progressionBody, false, progressionWidth),
+		)
+	}
+
+	if s.detailTab == problemDetailTabProgression {
+		s.detailScroll = clampProblemDetailScroll(progressionBody, bodyWidth, activeHeight, s.detailScroll)
+		return renderProblemDetailPanelScrollable(s.theme, "Progression", progressionBody, false, bodyWidth, activeHeight, s.detailScroll)
+	}
+	return s.renderContextPanel(briefLabel, contextLines, bodyWidth, activeHeight, s.detailScroll)
+}
+
+func (s *ProblemDetailScreen) canCycleContextProgression() bool {
+	return s.problemDetailBodyWidth() < 104 && s.hasProgressionPanel()
+}
+
+func (s *ProblemDetailScreen) canScrollContextProgression() bool {
+	return s.problemDetailBodyWidth() < 104
+}
+
+func (s *ProblemDetailScreen) hasProgressionPanel() bool {
+	return len(s.directUnlocks()) > 0 || len(s.indirectUnlocks(2)) > 0
+}
+
+func (s *ProblemDetailScreen) renderContextPanel(briefLabel string, contextLines []string, width, maxBodyLines, scroll int) string {
+	parts := []string{s.renderProblemBriefBlock(briefLabel, panelBodyWidth(width))}
+	if len(contextLines) > 0 {
+		parts = append(parts, strings.Join(contextLines, "\n\n"))
+	}
+	body := strings.Join(parts, "\n\n")
+	s.detailScroll = clampProblemDetailScroll(body, width, maxBodyLines, scroll)
+	return renderProblemDetailPanelScrollable(s.theme, "Context", body, false, width, maxBodyLines, s.detailScroll)
+}
+
+func (s *ProblemDetailScreen) activeDetailPanelBodyLines() int {
+	if s.problemDetailBodyWidth() >= 104 || s.height <= 0 {
+		return 0
+	}
+	lines := s.height - 22
+	if lines < 6 {
+		return 6
+	}
+	if lines > 14 {
+		return 14
+	}
+	return lines
+}
+
+func (s *ProblemDetailScreen) problemDetailBodyWidth() int {
+	width := responsiveShellContentWidth(s.width)
+	if width <= 0 {
+		return 96
+	}
+	width -= 4
+	if width < 20 {
+		return 20
+	}
+	return width
+}
+
+func renderProblemDetailPanel(theme *Theme, title, body string, focused bool, width int) string {
+	return renderProblemDetailPanelScrollable(theme, title, body, focused, width, 0, 0)
+}
+
+func renderProblemDetailPanelScrollable(theme *Theme, title, body string, focused bool, width, maxBodyLines, scroll int) string {
+	innerWidth := panelBodyWidth(width)
+	lines := problemDetailPanelLines(body, innerWidth)
+	if maxBodyLines > 0 && len(lines) > maxBodyLines {
+		visibleLines := maxBodyLines - 1
+		if visibleLines < 1 {
+			visibleLines = 1
+		}
+		maxScroll := len(lines) - visibleLines
+		if scroll > maxScroll {
+			scroll = maxScroll
+		}
+		if scroll < 0 {
+			scroll = 0
+		}
+		lines = append(lines[scroll:scroll+visibleLines], problemDetailScrollIndicator(theme, scroll, maxScroll))
+	}
+
+	for i, line := range lines {
+		lines[i] = lipgloss.NewStyle().Width(innerWidth).Render(line)
+	}
+	return renderThemedPanel(theme, title, strings.Join(lines, "\n"), focused)
+}
+
+func clampProblemDetailScroll(body string, width, maxBodyLines, scroll int) int {
+	if maxBodyLines <= 0 {
+		return 0
+	}
+	visibleLines := maxBodyLines - 1
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+	lineCount := len(problemDetailPanelLines(body, panelBodyWidth(width)))
+	maxScroll := lineCount - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if scroll > maxScroll {
+		return maxScroll
+	}
+	if scroll < 0 {
+		return 0
+	}
+	return scroll
+}
+
+func problemDetailPanelLines(body string, width int) []string {
+	var lines []string
+	for _, line := range strings.Split(body, "\n") {
+		wrapped := wrapProblemDetailLine(line, width)
+		lines = append(lines, strings.Split(wrapped, "\n")...)
+	}
+	return lines
+}
+
+func problemDetailScrollIndicator(theme *Theme, scroll, maxScroll int) string {
+	position := fmt.Sprintf("%d/%d", scroll+1, maxScroll+1)
+	symbol := "↓"
+	if scroll > 0 && scroll < maxScroll {
+		symbol = "↑↓"
+	} else if scroll >= maxScroll {
+		symbol = "↑"
+	}
+	return lipgloss.NewStyle().Foreground(theme.Muted).Render(symbol + " scroll " + position)
+}
+
+func wrapProblemDetailLine(line string, width int) string {
+	if width <= 0 || lipgloss.Width(line) <= width {
+		return line
+	}
+
+	wrapped := wrapText(line, width)
+	if strings.Contains(wrapped, "\x1b") {
+		return wrapped
+	}
+
+	var lines []string
+	for _, part := range strings.Split(wrapped, "\n") {
+		for lipgloss.Width(part) > width {
+			cut := problemDetailWrapCut(part, width)
+			lines = append(lines, part[:cut])
+			part = part[cut:]
+		}
+		lines = append(lines, part)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func problemDetailWrapCut(text string, width int) int {
+	if width <= 0 {
+		return len(text)
+	}
+	currentWidth := 0
+	for idx, r := range text {
+		charWidth := lipgloss.Width(string(r))
+		if currentWidth+charWidth > width {
+			if idx == 0 {
+				return len(string(r))
+			}
+			return idx
+		}
+		currentWidth += charWidth
+	}
+	return len(text)
+}
+
+func minProblemDetailInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func renderProblemDetailDifficultyTag(theme *Theme, difficulty roadmap.Difficulty) string {
+	style := lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	switch difficulty {
+	case roadmap.DifficultyEasy:
+		return style.Foreground(theme.Success).Render("easy")
+	case roadmap.DifficultyMedium:
+		return style.Foreground(theme.Warning).Render("medium")
+	case roadmap.DifficultyHard:
+		return style.Foreground(theme.Danger).Render("hard")
+	default:
+		return style.Foreground(theme.Muted).Render(string(difficulty))
+	}
 }
 
 func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
@@ -1142,9 +1397,9 @@ func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
 	return strings.Join(lines, "\n")
 }
 
-func (s *ProblemDetailScreen) renderProblemBriefBlock(label string) string {
+func (s *ProblemDetailScreen) renderProblemBriefBlock(label string, width int) string {
 	if s.problem.Summary == "" && s.problem.PracticeFocus == "" {
-		return renderThemedPanel(s.theme, label, "No brief available yet.", false)
+		return renderProblemDetailPanel(s.theme, label, "No brief available yet.", false, width)
 	}
 	var lines []string
 	if s.problem.Summary != "" {
@@ -1159,7 +1414,7 @@ func (s *ProblemDetailScreen) renderProblemBriefBlock(label string) string {
 	if s.problem.UnlockImpact != "" {
 		lines = append(lines, fmt.Sprintf("Unlock Impact: %s", s.problem.UnlockImpact))
 	}
-	return renderThemedPanel(s.theme, label, strings.Join(lines, "\n"), false)
+	return renderProblemDetailPanel(s.theme, label, strings.Join(lines, "\n"), false, width)
 }
 
 func (s *ProblemDetailScreen) renderProblemBrief(lines *[]string, label string) {
@@ -1183,6 +1438,10 @@ func (s *ProblemDetailScreen) renderProblemBrief(lines *[]string, label string) 
 }
 
 func (s *ProblemDetailScreen) renderStatusDetail() string {
+	return renderThemedPanel(s.theme, "Status", s.renderStatusDetailBody(), false)
+}
+
+func (s *ProblemDetailScreen) renderStatusDetailBody() string {
 	symbols, _ := LookupSymbolSet(s.cfg.SymbolMode)
 	switch s.status {
 	case roadmap.StatusSolved:
@@ -1195,15 +1454,15 @@ func (s *ProblemDetailScreen) renderStatusDetail() string {
 				label = views.StatusPill("ACCEPTED SOLVE", s.theme.Success)
 			}
 		}
-		return renderThemedPanel(s.theme, "Status", label+"\nPractice Log and unlock impact are now the priority.", false)
+		return label + "\nPractice Log and unlock impact are now the priority."
 	case roadmap.StatusVerified:
-		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusVerified)+"\nPrimary: Submit to LeetCode. Secondary: Manual Solve if needed.", false)
+		return renderStatusPill(s.theme, symbols, roadmap.StatusVerified) + "\nPrimary: Submit to LeetCode. Secondary: Manual Solve if needed."
 	case roadmap.StatusInProgress:
-		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusInProgress)+"\nKeep file paths and TestSuite actions close.", false)
+		return renderStatusPill(s.theme, symbols, roadmap.StatusInProgress) + "\nKeep file paths and TestSuite actions close."
 	case roadmap.StatusAvailable:
-		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusAvailable)+"\nRead the Problem Brief, then start the Problem.", false)
+		return renderStatusPill(s.theme, symbols, roadmap.StatusAvailable) + "\nRead the Problem Brief, then start the Problem."
 	default:
-		return renderThemedPanel(s.theme, "Status", renderStatusPill(s.theme, symbols, roadmap.StatusLocked)+"\nClear the blocker before starting.", false)
+		return renderStatusPill(s.theme, symbols, roadmap.StatusLocked) + "\nClear the blocker before starting."
 	}
 }
 
@@ -1340,9 +1599,17 @@ func (s *ProblemDetailScreen) renderFooter() string {
 		s.theme.Key.Render("x") + " test",
 		s.theme.Key.Render("s") + " submit",
 		s.theme.Key.Render("m") + " solve",
-		s.theme.Key.Render("esc") + " back",
-		s.theme.Key.Render("q") + " quit",
 	}
+	if s.canCycleContextProgression() {
+		items = append(items, s.theme.Key.Render("left/right")+" context/progression")
+	}
+	if s.canScrollContextProgression() {
+		items = append(items, s.theme.Key.Render("up/down")+" scroll")
+	}
+	items = append(items,
+		s.theme.Key.Render("esc")+" back",
+		s.theme.Key.Render("q")+" quit",
+	)
 
 	return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  "))
 }

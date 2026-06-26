@@ -19,6 +19,15 @@ func (s *LegacyProblemListScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 	}
 
+	if key, ok := msg.(tea.KeyMsg); ok {
+		switch key.String() {
+		case "l", "esc", "backspace":
+			return s, func() tea.Msg {
+				return NavigateMsg{ScreenID: ScreenDashboard}
+			}
+		}
+	}
+
 	newModel, cmd := s.model.Update(msg)
 	if updated, ok := newModel.(*Model); ok {
 		s.model = updated

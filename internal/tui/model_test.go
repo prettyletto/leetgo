@@ -79,6 +79,15 @@ func TestRenderStatus_Verified(t *testing.T) {
 	assert.Contains(t, renderStatus(roadmap.StatusVerified, theme), "VERIFIED")
 }
 
+func TestRenderDifficulty_IsPlainOutsideProblemDetail(t *testing.T) {
+	theme, _ := LookupTheme("rpg-skill-tree")
+
+	rendered := renderDifficulty(roadmap.DifficultyMedium, theme)
+
+	assert.Contains(t, rendered, "Medium")
+	assert.NotContains(t, rendered, "\x1b[")
+}
+
 func TestStageFilter_CyclesAndClears(t *testing.T) {
 	m := newTestModel(t)
 	total := len(m.list.Items())

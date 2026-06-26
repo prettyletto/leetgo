@@ -189,6 +189,7 @@ func (m *RootModel) renderAmbientBorder(content string) string {
 
 func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 	m.reloadActiveRoadmap()
+	currentScreen := m.screen
 
 	switch msg.ScreenID {
 	case ScreenOnboarding:
@@ -215,11 +216,17 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 	case ScreenStageDetail:
 		m.refreshTheme()
 		m.screen = NewStageDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, msg.Stage)
+		if sd, ok := m.screen.(*StageDetailScreen); ok {
+			sd.returnScreen, sd.returnStage = stageDetailReturnTarget(msg, currentScreen)
+		}
 		m.applyCurrentSize()
 		return m, nil
 	case ScreenProblemDetail:
 		m.refreshTheme()
 		m.screen = NewProblemDetailScreen(m.cfg, m.theme, m.db, m.activeRoadmap, msg.ProblemID)
+		if pd, ok := m.screen.(*ProblemDetailScreen); ok {
+			pd.returnScreen, pd.returnStage = problemDetailReturnTarget(msg, currentScreen)
+		}
 		m.applyCurrentSize()
 		return m, nil
 	case ScreenSolveLog:
@@ -234,6 +241,45 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+func problemDetailReturnTarget(msg NavigateMsg, current Screen) (string, string) {
+	if msg.ReturnScreen != "" {
+		return msg.ReturnScreen, msg.ReturnStage
+	}
+
+	switch s := current.(type) {
+	case *DashboardScreen:
+		return ScreenDashboard, ""
+	case *StageDetailScreen:
+		if s.returnScreen != "" {
+			return s.returnScreen, s.returnStage
+		}
+		return ScreenRoadmapDetail, ""
+	case *RoadmapDetailScreen:
+		return ScreenRoadmapDetail, ""
+	case *SolveLogScreen:
+		return ScreenSolveLog, ""
+	case *ProblemDetailScreen:
+		return s.returnScreen, s.returnStage
+	default:
+		return ScreenDashboard, ""
+	}
+}
+
+func stageDetailReturnTarget(msg NavigateMsg, current Screen) (string, string) {
+	if msg.ReturnScreen != "" {
+		return msg.ReturnScreen, msg.ReturnStage
+	}
+
+	switch current.(type) {
+	case *DashboardScreen:
+		return ScreenDashboard, ""
+	case *RoadmapDetailScreen:
+		return ScreenRoadmapDetail, ""
+	default:
+		return ScreenRoadmapDetail, ""
+	}
 }
 
 func (m *RootModel) applyCurrentSize() {

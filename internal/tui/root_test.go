@@ -451,6 +451,110 @@ func TestRootModel_ScreenDelegation_LegacyListStartStop(t *testing.T) {
 	assert.Contains(t, root.View(), "Leetgo")
 }
 
+func TestRootModel_LegacyListLReturnsToDashboard(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(NavigateMsg{ScreenID: ScreenLegacyList})
+	root := updated.(*RootModel)
+	require.IsType(t, &LegacyProblemListScreen{}, root.screen)
+
+	updated, cmd := root.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	root = updated.(*RootModel)
+	require.NotNil(t, cmd)
+	updated, _ = root.Update(cmd())
+	root = updated.(*RootModel)
+
+	assert.IsType(t, &DashboardScreen{}, root.screen)
+}
+
+func TestRootModel_LegacyListEscReturnsToDashboard(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(NavigateMsg{ScreenID: ScreenLegacyList})
+	root := updated.(*RootModel)
+	require.IsType(t, &LegacyProblemListScreen{}, root.screen)
+
+	updated, cmd := root.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	root = updated.(*RootModel)
+	require.NotNil(t, cmd)
+	updated, _ = root.Update(cmd())
+	root = updated.(*RootModel)
+
+	assert.IsType(t, &DashboardScreen{}, root.screen)
+}
+
+func TestRootModel_ProblemDetailEscReturnsToDashboardWhenOpenedFromDashboard(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: 1})
+	root := updated.(*RootModel)
+	require.IsType(t, &ProblemDetailScreen{}, root.screen)
+
+	updated, cmd := root.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	root = updated.(*RootModel)
+	require.NotNil(t, cmd)
+	updated, _ = root.Update(cmd())
+	root = updated.(*RootModel)
+
+	assert.IsType(t, &DashboardScreen{}, root.screen)
+}
+
+func TestRootModel_ProblemDetailEscReturnsToRoadmapWhenOpenedThroughStage(t *testing.T) {
+	cfg := &config.Config{
+		OnboardingComplete: true,
+		DisplayName:        "Ada",
+		Workspace:          t.TempDir(),
+		Language:           "go",
+		Roadmap:            "from-zero-to-hero",
+		Theme:              "rpg-skill-tree",
+	}
+
+	m := newTestRootModel(t, cfg)
+	updated, _ := m.Update(NavigateMsg{ScreenID: ScreenRoadmapDetail})
+	root := updated.(*RootModel)
+	require.IsType(t, &RoadmapDetailScreen{}, root.screen)
+
+	updated, _ = root.Update(NavigateMsg{ScreenID: ScreenStageDetail, Stage: "arrays-hashing"})
+	root = updated.(*RootModel)
+	require.IsType(t, &StageDetailScreen{}, root.screen)
+
+	updated, _ = root.Update(NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: 1})
+	root = updated.(*RootModel)
+	require.IsType(t, &ProblemDetailScreen{}, root.screen)
+
+	updated, cmd := root.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	root = updated.(*RootModel)
+	require.NotNil(t, cmd)
+	updated, _ = root.Update(cmd())
+	root = updated.(*RootModel)
+
+	assert.IsType(t, &RoadmapDetailScreen{}, root.screen)
+}
+
 func TestRootModel_NavigateToUnknownScreen(t *testing.T) {
 	cfg := &config.Config{
 		OnboardingComplete: true,

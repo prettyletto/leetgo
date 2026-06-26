@@ -1,7 +1,32 @@
-leetgo
-lg
+# Local binaries
+/leetgo
+/lg
+/bin/
+/dist/
+
+# Go build/test artifacts
+*.test
+*.out
+coverage.txt
+coverage.out
+
+# Local data and generated workspace files
 *.db
 *.db-wal
 *.db-shm
-.env
 session.json
+.leetgo/
+leetgo-workspace/
+
+# Environment and editor files
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
