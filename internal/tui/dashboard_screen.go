@@ -28,6 +28,10 @@ type DashboardScreen struct {
 
 	comingSoon []comingSoonItem
 
+	languageMode  bool
+	languageIndex int
+	languages     []string
+
 	width  int
 	height int
 }
@@ -45,9 +49,14 @@ func NewDashboardScreen(cfg *config.Config, theme *Theme, db store.Store, rm *ro
 		db:         db,
 		roadmap:    rm,
 		focusIndex: 0,
+		languages:  supportedLanguages(),
 	}
 	s.refresh(context.Background())
 	return s
+}
+
+func supportedLanguages() []string {
+	return []string{"go", "python", "typescript", "javascript", "java", "cpp", "rust", "csharp"}
 }
 
 func (s *DashboardScreen) refresh(ctx context.Context) {
@@ -136,6 +145,9 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		if s.languageMode {
+			return s.handleLanguageKey(msg)
+		}
 		if delta, ok := dashboardFocusDelta(msg); ok {
 			s.moveFocus(delta)
 			return s, nil
@@ -144,6 +156,10 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		switch key {
 		case "q", "ctrl+c":
 			return s, tea.Quit
+
+		case "L":
+			s.enterLanguageMode()
+			return s, nil
 
 		case "l":
 			return s, func() tea.Msg {
@@ -281,6 +297,10 @@ func (s *DashboardScreen) View() string {
 		headerLines = append(headerLines, s.theme.Subtitle.Render(s.roadmap.Title+"  •  guided practice roadmap"))
 	}
 	header := strings.Join(headerLines, "\n")
+
+	if s.languageMode {
+		return s.renderLanguagePicker(header)
+	}
 
 	shellWidth := s.width - 10
 	if shellWidth > 120 {
@@ -738,14 +758,100 @@ func formatReasonType(rt recommendation.ReasonType) string {
 	}
 }
 
+func (s *DashboardScreen) enterLanguageMode() {
+	s.languageMode = true
+	for i, lang := range s.languages {
+		if lang == s.cfg.Language {
+			s.languageIndex = i
+			return
+		}
+	}
+	s.languageIndex = 0
+}
+
+func (s *DashboardScreen) handleLanguageKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		s.languageMode = false
+		return s, nil
+
+	case "esc", "backspace", "L":
+		s.languageMode = false
+		return s, nil
+
+	case "enter":
+		return s.selectLanguage()
+
+	case "j", "down":
+		if s.languageIndex < len(s.languages)-1 {
+			s.languageIndex++
+		}
+
+	case "k", "up":
+		if s.languageIndex > 0 {
+			s.languageIndex--
+		}
+	}
+	return s, nil
+}
+
+func (s *DashboardScreen) selectLanguage() (Screen, tea.Cmd) {
+	lang := s.languages[s.languageIndex]
+	if lang == s.cfg.Language {
+		s.languageMode = false
+		return s, nil
+	}
+	s.cfg.Language = lang
+	if err := s.cfg.Save(); err != nil {
+		s.languageMode = false
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to save language: %v", err)}
+		}
+	}
+	s.languageMode = false
+	return s, func() tea.Msg {
+		return GlobalNotificationMsg{Message: fmt.Sprintf("Language set to %s", lang)}
+	}
+}
+
+func (s *DashboardScreen) renderLanguagePicker(header string) string {
+	var lines []string
+	for i, lang := range s.languages {
+		marker := "  "
+		if lang == s.cfg.Language {
+			marker = "* "
+		}
+		line := marker + lang
+		if i == s.languageIndex {
+			line = "▎ " + line
+		}
+		lines = append(lines, line)
+	}
+	body := renderThemedPanel(s.theme, "Language", strings.Join(lines, "\n"), true)
+
+	marker := s.cfg.Language
+	subtitle := s.theme.Subtitle.Render("Current: " + marker)
+	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
+		s.theme.Key.Render("j/k") + " select",
+		s.theme.Key.Render("enter") + " confirm",
+		s.theme.Key.Render("esc") + " cancel",
+	}, "  "))
+
+	content := header + "\n\n" + body + "\n" + subtitle + "\n\n" + footer
+	if s.width <= 0 || s.height <= 0 {
+		return content
+	}
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, content)
+}
+
 func (s *DashboardScreen) renderFooter() string {
 	if s.width > 0 && s.width < 100 {
-		keys := map[string]string{"j/k": "nav", "enter": "open", "r": "roadmap", "s": "log", "l": "list", "q": "quit"}
-		order := []string{"j/k", "enter", "r", "s", "l", "q"}
+		keys := map[string]string{"j/k": "nav", "enter": "open", "r": "roadmap", "s": "log", "L": "lang", "l": "list", "q": "quit"}
+		order := []string{"j/k", "enter", "r", "s", "L", "l", "q"}
 		return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
 	}
-	keys := map[string]string{"up/down": "navigate", "j/k": "navigate", "enter": "open", "r": "roadmap", "s": "practice log", "l": "list", "q": "quit"}
-	order := []string{"up/down", "j/k", "enter", "r", "s", "l", "q"}
+	keys := map[string]string{"up/down": "navigate", "j/k": "navigate", "enter": "open", "r": "roadmap", "s": "practice log", "L": "language", "l": "list", "q": "quit"}
+	order := []string{"up/down", "j/k", "enter", "r", "s", "L", "l", "q"}
 	return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
 }
 

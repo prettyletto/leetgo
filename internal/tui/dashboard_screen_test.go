@@ -849,3 +849,52 @@ func TestDashboard_FocusResetsOnRefresh(t *testing.T) {
 	}
 	assert.Less(t, d.focusIndex, rendered, "focus should stay within rendered window after refresh")
 }
+
+func TestDashboard_LKeyOpensLanguagePicker(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 120
+	d.height = 40
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("L")})
+
+	assert.True(t, d.languageMode)
+	view := d.View()
+	assert.Contains(t, view, "Language")
+	assert.Contains(t, view, "go")
+	assert.Contains(t, view, "python")
+}
+
+func TestDashboard_LanguagePickerEscCloses(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.languageMode = true
+	d.languageIndex = 1
+
+	d.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	assert.False(t, d.languageMode)
+}
+
+func TestDashboard_LanguagePickerCyclesWithJK(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.languageMode = true
+	d.languageIndex = 0
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	assert.Equal(t, 1, d.languageIndex)
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	assert.Equal(t, 0, d.languageIndex)
+}
+
+func TestDashboard_LanguagePickerEnterSaves(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.cfg.Language = "go"
+	d.languageMode = true
+	d.languageIndex = 2
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.Equal(t, "typescript", d.cfg.Language)
+	assert.False(t, d.languageMode)
+	assert.NotNil(t, cmd)
+}
