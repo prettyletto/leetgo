@@ -31,6 +31,11 @@ func assertResponsiveWidth(t *testing.T, view string, width int) {
 	assert.LessOrEqual(t, maxRenderedLineWidth(view), width)
 }
 
+func assertResponsiveHeight(t *testing.T, view string, height int) {
+	t.Helper()
+	assert.LessOrEqual(t, renderedLineCount(view), height)
+}
+
 func TestScreensFitMinimumSupportedWidth(t *testing.T) {
 	const width = 60
 	const height = 24
@@ -171,4 +176,23 @@ func TestDashboardWideWidth_ShowsRoadmapContext(t *testing.T) {
 
 	assert.Contains(t, sidebar, "Profile")
 	assert.Contains(t, sidebar, "Current Stage:")
+}
+
+func TestCompactPaneScreensFitNarrowSupportedWindow(t *testing.T) {
+	const width = 72
+	const height = 22
+
+	dashboard, _ := newTestDashboard(t)
+	roadmapDetail, _ := newTestRoadmapDetail(t)
+	stageDetail, _ := newTestStageDetail(t, "arrays-hashing")
+
+	screens := []Screen{dashboard, roadmapDetail, stageDetail}
+	for _, screen := range screens {
+		updated, _ := screen.Update(tea.WindowSizeMsg{Width: width, Height: height})
+		require.NotNil(t, updated)
+		view := updated.View()
+		assertResponsiveWidth(t, view, width)
+		assertResponsiveHeight(t, view, height)
+		assert.Contains(t, view, "h/l")
+	}
 }

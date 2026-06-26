@@ -140,6 +140,39 @@ func TestDashboard_ViewHasFooter(t *testing.T) {
 	assert.Contains(t, view, "q")
 }
 
+func TestDashboard_CompactPanesSwitchWithHL(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 72
+	d.height = 22
+
+	view := d.View()
+	assert.Contains(t, view, "Recommended")
+	assert.NotContains(t, view, "Profile")
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	view = d.View()
+	assert.Contains(t, view, "Profile")
+	assert.NotContains(t, view, "Recommended")
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	view = d.View()
+	assert.Contains(t, view, "Roadmap")
+	assert.NotContains(t, view, "Recommended")
+
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	assert.Contains(t, d.View(), "Profile")
+}
+
+func TestDashboard_CompactLDoesNotNavigateToLegacyList(t *testing.T) {
+	d, _ := newTestDashboard(t)
+	d.width = 72
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, dashboardPaneProfile, d.activePane)
+}
+
 func TestDashboard_Quit(t *testing.T) {
 	d, _ := newTestDashboard(t)
 

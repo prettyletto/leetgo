@@ -130,6 +130,39 @@ func TestStageDetail_ViewHasFooter(t *testing.T) {
 	assert.Contains(t, view, "quit")
 }
 
+func TestStageDetail_CompactPanesSwitchWithHL(t *testing.T) {
+	sd, _ := newTestStageDetail(t, "arrays-hashing")
+	sd.width = 72
+	sd.height = 22
+
+	view := sd.View()
+	assert.Contains(t, view, "Stage Progress")
+	assert.NotContains(t, view, "Stage Summary")
+
+	sd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	view = sd.View()
+	assert.Contains(t, view, "Stage Summary")
+	assert.NotContains(t, view, "Stage Progress")
+
+	sd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	assert.Contains(t, sd.View(), "Stage Progress")
+}
+
+func TestStageDetail_CompactReviewPaneOnlyWhenAvailable(t *testing.T) {
+	sd, db := newTestStageDetail(t, "arrays-hashing")
+	ctx := context.Background()
+	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
+	sd.width = 72
+	sd.height = 22
+
+	sd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	sd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+
+	view := sd.View()
+	assert.Contains(t, view, "Review")
+	assert.Contains(t, view, "Two Sum")
+}
+
 func TestStageDetail_Quit(t *testing.T) {
 	sd, _ := newTestStageDetail(t, "arrays-hashing")
 

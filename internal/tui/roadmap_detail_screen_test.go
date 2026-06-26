@@ -161,6 +161,33 @@ func TestRoadmapDetail_GroupTabsSwitchToSolved(t *testing.T) {
 	assert.NotContains(t, view, "Contains Duplicate")
 }
 
+func TestRoadmapDetail_CompactPanesSwitchWithHL(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 80
+	rd.height = 24
+
+	view := rd.View()
+	assert.Contains(t, view, "Stage Progress")
+	assert.NotContains(t, view, "Overview")
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	view = rd.View()
+	assert.Contains(t, view, "Overview")
+	assert.NotContains(t, view, "Stage Progress")
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	assert.Contains(t, rd.View(), "Stage Progress")
+}
+
+func TestRoadmapDetail_CompactUsesAnglesForGroups(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+	rd.width = 80
+
+	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")})
+
+	assert.Equal(t, roadmapGroupSolved, rd.groupMode)
+}
+
 func TestRoadmapDetail_GroupTabsSwitchWithAngles(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 

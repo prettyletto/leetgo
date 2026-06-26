@@ -25,6 +25,7 @@ type RoadmapDetailScreen struct {
 
 	progress     map[int]roadmap.Status
 	scrollOffset int
+	activePane   roadmapDetailPane
 
 	width  int
 	height int
@@ -32,9 +33,16 @@ type RoadmapDetailScreen struct {
 
 type roadmapGroupMode int
 
+type roadmapDetailPane int
+
 const (
 	roadmapGroupStages roadmapGroupMode = iota
 	roadmapGroupSolved
+)
+
+const (
+	roadmapPanePath roadmapDetailPane = iota
+	roadmapPaneContext
 )
 
 func NewRoadmapDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm *roadmap.Roadmap) *RoadmapDetailScreen {
@@ -109,10 +117,24 @@ func (s *RoadmapDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "k", "up":
 			s.moveFocus(-1)
 
-		case "h", "left", "<":
+		case "h", "left":
+			if s.usesCompactPanes() {
+				s.cyclePane(-1)
+			} else {
+				s.cycleGroup(-1)
+			}
+
+		case "l", "right":
+			if s.usesCompactPanes() {
+				s.cyclePane(1)
+			} else {
+				s.cycleGroup(1)
+			}
+
+		case "<":
 			s.cycleGroup(-1)
 
-		case "l", "right", ">":
+		case ">":
 			s.cycleGroup(1)
 
 		case "ctrl+d":
@@ -161,6 +183,10 @@ func (s *RoadmapDetailScreen) renderListView() string {
 	}
 	avail := s.bodyHeight()
 	leftWidth, rightWidth := s.listPaneWidths()
+	contextWidth := rightWidth
+	if s.usesCompactPanes() {
+		contextWidth = leftWidth
+	}
 
 	fp := s.focusedProblem()
 	focusedID := 0
@@ -168,24 +194,9 @@ func (s *RoadmapDetailScreen) renderListView() string {
 		focusedID = fp.ID
 	}
 
-	var rightPanel string
-	if s.width >= 110 {
-		if fp != nil && s.effectiveStatus(fp) == roadmap.StatusLocked {
-			rightPanel = s.renderBlockedInfo(fp, rightWidth)
-		} else {
-			summary := s.renderSummaryPanel(solvedCount, rightWidth)
-			comingSoon := s.buildComingSoon()
-			var upcoming string
-			if len(comingSoon) > 0 {
-				_, _, lockedLabel := themeRoadmapLabels(s.theme)
-				upcoming = s.renderUpcomingPanel(comingSoon, lockedLabel, rightWidth)
-			}
-			if upcoming != "" {
-				rightPanel = summary + "\n\n" + upcoming
-			} else {
-				rightPanel = summary
-			}
-		}
+	rightPanel := s.renderContextPane(fp, solvedCount, contextWidth)
+	if s.usesCompactPanes() && s.activePane == roadmapPaneContext {
+		return rightPanel
 	}
 
 	visible := s.stagesVisibleFromBudget(avail, stagesContent)
@@ -219,6 +230,21 @@ func (s *RoadmapDetailScreen) renderListView() string {
 	}
 
 	return stagesPanel
+}
+
+func (s *RoadmapDetailScreen) renderContextPane(fp *roadmap.Problem, solvedCount map[string]int, width int) string {
+	if fp != nil && s.effectiveStatus(fp) == roadmap.StatusLocked {
+		return s.renderBlockedInfo(fp, width)
+	}
+
+	summary := s.renderSummaryPanel(solvedCount, width)
+	comingSoon := s.buildComingSoon()
+	if len(comingSoon) == 0 {
+		return summary
+	}
+
+	_, _, lockedLabel := themeRoadmapLabels(s.theme)
+	return summary + "\n\n" + s.renderUpcomingPanel(comingSoon, lockedLabel, width)
 }
 
 func (s *RoadmapDetailScreen) applySelection(lines []string, sourceLines []int, problemLineMap map[int]int, focusedID int) []string {
@@ -618,6 +644,26 @@ func (s *RoadmapDetailScreen) cycleGroup(delta int) {
 	s.scrollOffset = 0
 }
 
+func (s *RoadmapDetailScreen) cyclePane(delta int) {
+	panes := []roadmapDetailPane{roadmapPanePath, roadmapPaneContext}
+	idx := 0
+	for i, pane := range panes {
+		if pane == s.activePane {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(panes)
+	if idx < 0 {
+		idx += len(panes)
+	}
+	s.activePane = panes[idx]
+}
+
+func (s *RoadmapDetailScreen) usesCompactPanes() bool {
+	return s.width > 0 && s.width < 110
+}
+
 func (s *RoadmapDetailScreen) renderGroupTabs() string {
 	return strings.Join([]string{
 		s.renderGroupTab(roadmapGroupStages, "Stages"),
@@ -919,6 +965,18 @@ func (s *RoadmapDetailScreen) renderMiniBar(percentage float64) string {
 }
 
 func (s *RoadmapDetailScreen) renderFooter() string {
+	if s.usesCompactPanes() {
+		items := []string{
+			s.theme.Key.Render("h/l") + " pane",
+			s.theme.Key.Render("< >") + " group",
+			s.theme.Key.Render("j/k") + " navigate",
+			s.theme.Key.Render("enter") + " stage",
+			s.theme.Key.Render("esc") + " dashboard",
+			s.theme.Key.Render("q") + " quit",
+		}
+		return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  •  "))
+	}
+
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
 		s.theme.Key.Render("h/l") + " group",

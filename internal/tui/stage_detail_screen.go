@@ -25,10 +25,19 @@ type StageDetailScreen struct {
 	focusIndex int
 	problems   []*roadmap.Problem
 	progress   map[int]roadmap.Status
+	activePane stageDetailPane
 
 	width  int
 	height int
 }
+
+type stageDetailPane int
+
+const (
+	stagePaneProblems stageDetailPane = iota
+	stagePaneSummary
+	stagePaneReview
+)
 
 func NewStageDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm *roadmap.Roadmap, stageID string) *StageDetailScreen {
 	progress, _ := db.GetAllProgress(context.Background())
@@ -110,6 +119,16 @@ func (s *StageDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				}
 			}
 
+		case "h", "left":
+			if s.usesCompactPanes() {
+				s.cyclePane(-1)
+			}
+
+		case "l", "right":
+			if s.usesCompactPanes() {
+				s.cyclePane(1)
+			}
+
 		}
 	}
 	return s, nil
@@ -138,7 +157,8 @@ func (s *StageDetailScreen) View() string {
 		bar := s.renderProgressBar(percentage)
 		summaryLines = append(summaryLines, bar)
 	}
-	summary := renderThemedPanel(s.theme, "Stage Summary", strings.Join(summaryLines, "\n"), false)
+	panelWidth := s.stagePanelWidth()
+	summary := renderRoadmapPanel(s.theme, "Stage Summary", strings.Join(summaryLines, "\n"), false, panelWidth)
 
 	var problemLines []string
 	problemLines = append(problemLines, s.theme.Subtitle.Render(gridLabel))
@@ -161,12 +181,23 @@ func (s *StageDetailScreen) View() string {
 			Foreground(s.theme.Muted).
 			Render("  No problems in this stage."))
 	}
-	problems := renderRoadmapPanel(s.theme, "Stage Progress", strings.Join(problemLines, "\n"), false, s.stagePanelWidth())
+	problems := renderRoadmapPanel(s.theme, "Stage Progress", strings.Join(problemLines, "\n"), false, panelWidth)
 
 	reviewLines := s.renderReviewShrine(reviewLabel)
 	parts := []string{summary, problems}
 	if len(reviewLines) > 0 {
-		parts = append(parts, renderThemedPanel(s.theme, "Review", strings.Join(reviewLines, "\n"), false))
+		parts = append(parts, renderRoadmapPanel(s.theme, "Review", strings.Join(reviewLines, "\n"), false, panelWidth))
+	}
+	if s.usesCompactPanes() {
+		s.clampPane(reviewLines)
+		switch s.activePane {
+		case stagePaneSummary:
+			parts = []string{summary}
+		case stagePaneReview:
+			parts = []string{renderRoadmapPanel(s.theme, "Review", strings.Join(reviewLines, "\n"), false, panelWidth)}
+		default:
+			parts = []string{problems}
+		}
 	}
 
 	footer := s.renderFooter()
@@ -333,6 +364,40 @@ func (s *StageDetailScreen) renderReviewShrine(label string) []string {
 	return lines
 }
 
+func (s *StageDetailScreen) cyclePane(delta int) {
+	panes := s.availablePanes()
+	idx := 0
+	for i, pane := range panes {
+		if pane == s.activePane {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(panes)
+	if idx < 0 {
+		idx += len(panes)
+	}
+	s.activePane = panes[idx]
+}
+
+func (s *StageDetailScreen) clampPane(reviewLines []string) {
+	if s.activePane == stagePaneReview && len(reviewLines) == 0 {
+		s.activePane = stagePaneProblems
+	}
+}
+
+func (s *StageDetailScreen) availablePanes() []stageDetailPane {
+	panes := []stageDetailPane{stagePaneProblems, stagePaneSummary}
+	if len(s.renderReviewShrine("Review")) > 0 {
+		panes = append(panes, stagePaneReview)
+	}
+	return panes
+}
+
+func (s *StageDetailScreen) usesCompactPanes() bool {
+	return (s.width > 0 && s.width < 90) || (s.height > 0 && s.height < 28)
+}
+
 func (s *StageDetailScreen) missingPrerequisites(p *roadmap.Problem) []string {
 	var missing []string
 	for _, id := range p.Prerequisites {
@@ -349,6 +414,17 @@ func (s *StageDetailScreen) missingPrerequisites(p *roadmap.Problem) []string {
 }
 
 func (s *StageDetailScreen) renderFooter() string {
+	if s.usesCompactPanes() {
+		items := []string{
+			s.theme.Key.Render("h/l") + " pane",
+			s.theme.Key.Render("j/k") + " navigate",
+			s.theme.Key.Render("enter") + " problem",
+			s.theme.Key.Render("esc") + " roadmap",
+			s.theme.Key.Render("q") + " quit",
+		}
+		return s.theme.Footer.PaddingTop(1).Render(strings.Join(items, "  •  "))
+	}
+
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
 		s.theme.Key.Render("enter") + " problem",

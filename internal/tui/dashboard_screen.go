@@ -31,10 +31,19 @@ type DashboardScreen struct {
 	languageMode  bool
 	languageIndex int
 	languages     []string
+	activePane    dashboardPane
 
 	width  int
 	height int
 }
+
+type dashboardPane int
+
+const (
+	dashboardPaneActions dashboardPane = iota
+	dashboardPaneProfile
+	dashboardPaneRoadmap
+)
 
 type comingSoonItem struct {
 	problem  *roadmap.Problem
@@ -161,7 +170,17 @@ func (s *DashboardScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			s.enterLanguageMode()
 			return s, nil
 
-		case "l":
+		case "h", "left":
+			if s.usesCompactPanes() {
+				s.cyclePane(-1)
+				return s, nil
+			}
+
+		case "l", "right":
+			if s.usesCompactPanes() {
+				s.cyclePane(1)
+				return s, nil
+			}
 			return s, func() tea.Msg {
 				return NavigateMsg{ScreenID: ScreenLegacyList}
 			}
@@ -323,6 +342,11 @@ func (s *DashboardScreen) View() string {
 	}
 	if mainWidth < 34 {
 		mainWidth = 34
+	}
+
+	if s.usesCompactPanes() {
+		body := s.renderActiveCompactPane(shellWidth)
+		return renderScreenShell(s.theme, s.width, s.height, header, body, s.renderFooter())
 	}
 
 	main := s.renderCenter(mainWidth)
@@ -729,6 +753,44 @@ func (s *DashboardScreen) renderSidebar(width int) string {
 	return strings.Join(sections, "\n\n")
 }
 
+func (s *DashboardScreen) renderActiveCompactPane(width int) string {
+	s.clampPane()
+	switch s.activePane {
+	case dashboardPaneProfile:
+		return s.renderHUDWithWidth(width)
+	case dashboardPaneRoadmap:
+		return s.renderRoadmapContextWithWidth(width)
+	default:
+		return s.renderCenter(width)
+	}
+}
+
+func (s *DashboardScreen) cyclePane(delta int) {
+	panes := []dashboardPane{dashboardPaneActions, dashboardPaneProfile, dashboardPaneRoadmap}
+	idx := 0
+	for i, pane := range panes {
+		if pane == s.activePane {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(panes)
+	if idx < 0 {
+		idx += len(panes)
+	}
+	s.activePane = panes[idx]
+}
+
+func (s *DashboardScreen) clampPane() {
+	if s.activePane < dashboardPaneActions || s.activePane > dashboardPaneRoadmap {
+		s.activePane = dashboardPaneActions
+	}
+}
+
+func (s *DashboardScreen) usesCompactPanes() bool {
+	return s.width > 0 && s.width < 78
+}
+
 func (s *DashboardScreen) renderCompactSidebar(width int) string {
 	sections := []string{s.renderCompactHUD(width)}
 	if s.width >= 118 {
@@ -845,6 +907,11 @@ func (s *DashboardScreen) renderLanguagePicker(header string) string {
 }
 
 func (s *DashboardScreen) renderFooter() string {
+	if s.usesCompactPanes() {
+		keys := map[string]string{"h/l": "pane", "j/k": "nav", "enter": "open", "r": "roadmap", "s": "log", "L": "lang", "q": "quit"}
+		order := []string{"h/l", "j/k", "enter", "r", "s", "L", "q"}
+		return s.theme.Footer.PaddingTop(1).Render(views.KeytipFooter(keys, order, viewPalette(s.theme)))
+	}
 	if s.width > 0 && s.width < 100 {
 		keys := map[string]string{"j/k": "nav", "enter": "open", "r": "roadmap", "s": "log", "L": "lang", "l": "list", "q": "quit"}
 		order := []string{"j/k", "enter", "r", "s", "L", "l", "q"}

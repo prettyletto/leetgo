@@ -174,7 +174,13 @@ func renderScreenShell(theme *Theme, width, height int, header, body, footer str
 	if innerWidth > 0 {
 		style = style.Width(innerWidth).MaxWidth(innerWidth)
 	}
-	content := style.Render(strings.TrimSpace(header) + "\n\n" + strings.TrimSpace(body) + "\n\n" + strings.TrimSpace(footer))
+	header = strings.TrimSpace(header)
+	body = strings.TrimSpace(body)
+	footer = strings.TrimSpace(footer)
+	if height > 0 && height < 28 {
+		body = fitBodyToShellHeight(header, body, footer, height)
+	}
+	content := style.Render(header + "\n\n" + body + "\n\n" + footer)
 	if width <= 0 || height <= 0 {
 		return content
 	}
@@ -185,6 +191,33 @@ func renderScreenShell(theme *Theme, width, height int, header, body, footer str
 		vertical = lipgloss.Top
 	}
 	return lipgloss.Place(width, height, horizontal, vertical, content)
+}
+
+func fitBodyToShellHeight(header, body, footer string, height int) string {
+	headerLines := renderedBlockLineCount(header)
+	footerLines := renderedBlockLineCount(footer)
+	// Separators, shell padding, and a small safety margin for panel borders.
+	maxBodyLines := height - headerLines - footerLines - 7
+	if maxBodyLines < 1 {
+		maxBodyLines = 1
+	}
+	bodyLines := strings.Split(body, "\n")
+	if len(bodyLines) <= maxBodyLines {
+		return body
+	}
+	if maxBodyLines == 1 {
+		return "..."
+	}
+	trimmed := append([]string{}, bodyLines[:maxBodyLines-1]...)
+	trimmed = append(trimmed, "...")
+	return strings.Join(trimmed, "\n")
+}
+
+func renderedBlockLineCount(s string) int {
+	if strings.TrimSpace(s) == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
 }
 
 func responsiveShellContentWidth(width int) int {
