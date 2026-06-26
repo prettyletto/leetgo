@@ -12,6 +12,7 @@ import (
 	"github.com/prettyletto/leetgo/internal/catalog"
 	"github.com/prettyletto/leetgo/internal/config"
 	"github.com/prettyletto/leetgo/internal/generator"
+	"github.com/prettyletto/leetgo/internal/leetcode"
 	"github.com/prettyletto/leetgo/internal/recommendation"
 	"github.com/prettyletto/leetgo/internal/roadmap"
 	"github.com/prettyletto/leetgo/internal/store"
@@ -65,9 +66,15 @@ type OnboardingScreen struct {
 	height     int
 
 	sessionChoice int
+	sessionStatus string
+	authenticate  func() error
 
 	nextAction     *recommendation.NextAction
 	onboardingDone bool
+}
+
+type onboardingSessionAuthMsg struct {
+	err error
 }
 
 func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roadmap.Roadmap, db store.Store, activeRoadmap *roadmap.Roadmap, themes ...*Theme) *OnboardingScreen {
@@ -85,6 +92,7 @@ func NewOnboardingScreen(cfg *config.Config, languages []string, roadmaps []*roa
 		workspaceInput:   workspaceInput,
 		roadmapFocus:     0,
 		sessionChoice:    1,
+		authenticate:     defaultOnboardingAuthenticate,
 		width:            128,
 		height:           30,
 	}
@@ -158,6 +166,17 @@ func (s *OnboardingScreen) Init() tea.Cmd {
 func (s *OnboardingScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case NavigateMsg:
+		return s, nil
+	case onboardingSessionAuthMsg:
+		if msg.err != nil {
+			s.errorMsg = fmt.Sprintf("LeetCode auth failed: %v", msg.err)
+			s.sessionStatus = ""
+			return s, nil
+		}
+		s.errorMsg = ""
+		s.sessionStatus = "LeetCode Session connected."
+		s.step = stepCompletion
+		s.calculateNextAction()
 		return s, nil
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
@@ -272,6 +291,11 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 		s.cfg.ApplyDefaults()
 		s.step = stepSession
 	case stepSession:
+		if s.sessionChoice == 0 {
+			s.errorMsg = ""
+			s.sessionStatus = "Opening browser for LeetCode auth..."
+			return s, s.authenticateSessionCmd()
+		}
 		s.step = stepCompletion
 		s.calculateNextAction()
 	case stepCompletion:
@@ -297,6 +321,27 @@ func (s *OnboardingScreen) handleNext() (Screen, tea.Cmd) {
 		s.onboardingDone = true
 	}
 	return s, nil
+}
+
+func (s *OnboardingScreen) authenticateSessionCmd() tea.Cmd {
+	authenticate := s.authenticate
+	if authenticate == nil {
+		authenticate = defaultOnboardingAuthenticate
+	}
+	return func() tea.Msg {
+		return onboardingSessionAuthMsg{err: authenticate()}
+	}
+}
+
+func defaultOnboardingAuthenticate() error {
+	client, err := leetcode.NewClient()
+	if err != nil {
+		return err
+	}
+	if client.IsAuthenticated() {
+		return nil
+	}
+	return client.Authenticate(context.Background())
 }
 
 func (s *OnboardingScreen) calculateNextAction() {
@@ -886,6 +931,8 @@ func (s *OnboardingScreen) renderSession() string {
 
 	if s.errorMsg != "" {
 		content.WriteString("\n" + lipgloss.NewStyle().Foreground(s.theme.Danger).Align(lipgloss.Center).Render(s.errorMsg))
+	} else if s.sessionStatus != "" {
+		content.WriteString("\n" + lipgloss.NewStyle().Foreground(s.theme.Success).Align(lipgloss.Center).Render(s.sessionStatus))
 	}
 
 	return renderThemedPanel(s.theme, "LeetCode Session", content.String(), true)

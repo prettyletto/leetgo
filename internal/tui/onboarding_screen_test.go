@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -664,6 +665,69 @@ func TestOnboarding_CompletionSavesAndNavigates(t *testing.T) {
 	assert.Nil(t, nextScreen, "screen should be nil on completion (root replaces it)")
 	require.NotNil(t, cmd, "should return a navigation command")
 	assert.True(t, s.cfg.OnboardingComplete, "should mark onboarding complete on success")
+}
+
+func TestOnboarding_SessionConnectRunsAuth(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+	cfg.DisplayName = "TestUser"
+	cfg.Workspace = t.TempDir()
+	cfg.Language = "go"
+	cfg.Roadmap = "from-zero-to-hero"
+	cfg.Theme = "adaptive"
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepSession
+	s.sessionChoice = 0
+	called := false
+	s.authenticate = func() error {
+		called = true
+		return nil
+	}
+
+	nextScreen, cmd := s.handleNext()
+	require.NotNil(t, nextScreen)
+	require.NotNil(t, cmd)
+	assert.Equal(t, stepSession, s.step)
+	assert.Contains(t, s.sessionStatus, "Opening browser")
+
+	updated, _ := s.Update(cmd())
+	require.NotNil(t, updated)
+	assert.True(t, called)
+	assert.Equal(t, stepCompletion, s.step)
+	assert.Contains(t, s.sessionStatus, "connected")
+}
+
+func TestOnboarding_SessionConnectFailureStaysOnSession(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg, err := config.DefaultConfig()
+	require.NoError(t, err)
+	cfg.DisplayName = "TestUser"
+	cfg.Workspace = t.TempDir()
+	cfg.Language = "go"
+	cfg.Roadmap = "from-zero-to-hero"
+	cfg.Theme = "adaptive"
+
+	s := NewOnboardingScreen(cfg, testLanguages(), testRoadmaps(t), nil, nil)
+	s.step = stepSession
+	s.sessionChoice = 0
+	s.authenticate = func() error {
+		return errors.New("browser missing")
+	}
+
+	_, cmd := s.handleNext()
+	require.NotNil(t, cmd)
+	updated, _ := s.Update(cmd())
+	require.NotNil(t, updated)
+
+	assert.Equal(t, stepSession, s.step)
+	assert.Contains(t, s.errorMsg, "browser missing")
+	assert.False(t, s.cfg.OnboardingComplete)
 }
 
 func TestOnboarding_CompletionValidationFails_NoWorkspace(t *testing.T) {
