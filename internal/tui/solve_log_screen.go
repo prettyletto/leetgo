@@ -263,8 +263,8 @@ func BuildPracticeLog(db store.Store, problemID int) []ProblemLogEntry {
 		return entries[i].Timestamp.After(entries[j].Timestamp)
 	})
 
-	if len(entries) > 5 {
-		entries = entries[:5]
+	if len(entries) > 3 {
+		entries = entries[:3]
 	}
 
 	return entries

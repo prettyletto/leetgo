@@ -364,13 +364,12 @@ func TestProblemDetail_ReviewCompletionRewardMoment(t *testing.T) {
 	pd.status = roadmap.StatusSolved
 	require.NoError(t, db.CreateReviewCycle(ctx, &store.ReviewCycle{ProblemID: 1, Reason: "weakness", RoadmapID: "from-zero-to-hero"}))
 
-	_, cmd := pd.handleTestRunResult(testRunResultMsg{problemID: 1, difficulty: roadmap.DifficultyEasy, output: "ok", passed: true, duration: time.Second})
-	require.NotNil(t, cmd)
-	notif, ok := cmd().(GlobalNotificationMsg)
-	require.True(t, ok)
-	assert.Contains(t, notif.Message, "Review Complete")
-	assert.Contains(t, notif.Message, "Tests passed")
-	assert.Contains(t, notif.Message, "+5 XP")
+	sc, cmd := pd.handleTestRunResult(testRunResultMsg{problemID: 1, difficulty: roadmap.DifficultyEasy, output: "ok", passed: true, duration: time.Second})
+	pd = sc.(*ProblemDetailScreen)
+	assert.Nil(t, cmd)
+	assert.Contains(t, pd.testResultMsg, "Review Complete")
+	assert.Contains(t, pd.testResultMsg, "Tests passed")
+	assert.Contains(t, pd.testResultMsg, "+5 XP")
 }
 
 func TestProblemDetail_DoubleMarkSolved(t *testing.T) {
@@ -987,12 +986,8 @@ func TestProblemDetail_TestRunResultAlreadyVerified(t *testing.T) {
 	sc, cmd := pd.Update(msg)
 	pd2, ok := sc.(*ProblemDetailScreen)
 	require.True(t, ok)
-	require.NotNil(t, cmd)
-
-	notifMsg := cmd()
-	notif, ok := notifMsg.(GlobalNotificationMsg)
-	require.True(t, ok)
-	assert.Contains(t, notif.Message, "already claimed")
+	assert.Nil(t, cmd)
+	assert.Contains(t, pd2.testResultMsg, "already claimed")
 
 	stats, _ := pd2.db.GetStats(ctx)
 	if initialXP != nil {
@@ -1017,13 +1012,10 @@ func TestProblemDetail_TestRunResultSolvedWithoutRewardDoesNotDowngrade(t *testi
 	sc, cmd := pd.Update(msg)
 	pd2, ok := sc.(*ProblemDetailScreen)
 	require.True(t, ok)
-	require.NotNil(t, cmd)
+	assert.Nil(t, cmd)
 
 	assert.Equal(t, roadmap.StatusSolved, pd2.status)
-	notifMsg := cmd()
-	notif, ok := notifMsg.(GlobalNotificationMsg)
-	require.True(t, ok)
-	assert.Contains(t, notif.Message, "Tests passed")
+	assert.Contains(t, pd2.testResultMsg, "Tests passed")
 
 	hasVerify, err := pd2.db.HasRewardEvent(ctx, 1, "verify")
 	require.NoError(t, err)
@@ -1052,7 +1044,7 @@ func TestProblemDetail_TestRunResultPassSetsVerified(t *testing.T) {
 	sc, cmd := pd.Update(msg)
 	pd2, ok := sc.(*ProblemDetailScreen)
 	require.True(t, ok)
-	require.NotNil(t, cmd)
+	assert.Nil(t, cmd)
 
 	assert.Equal(t, roadmap.StatusVerified, pd2.status)
 
@@ -1083,7 +1075,7 @@ func TestProblemDetail_TestRunResultFailDoesNotChangeStatus(t *testing.T) {
 	sc, cmd := pd.Update(msg)
 	pd2, ok := sc.(*ProblemDetailScreen)
 	require.True(t, ok)
-	require.NotNil(t, cmd)
+	assert.Nil(t, cmd)
 
 	assert.Equal(t, roadmap.StatusInProgress, pd2.status)
 
@@ -1128,6 +1120,32 @@ func TestProblemDetail_SubmitLocalTestFailureStopsBeforeSubmission(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, attempts, 1)
 	assert.False(t, attempts[0].Passed)
+}
+
+func TestProblemDetail_LocalTestFailureRendersFocusedResult(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.width = 120
+	pd.height = 40
+
+	output := "--- FAIL: TestTwoSum (0.00s)\n    two_sum_test.go:24: got [], want [0 1]\nFAIL"
+	sc, cmd := pd.handleTestRunResult(testRunResultMsg{problemID: 1, difficulty: roadmap.DifficultyEasy, output: output, passed: false, duration: time.Second})
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	assert.Nil(t, cmd)
+
+	view := pd2.View()
+	assert.Contains(t, view, "TestSuite Failed")
+	assert.Contains(t, view, "Local TestSuite failed")
+	assert.Contains(t, view, "    two_sum_test.go:24")
+	assert.LessOrEqual(t, maxRenderedLineWidth(view), 120)
+	assert.NotContains(t, view, "Context")
+	assert.NotContains(t, view, "Workspace Files")
+	assert.NotContains(t, view, "Practice Log")
+
+	pd2.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view = pd2.View()
+	assert.Contains(t, view, "Context")
 }
 
 func TestProblemDetail_SubmitAnywayConfirmationRenders(t *testing.T) {
@@ -1344,7 +1362,8 @@ func TestProblemDetail_BuildPracticeLog(t *testing.T) {
 	}))
 
 	entries := BuildPracticeLog(db, 1)
-	assert.NotEmpty(t, entries)
+	require.NotEmpty(t, entries)
+	assert.LessOrEqual(t, len(entries), 3)
 
 	hasAcceptedSolve := false
 	hasLocalAttempt := false
@@ -1362,4 +1381,25 @@ func TestProblemDetail_BuildPracticeLog(t *testing.T) {
 	pd.width = 120
 	view := pd.View()
 	assert.Contains(t, view, "Practice Log")
+}
+
+func TestProblemDetail_BuildPracticeLogKeepsThreeNewest(t *testing.T) {
+	_, db := newTestProblemDetail(t, 1)
+	ctx := context.Background()
+	base := time.Now()
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, db.RecordAttempt(ctx, &store.AttemptRecord{
+			ProblemID: 1,
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			Duration:  time.Minute,
+			Passed:    i%2 == 0,
+		}))
+	}
+
+	entries := BuildPracticeLog(db, 1)
+	require.Len(t, entries, 3)
+	assert.True(t, entries[0].Timestamp.After(entries[1].Timestamp))
+	assert.True(t, entries[1].Timestamp.After(entries[2].Timestamp))
+	assert.Equal(t, base.Add(4*time.Minute).Unix(), entries[0].Timestamp.Unix())
 }

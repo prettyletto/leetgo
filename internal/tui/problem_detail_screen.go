@@ -34,9 +34,10 @@ type ProblemDetailScreen struct {
 	workspace *workspace.Manager
 	solveLogs []*store.SolveLogRecord
 
-	errorMsg     string
-	submitting   bool
-	spinnerFrame int
+	errorMsg      string
+	testResultMsg string
+	submitting    bool
+	spinnerFrame  int
 
 	manualSolveMode  bool
 	manualSolveInput string
@@ -164,6 +165,15 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
+		if s.testResultMsg != "" {
+			switch msg.String() {
+			case "esc", "backspace":
+				s.testResultMsg = ""
+				return s, nil
+			case "q", "ctrl+c":
+				return s, tea.Quit
+			}
+		}
 		if s.submitAnywayMode {
 			return s.handleSubmitAnywayKey(msg)
 		}
@@ -592,9 +602,8 @@ func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen,
 	s.recordLocalAttempt(ctx, msg)
 
 	if !msg.passed {
-		return s, func() tea.Msg {
-			return GlobalNotificationMsg{Message: msg.output}
-		}
+		s.testResultMsg = "Local TestSuite failed.\n\n" + msg.output
+		return s, nil
 	}
 
 	if s.status == roadmap.StatusSolved {
@@ -602,34 +611,26 @@ func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen,
 	}
 
 	if s.status == roadmap.StatusVerified {
-		return s, func() tea.Msg {
-			result := msg.output + "\n\nTests passed. Reward already claimed."
-			return GlobalNotificationMsg{Message: result}
-		}
+		s.testResultMsg = msg.output + "\n\nTests passed. Reward already claimed."
+		return s, nil
 	}
 
 	alreadyClaimed, err := s.db.HasRewardEvent(ctx, msg.problemID, "verify")
 	if err != nil {
 		s.errorMsg = fmt.Sprintf("Failed to check verify reward: %v", err)
-		return s, func() tea.Msg {
-			return GlobalNotificationMsg{Message: msg.output}
-		}
+		return s, nil
 	}
 
 	if alreadyClaimed {
-		return s, func() tea.Msg {
-			result := msg.output + "\n\nVerify XP already claimed for this problem."
-			return GlobalNotificationMsg{Message: result}
-		}
+		s.testResultMsg = msg.output + "\n\nVerify XP already claimed for this problem."
+		return s, nil
 	}
 
 	xp := store.XPForDifficulty(msg.difficulty) * 70 / 100
 	if xp > 0 {
 		if err := s.db.AddXP(ctx, xp); err != nil {
 			s.errorMsg = fmt.Sprintf("Failed to add verify XP: %v", err)
-			return s, func() tea.Msg {
-				return GlobalNotificationMsg{Message: msg.output}
-			}
+			return s, nil
 		}
 	}
 
@@ -653,10 +654,8 @@ func (s *ProblemDetailScreen) handleTestRunResult(msg testRunResultMsg) (Screen,
 	}
 
 	s.status = roadmap.StatusVerified
-	return s, func() tea.Msg {
-		result := fmt.Sprintf("%s\n\n+%d XP (verify: %d%%) Tests passed — Problem Verified", msg.output, xp, 70)
-		return GlobalNotificationMsg{Message: result}
-	}
+	s.testResultMsg = fmt.Sprintf("%s\n\n+%d XP (verify: %d%%) Tests passed — Problem Verified", msg.output, xp, 70)
+	return s, nil
 }
 
 func (s *ProblemDetailScreen) recordLocalAttempt(ctx context.Context, msg testRunResultMsg) {
@@ -675,9 +674,8 @@ func (s *ProblemDetailScreen) recordLocalAttempt(ctx context.Context, msg testRu
 func (s *ProblemDetailScreen) handleReviewTestPass(ctx context.Context, msg testRunResultMsg) (Screen, tea.Cmd) {
 	cycles, err := s.db.GetReviewCyclesForProblem(ctx, msg.problemID)
 	if err != nil || len(cycles) == 0 {
-		return s, func() tea.Msg {
-			return GlobalNotificationMsg{Message: msg.output + "\n\nTests passed."}
-		}
+		s.testResultMsg = msg.output + "\n\nTests passed."
+		return s, nil
 	}
 
 	var completedCount int
@@ -705,9 +703,8 @@ func (s *ProblemDetailScreen) handleReviewTestPass(ctx context.Context, msg test
 	}
 
 	if completedCount == 0 {
-		return s, func() tea.Msg {
-			return GlobalNotificationMsg{Message: msg.output + "\n\nTests passed. Review already completed."}
-		}
+		s.testResultMsg = msg.output + "\n\nTests passed. Review already completed."
+		return s, nil
 	}
 
 	result := views.RenderRewardMoment(views.RewardMoment{
@@ -721,9 +718,8 @@ func (s *ProblemDetailScreen) handleReviewTestPass(ctx context.Context, msg test
 	if msg.output != "" {
 		result = msg.output + "\n\n" + result
 	}
-	return s, func() tea.Msg {
-		return GlobalNotificationMsg{Message: result}
-	}
+	s.testResultMsg = result
+	return s, nil
 }
 
 func (s *ProblemDetailScreen) recordSolveLog(msg submitResultMsg) {
@@ -1051,6 +1047,9 @@ func (s *ProblemDetailScreen) View() string {
 	if s.submitAnywayMode {
 		return s.renderSubmitAnywayConfirmation()
 	}
+	if s.testResultMsg != "" {
+		return s.renderTestResult()
+	}
 	if s.manualSolveMode {
 		return s.renderManualSolveConfirmation()
 	}
@@ -1062,6 +1061,10 @@ func (s *ProblemDetailScreen) View() string {
 	}
 
 	statusLabel := s.renderStatusDetailBody()
+	transientStatusLines := s.renderTransientStatusLines()
+	if len(transientStatusLines) > 0 {
+		statusLabel += "\n\n" + strings.Join(transientStatusLines, "\n")
+	}
 	var contextLines []string
 
 	if len(s.problem.Prerequisites) == 0 {
@@ -1124,31 +1127,6 @@ func (s *ProblemDetailScreen) View() string {
 		rightSections = append(rightSections, renderProblemDetailPanel(s.theme, "Practice Log", strings.Join(logLines, "\n"), false, s.problemDetailBodyWidth()))
 	}
 
-	statusLines := []string{}
-	if s.submitting {
-		if s.allowsSpinnerMotion() {
-			frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
-			statusLines = append(statusLines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
-		} else {
-			statusLines = append(statusLines, s.theme.Spinner.Render("Submitting to LeetCode..."))
-		}
-	}
-
-	if s.errorMsg != "" {
-		style := lipgloss.NewStyle().Foreground(s.theme.Muted)
-		if strings.Contains(s.errorMsg, "failed") || strings.Contains(s.errorMsg, "locked") || strings.Contains(s.errorMsg, "Failed") {
-			style = lipgloss.NewStyle().Foreground(s.theme.Danger)
-		} else if strings.Contains(s.errorMsg, "Accepted") || strings.Contains(s.errorMsg, "XP") {
-			style = lipgloss.NewStyle().Foreground(s.theme.Success)
-		} else if strings.Contains(s.errorMsg, "Start") || strings.Contains(s.errorMsg, "Started") {
-			style = lipgloss.NewStyle().Foreground(s.theme.Warning)
-		}
-		statusLines = append(statusLines, style.Render(s.errorMsg))
-	}
-	if len(statusLines) > 0 {
-		rightSections = append(rightSections, renderProblemDetailPanel(s.theme, "Status", strings.Join(statusLines, "\n"), false, s.problemDetailBodyWidth()))
-	}
-
 	footer := s.renderFooter()
 	bodyWidth := s.problemDetailBodyWidth()
 	bodySections := []string{
@@ -1163,6 +1141,59 @@ func (s *ProblemDetailScreen) View() string {
 	}
 	body := strings.Join(bodySections, "\n\n")
 	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
+}
+
+func (s *ProblemDetailScreen) renderTransientStatusLines() []string {
+	var lines []string
+	if s.submitting {
+		if s.allowsSpinnerMotion() {
+			frame := spinnerFrames[s.spinnerFrame%len(spinnerFrames)]
+			lines = append(lines, s.theme.Spinner.Render(frame+" Submitting to LeetCode..."))
+		} else {
+			lines = append(lines, s.theme.Spinner.Render("Submitting to LeetCode..."))
+		}
+	}
+
+	if s.errorMsg != "" {
+		style := lipgloss.NewStyle().Foreground(s.theme.Muted)
+		if strings.Contains(s.errorMsg, "failed") || strings.Contains(s.errorMsg, "locked") || strings.Contains(s.errorMsg, "Failed") {
+			style = lipgloss.NewStyle().Foreground(s.theme.Danger)
+		} else if strings.Contains(s.errorMsg, "Accepted") || strings.Contains(s.errorMsg, "XP") {
+			style = lipgloss.NewStyle().Foreground(s.theme.Success)
+		} else if strings.Contains(s.errorMsg, "Start") || strings.Contains(s.errorMsg, "Started") {
+			style = lipgloss.NewStyle().Foreground(s.theme.Warning)
+		}
+		lines = append(lines, style.Render(s.errorMsg))
+	}
+	return lines
+}
+
+func (s *ProblemDetailScreen) renderTestResult() string {
+	width := responsiveShellContentWidth(s.width)
+	if width <= 0 {
+		width = 86
+	}
+	panelWidth := minProblemDetailInt(width-4, 86)
+	if panelWidth < 40 {
+		panelWidth = 40
+	}
+	title := "TestSuite Results"
+	lower := strings.ToLower(s.testResultMsg)
+	if strings.Contains(lower, "failed") {
+		title = "TestSuite Failed"
+	} else if strings.Contains(lower, "passed") {
+		title = "TestSuite Passed"
+	}
+	body := renderProblemDetailPreformattedPanel(s.theme, title, strings.TrimSpace(s.testResultMsg), true, panelWidth)
+	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
+		s.theme.Key.Render("esc") + " details",
+		s.theme.Key.Render("q") + " quit",
+	}, "  "))
+	content := body + "\n\n" + footer
+	if s.width <= 0 || s.height <= 0 {
+		return content
+	}
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (s *ProblemDetailScreen) renderProblemDetailHeader(screenLabel string) string {
@@ -1251,6 +1282,15 @@ func renderProblemDetailPanel(theme *Theme, title, body string, focused bool, wi
 	return renderProblemDetailPanelScrollable(theme, title, body, focused, width, 0, 0)
 }
 
+func renderProblemDetailPreformattedPanel(theme *Theme, title, body string, focused bool, width int) string {
+	innerWidth := panelBodyWidth(width)
+	lines := problemDetailPreformattedLines(body, innerWidth)
+	for i, line := range lines {
+		lines[i] = lipgloss.NewStyle().Width(innerWidth).Render(line)
+	}
+	return renderThemedPanel(theme, title, strings.Join(lines, "\n"), focused)
+}
+
 func renderProblemDetailPanelScrollable(theme *Theme, title, body string, focused bool, width, maxBodyLines, scroll int) string {
 	innerWidth := panelBodyWidth(width)
 	lines := problemDetailPanelLines(body, innerWidth)
@@ -1302,6 +1342,23 @@ func problemDetailPanelLines(body string, width int) []string {
 	for _, line := range strings.Split(body, "\n") {
 		wrapped := wrapProblemDetailLine(line, width)
 		lines = append(lines, strings.Split(wrapped, "\n")...)
+	}
+	return lines
+}
+
+func problemDetailPreformattedLines(body string, width int) []string {
+	var lines []string
+	for _, line := range strings.Split(body, "\n") {
+		if width <= 0 || lipgloss.Width(line) <= width {
+			lines = append(lines, line)
+			continue
+		}
+		for lipgloss.Width(line) > width {
+			cut := problemDetailWrapCut(line, width)
+			lines = append(lines, line[:cut])
+			line = line[cut:]
+		}
+		lines = append(lines, line)
 	}
 	return lines
 }
