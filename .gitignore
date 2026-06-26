@@ -18,6 +18,11 @@ session.json
 .leetgo/
 leetgo-workspace/
 
+# Local planning and agent context
+/docs/
+/AGENTS.md
+/CONTEXT.md
+
 # Environment and editor files
 .env
 .env.*
