@@ -76,7 +76,7 @@ func TestNewRootModel_OnboardingComplete(t *testing.T) {
 	assert.True(t, ok, "expected DashboardScreen when onboarding is complete")
 }
 
-func TestNewRootModel_StaleOnboardingVersionOpensOnboarding(t *testing.T) {
+func TestNewRootModel_LegacyCompletedConfigOpensDashboard(t *testing.T) {
 	cfg := &config.Config{
 		OnboardingComplete: true,
 		OnboardingVersion:  0,
@@ -87,30 +87,10 @@ func TestNewRootModel_StaleOnboardingVersionOpensOnboarding(t *testing.T) {
 		Theme:              "rpg-skill-tree",
 	}
 
-	m := newTestRootModelWithoutVersionUpgrade(t, cfg)
+	m := newTestRootModel(t, cfg)
 	assert.NotNil(t, m.screen)
-	_, ok := m.screen.(*OnboardingScreen)
-	assert.True(t, ok, "stale configs should rerun Onboarding")
-}
-
-func newTestRootModelWithoutVersionUpgrade(t *testing.T, cfg *config.Config) *RootModel {
-	t.Helper()
-	t.Setenv("HOME", t.TempDir())
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := store.NewSQLiteStore(dbPath)
-	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
-
-	legacyModel, err := NewModel(cfg, db)
-	require.NoError(t, err)
-
-	roadmaps, err := catalog.ListRoadmaps()
-	require.NoError(t, err)
-
-	languages := []string{"go", "python", "typescript", "java", "cpp", "javascript", "rust", "csharp"}
-	root, err := NewRootModel(cfg, legacyModel, db, languages, roadmaps)
-	require.NoError(t, err)
-	return root
+	_, ok := m.screen.(*DashboardScreen)
+	assert.True(t, ok, "completed legacy configs should not rerun Onboarding")
 }
 
 func TestRootModel_View(t *testing.T) {

@@ -35,3 +35,26 @@ func SpecForProblem(p *roadmap.Problem) (*ProblemSpec, bool) {
 	s.Slug = p.Slug
 	return &s, true
 }
+
+func SpecForSlug(slug string) (*ProblemSpec, bool) {
+	for _, s := range problemSpecs {
+		if s.Slug == slug {
+			return &s, true
+		}
+	}
+	return nil, false
+}
+
+func AutomationSupport(p *roadmap.Problem) (canGenerate bool, canVerify bool, canSubmit bool, reason string) {
+	spec, ok := SpecForProblem(p)
+	if !ok {
+		return false, false, false, "no generator spec is available for this Problem"
+	}
+	if spec.IsDesign {
+		return false, false, false, "design Problems are not supported by automated local generation yet"
+	}
+	if spec.Comparison == CmpSkip {
+		return true, false, true, "local verification is not supported for this Problem shape yet"
+	}
+	return true, true, true, ""
+}

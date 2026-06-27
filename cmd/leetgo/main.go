@@ -330,6 +330,10 @@ func runProblemTests(cfg *config.Config, args []string) error {
 		}
 		return fmt.Errorf("stat problem dir: %w", err)
 	}
+	_, canVerify, _, reason := generator.AutomationSupport(problem)
+	if !canVerify {
+		return fmt.Errorf("local verification unavailable for #%d %s: %s", problem.ID, problem.Title, reason)
+	}
 
 	db, err := openStore()
 	if err != nil {
@@ -447,6 +451,13 @@ func runProblemSubmit(cfg *config.Config, args []string) error {
 			return fmt.Errorf("problem files not found: start %s first", problem.Slug)
 		}
 		return fmt.Errorf("stat problem dir: %w", err)
+	}
+	_, canVerify, canSubmit, reason := generator.AutomationSupport(problem)
+	if !canSubmit {
+		return fmt.Errorf("submission unavailable for #%d %s: %s", problem.ID, problem.Title, reason)
+	}
+	if !skipTests && !canVerify {
+		return fmt.Errorf("local verification unavailable for #%d %s: %s. Use --skip-tests to submit directly to LeetCode", problem.ID, problem.Title, reason)
 	}
 
 	db, err := openStore()

@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/prettyletto/leetgo/internal/catalog"
@@ -38,7 +37,7 @@ func TestManager_Generate_Go(t *testing.T) {
 
 	stub, err := os.ReadFile(stubPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(stub), "func TwoSum")
+	assert.Contains(t, string(stub), "func twoSum")
 }
 
 func TestManager_Generate_Python(t *testing.T) {
@@ -78,7 +77,7 @@ func TestManager_Generate_WritesConcreteTwoSumFilesForAllLanguages(t *testing.T)
 			testFile: "two_sum_test.go",
 			stubContains: []string{
 				"package solution",
-				"func TwoSum(nums []int, target int) []int",
+				"func twoSum(nums []int, target int) []int",
 				"return nil",
 			},
 			testContains: []string{
@@ -93,11 +92,11 @@ func TestManager_Generate_WritesConcreteTwoSumFilesForAllLanguages(t *testing.T)
 			stubFile: "two_sum.py",
 			testFile: "two_sum_test.py",
 			stubContains: []string{
-				"def two_sum(nums: list[int], target: int) -> list[int]:",
+				"def twoSum(nums: list[int], target: int) -> list[int]:",
 			},
 			testContains: []string{
-				"from two_sum import two_sum",
-				"two_sum",
+				"from two_sum import twoSum",
+				"twoSum",
 			},
 		},
 		{
@@ -427,6 +426,14 @@ func TestManager_GenerateAllCatalogedProblems_Go(t *testing.T) {
 
 	for _, p := range problems {
 		t.Run(fmt.Sprintf("#%d_%s", p.ID, p.Slug), func(t *testing.T) {
+			canGenerate, _, _, reason := generator.AutomationSupport(p)
+			if !canGenerate {
+				_, _, err := mgr.Generate(p, generator.LangGo)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), reason)
+				return
+			}
+
 			stubPath, testPath, err := mgr.Generate(p, generator.LangGo)
 			require.NoError(t, err, "Generate should not error for problem %d", p.ID)
 
@@ -441,14 +448,8 @@ func TestManager_GenerateAllCatalogedProblems_Go(t *testing.T) {
 
 			assert.Contains(t, stub, "package solution", "stub must have package declaration for problem %d", p.ID)
 
-			// Design problems generate comments, not functions
-			isDesign := strings.HasPrefix(stub, "package solution\n\n//")
-			if !isDesign {
-				assert.Contains(t, stub, "func ", "stub must contain a function for problem %d", p.ID)
-				assert.Contains(t, testData, "func Test", "test must contain a test function for problem %d", p.ID)
-			} else {
-				assert.Contains(t, testData, "SKIPPED", "design problem test must indicate skipped for problem %d", p.ID)
-			}
+			assert.Contains(t, stub, "func ", "stub must contain a function for problem %d", p.ID)
+			assert.Contains(t, testData, "func Test", "test must contain a test function for problem %d", p.ID)
 			assert.NotContains(t, testData, "TODO: add test cases", "test must not contain placeholder for problem %d", p.ID)
 		})
 	}
@@ -486,8 +487,6 @@ func TestManager_GenerateAllCatalogedProblems_GoTestsCompile(t *testing.T) {
 		{286, "walls-and-gates (void return, in-place grid)"},
 		{66, "plus-one (int slice)"},
 		{202, "happy-number (int param, bool)"},
-		{146, "lru-cache (design problem, skipped)"},
-		{208, "implement-trie (design problem, skipped)"},
 		{23, "merge-k-sorted-lists (CmpSkip)"},
 		{105, "construct-binary-tree (CmpSkip)"},
 		{108, "convert-sorted-array-to-bst (CmpSkip)"},
@@ -509,6 +508,17 @@ func TestManager_GenerateAllCatalogedProblems_GoTestsCompile(t *testing.T) {
 			assert.NotContains(t, outputStr, "build failed", "problem %d must compile without build errors", p.ID)
 		})
 	}
+}
+
+func TestManager_Generate_RejectsDesignProblems(t *testing.T) {
+	root := t.TempDir()
+	mgr := New(root, generator.New())
+	p := &roadmap.Problem{ID: 146, Title: "LRU Cache", Slug: "lru-cache", Category: "linked-list"}
+
+	_, _, err := mgr.Generate(p, generator.LangGo)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "design Problems are not supported")
 }
 
 func findProblemByID(problems []*roadmap.Problem, id int) (*roadmap.Problem, bool) {

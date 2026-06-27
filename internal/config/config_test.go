@@ -338,6 +338,30 @@ roadmap = "from-zero-to-hero"
 	assert.Empty(t, cfg.GitExportRepo)
 }
 
+func TestLoad_MigratesCompletedConfigWithoutOnboardingVersion(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	dataDir := filepath.Join(tmp, ".leetgo")
+	require.NoError(t, os.MkdirAll(dataDir, 0o755))
+
+	oldConfig := `onboarding_complete = true
+display_name = "Ada"
+workspace = "/home/ada/leetgo-workspace"
+editor = "nvim"
+language = "go"
+roadmap = "from-zero-to-hero"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dataDir, "config.toml"), []byte(oldConfig), 0o644))
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.True(t, cfg.OnboardingComplete)
+	assert.Equal(t, CurrentOnboardingVersion, cfg.OnboardingVersion)
+	assert.True(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}))
+}
+
 func TestApplyDefaults_MigratesLegacyTheme(t *testing.T) {
 	cfg := &Config{Theme: "cyber-dashboard"}
 
@@ -360,7 +384,7 @@ func TestReadyForDashboard(t *testing.T) {
 	assert.True(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}))
 
 	cfg.OnboardingVersion = 0
-	assert.False(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}), "stale configs must rerun Onboarding")
+	assert.True(t, cfg.ReadyForDashboard([]string{"go"}, []string{"from-zero-to-hero"}), "completed legacy configs should not rerun Onboarding")
 
 	cfg.OnboardingVersion = CurrentOnboardingVersion
 	cfg.DisplayName = ""

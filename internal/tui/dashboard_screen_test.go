@@ -920,6 +920,8 @@ func TestDashboard_LanguagePickerCyclesWithJK(t *testing.T) {
 }
 
 func TestDashboard_LanguagePickerEnterSaves(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	d, _ := newTestDashboard(t)
 	d.cfg.Language = "go"
 	d.languageMode = true

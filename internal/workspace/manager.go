@@ -20,6 +20,11 @@ func New(root string, gen *generator.Generator) *Manager {
 }
 
 func (m *Manager) Generate(p *roadmap.Problem, lang generator.Language) (stubPath, testPath string, err error) {
+	canGenerate, _, _, reason := generator.AutomationSupport(p)
+	if !canGenerate {
+		return "", "", fmt.Errorf("cannot generate %s: %s", p.Slug, reason)
+	}
+
 	tmpl, ok := m.generator.GetTemplate(lang)
 	if !ok {
 		return "", "", fmt.Errorf("unsupported language: %s", lang)

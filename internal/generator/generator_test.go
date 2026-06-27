@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/prettyletto/leetgo/internal/roadmap"
@@ -14,7 +15,7 @@ func TestGo_Stub_TwoSum(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func TwoSum")
+	assert.Contains(t, content, "func twoSum")
 	assert.Contains(t, content, "nums []int, target int")
 	assert.Contains(t, content, "[]int")
 }
@@ -37,7 +38,7 @@ func TestGo_Stub_ContainsDuplicate(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func ContainsDuplicate")
+	assert.Contains(t, content, "func containsDuplicate")
 	assert.Contains(t, content, "nums []int) bool")
 	assert.Contains(t, content, "return false")
 }
@@ -59,7 +60,7 @@ func TestGo_Stub_ClimbingStairs(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func ClimbingStairs")
+	assert.Contains(t, content, "func climbStairs")
 	assert.Contains(t, content, "n int) int")
 }
 
@@ -69,7 +70,7 @@ func TestGo_Test_ClimbingStairs(t *testing.T) {
 	testFile, err := tmpl.RenderTest(p)
 	require.NoError(t, err)
 	content := string(testFile)
-	assert.Contains(t, content, "func TestClimbingStairs")
+	assert.Contains(t, content, "func TestClimbStairs")
 	assert.Contains(t, content, "expect: 2")
 	assert.Contains(t, content, "expect: 3")
 }
@@ -80,7 +81,7 @@ func TestGo_Stub_GroupAnagrams(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func GroupAnagrams")
+	assert.Contains(t, content, "func groupAnagrams")
 	assert.Contains(t, content, "strs []string) [][]string")
 }
 
@@ -90,7 +91,7 @@ func TestGo_Stub_ReverseLinkedList(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func ReverseLinkedList")
+	assert.Contains(t, content, "func reverseList")
 	assert.Contains(t, content, "head *ListNode) *ListNode")
 	assert.Contains(t, content, "type ListNode struct")
 }
@@ -106,7 +107,7 @@ func TestGo_Test_ReverseLinkedList(t *testing.T) {
 	testFile, err := tmpl.RenderTest(p)
 	require.NoError(t, err)
 	content := string(testFile)
-	assert.Contains(t, content, "func TestReverseLinkedList")
+	assert.Contains(t, content, "func TestReverseList")
 	assert.Contains(t, content, "*ListNode")
 }
 
@@ -116,7 +117,7 @@ func TestGo_Stub_BinaryTreeInorderTraversal(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func BinaryTreeInorderTraversal")
+	assert.Contains(t, content, "func inorderTraversal")
 	assert.Contains(t, content, "root *TreeNode) []int")
 	assert.Contains(t, content, "type TreeNode struct")
 }
@@ -139,7 +140,7 @@ func TestGo_Stub_MergeIntervals(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func MergeIntervals")
+	assert.Contains(t, content, "func merge")
 	assert.Contains(t, content, "intervals [][]int) [][]int")
 }
 
@@ -149,7 +150,7 @@ func TestGo_Test_SlidingWindow(t *testing.T) {
 	testFile, err := tmpl.RenderTest(p)
 	require.NoError(t, err)
 	content := string(testFile)
-	assert.Contains(t, content, "func TestBestTimeToBuyAndSellStock")
+	assert.Contains(t, content, "func TestMaxProfit")
 	assert.Contains(t, content, "prices: []int{7,1,5,3,6,4}")
 	assert.Contains(t, content, "expect: 5")
 }
@@ -160,7 +161,7 @@ func TestGo_Stub_WordLadder(t *testing.T) {
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
 	content := string(stub)
-	assert.Contains(t, content, "func WordLadder")
+	assert.Contains(t, content, "func ladderLength")
 	assert.Contains(t, content, "beginWord string, endWord string, wordList []string) int")
 }
 
@@ -191,12 +192,50 @@ func TestAllCatalogedProblemsHaveSpecs(t *testing.T) {
 	assert.Equal(t, len(knownIDs), len(problemSpecs), "all known problems should have specs in registry")
 }
 
+func TestGo_AllNonDesignSpecsUseLeetCodeFunctionNames(t *testing.T) {
+	tmpl := &GoTemplate{}
+	for id, spec := range problemSpecs {
+		if spec.IsDesign {
+			continue
+		}
+		want, ok := leetcodeFuncNames[spec.Slug]
+		require.True(t, ok, "problem %d (%s) should have canonical LeetCode Go function name", id, spec.Slug)
+
+		p := &roadmap.Problem{ID: id, Slug: spec.Slug}
+		stub, err := tmpl.RenderStub(p)
+		require.NoError(t, err, "render stub for %d %s", id, spec.Slug)
+		assert.Contains(t, string(stub), "func "+want+"(", "stub for %d %s", id, spec.Slug)
+
+		testFile, err := tmpl.RenderTest(p)
+		require.NoError(t, err, "render test for %d %s", id, spec.Slug)
+		if spec.Comparison != CmpSkip {
+			assert.Contains(t, string(testFile), want+"(", "test for %d %s should call canonical function", id, spec.Slug)
+		}
+		assert.Contains(t, string(testFile), "func Test"+goTestFuncName(want), "test for %d %s should have exported Go test name", id, spec.Slug)
+		assert.False(t, strings.Contains(string(stub), "func "+toPascalCase(spec.Slug)+"(") && toPascalCase(spec.Slug) != want, "stub for %d %s should not use old PascalCase name", id, spec.Slug)
+	}
+}
+
+func TestGeneratedLanguageNamesUseLeetCodeFunctionNames(t *testing.T) {
+	for id, spec := range problemSpecs {
+		if spec.IsDesign {
+			continue
+		}
+		want, ok := leetcodeFuncNames[spec.Slug]
+		require.True(t, ok, "problem %d (%s) should have canonical function name", id, spec.Slug)
+		assert.Equal(t, want, spec.PythonFuncName(), "python name for %d %s", id, spec.Slug)
+		assert.Equal(t, want, spec.TSFuncName(), "typescript/javascript name for %d %s", id, spec.Slug)
+		assert.Equal(t, want, spec.JavaFuncName(), "java name for %d %s", id, spec.Slug)
+		assert.Equal(t, want, spec.CppFuncName(), "cpp name for %d %s", id, spec.Slug)
+	}
+}
+
 func TestPython_Stub_TwoSum(t *testing.T) {
 	p := &roadmap.Problem{ID: 1, Slug: "two-sum"}
 	tmpl := &PythonTemplate{}
 	stub, err := tmpl.RenderStub(p)
 	require.NoError(t, err)
-	assert.Contains(t, string(stub), "def two_sum")
+	assert.Contains(t, string(stub), "def twoSum")
 	assert.Contains(t, string(stub), "nums: list[int], target: int")
 	assert.Contains(t, string(stub), "list[int]")
 }

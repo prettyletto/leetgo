@@ -12,7 +12,7 @@ var problemSpecs = map[int]ProblemSpec{
 			{Input: map[string]string{"_name": "example 2", "nums": "[]int{1,2,3,4}"}, Expect: "false"},
 			{Input: map[string]string{"_name": "single element", "nums": "[]int{0}"}, Expect: "false"},
 		}},
-	242: {Slug: "valid-anagram", Params: []ParamSpec{p("s", KindString), p("t", KindString)}, Return: ReturnSpec{KindBool}, Comparison: CmpBool,
+	242: {Slug: "valid-anagram", FuncName: "isAnagram", Params: []ParamSpec{p("s", KindString), p("t", KindString)}, Return: ReturnSpec{KindBool}, Comparison: CmpBool,
 		Examples: []ExampleSpec{
 			{Input: map[string]string{"_name": "example 1", "s": `"anagram"`, "t": `"nagaram"`}, Expect: "true"},
 			{Input: map[string]string{"_name": "example 2", "s": `"rat"`, "t": `"car"`}, Expect: "false"},

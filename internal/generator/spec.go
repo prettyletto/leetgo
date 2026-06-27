@@ -63,28 +63,46 @@ type ProblemSpec struct {
 	NeedsTreeNode bool
 }
 
-// GoFuncName returns the Go function name (PascalCase).
+// GoFuncName returns the Go function name used by the local workspace.
 func (s *ProblemSpec) GoFuncName() string {
+	if s.FuncName != "" {
+		return s.FuncName
+	}
+	if name, ok := leetcodeFuncNames[s.Slug]; ok {
+		return name
+	}
 	return toPascalCase(s.Slug)
 }
 
-// PythonFuncName returns the Python function name (snake_case).
+// PythonFuncName returns the Python method name LeetCode expects.
 func (s *ProblemSpec) PythonFuncName() string {
-	return toSnakeCase(s.Slug)
+	if name, ok := leetcodeFuncNames[s.Slug]; ok {
+		return name
+	}
+	return toCamelCase(s.Slug)
 }
 
-// TSFuncName returns the TypeScript/JavaScript function name (camelCase).
+// TSFuncName returns the TypeScript/JavaScript function name LeetCode expects.
 func (s *ProblemSpec) TSFuncName() string {
+	if name, ok := leetcodeFuncNames[s.Slug]; ok {
+		return name
+	}
 	return toCamelCase(s.Slug)
 }
 
-// JavaFuncName returns the Java method name (camelCase).
+// JavaFuncName returns the Java method name LeetCode expects.
 func (s *ProblemSpec) JavaFuncName() string {
+	if name, ok := leetcodeFuncNames[s.Slug]; ok {
+		return name
+	}
 	return toCamelCase(s.Slug)
 }
 
-// CppFuncName returns the C++ method name (camelCase).
+// CppFuncName returns the C++ method name LeetCode expects.
 func (s *ProblemSpec) CppFuncName() string {
+	if name, ok := leetcodeFuncNames[s.Slug]; ok {
+		return name
+	}
 	return toCamelCase(s.Slug)
 }
 

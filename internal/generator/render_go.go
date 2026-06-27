@@ -76,6 +76,15 @@ func goParam(params []ParamSpec) string {
 	return strings.Join(parts, ", ")
 }
 
+func goTestFuncName(funcName string) string {
+	if funcName == "" {
+		return "Solution"
+	}
+	runes := []rune(funcName)
+	runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+	return string(runes)
+}
+
 func goReturn(ret ReturnSpec) string {
 	return goType(ret.Type)
 }
@@ -134,7 +143,7 @@ func renderGoTest(spec *ProblemSpec) []byte {
 	if spec.Comparison == CmpSkip {
 		buf.WriteString("import \"testing\"\n\n")
 		funcName := spec.GoFuncName()
-		buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", funcName))
+		buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", goTestFuncName(funcName)))
 		buf.WriteString("\tt.Skip(\"comparison not yet supported for this problem shape\")\n")
 		buf.WriteString("}\n")
 		return buf.Bytes()
@@ -166,7 +175,7 @@ func renderGoTest(spec *ProblemSpec) []byte {
 	funcName := spec.GoFuncName()
 
 	if spec.Return.Type == KindVoid {
-		buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", funcName))
+		buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", goTestFuncName(funcName)))
 		for _, ex := range spec.Examples {
 			firstParam := spec.Params[0].Name
 			buf.WriteString(fmt.Sprintf("\t%s := %s\n", firstParam, ex.Input[firstParam]))
@@ -184,7 +193,7 @@ func renderGoTest(spec *ProblemSpec) []byte {
 		return buf.Bytes()
 	}
 
-	buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", funcName))
+	buf.WriteString(fmt.Sprintf("func Test%s(t *testing.T) {\n", goTestFuncName(funcName)))
 
 	buf.WriteString("\ttests := []struct {\n")
 	buf.WriteString("\t\tname string\n")

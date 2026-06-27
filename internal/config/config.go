@@ -88,6 +88,7 @@ func DefaultWorkspace() (string, error) {
 }
 
 func (c *Config) ReadyForDashboard(languages, roadmaps []string) bool {
+	c.ApplyDefaults()
 	if !c.OnboardingComplete || c.OnboardingVersion < CurrentOnboardingVersion {
 		return false
 	}
@@ -156,6 +157,9 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) ApplyDefaults() {
+	if c.OnboardingComplete && c.OnboardingVersion == 0 {
+		c.OnboardingVersion = CurrentOnboardingVersion
+	}
 	if c.Theme == "" || slices.Contains(legacyThemes, c.Theme) {
 		c.Theme = "adaptive"
 	}

@@ -640,6 +640,13 @@ func TestProblemDetail_SubmitResultAccepted(t *testing.T) {
 	assert.False(t, pd2.submitting)
 	assert.Equal(t, roadmap.StatusSolved, pd2.status)
 	assert.Contains(t, pd2.errorMsg, "Accepted")
+	assert.Contains(t, pd2.submitResultMsg, "Accepted")
+	pd2.width = 120
+	pd2.height = 30
+	view := pd2.View()
+	assert.Contains(t, view, "Submission Accepted")
+	assert.Contains(t, view, "Runtime: 1 ms")
+	assert.NotContains(t, view, "Problem Brief")
 
 	stats, _ := pd2.db.GetStats(ctx)
 	if initialXP != nil {
@@ -738,6 +745,13 @@ func TestProblemDetail_SubmitResultRejected(t *testing.T) {
 
 	assert.Contains(t, pd2.errorMsg, "Wrong Answer")
 	assert.Contains(t, pd2.errorMsg, "50/63")
+	assert.Contains(t, pd2.submitResultMsg, "Wrong Answer")
+	pd2.width = 120
+	pd2.height = 30
+	view := pd2.View()
+	assert.Contains(t, view, "Submission Rejected")
+	assert.Contains(t, view, "50/63")
+	assert.NotContains(t, view, "Problem Brief")
 	assert.Equal(t, roadmap.StatusInProgress, pd2.status)
 }
 
@@ -755,6 +769,28 @@ func TestProblemDetail_SubmitResultError(t *testing.T) {
 	pd2, ok := sc.(*ProblemDetailScreen)
 	require.True(t, ok)
 	assert.Contains(t, pd2.errorMsg, "Submit failed")
+	assert.Contains(t, pd2.submitResultMsg, "Submit failed")
+	pd2.width = 120
+	pd2.height = 30
+	view := pd2.View()
+	assert.Contains(t, view, "Submission Failed")
+	assert.NotContains(t, view, "Problem Brief")
+}
+
+func TestProblemDetail_SubmitResultDismissesToDetails(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.submitResultMsg = "Accepted! Runtime: 1 ms"
+	pd.width = 120
+	pd.height = 30
+
+	assert.Contains(t, pd.View(), "Submission Accepted")
+
+	sc, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	require.Nil(t, cmd)
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	assert.Empty(t, pd2.submitResultMsg)
+	assert.Contains(t, pd2.View(), "Problem Brief")
 }
 
 func TestProblemDetail_ViewShowsPracticeLog(t *testing.T) {

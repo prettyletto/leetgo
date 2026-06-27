@@ -34,10 +34,11 @@ type ProblemDetailScreen struct {
 	workspace *workspace.Manager
 	solveLogs []*store.SolveLogRecord
 
-	errorMsg      string
-	testResultMsg string
-	submitting    bool
-	spinnerFrame  int
+	errorMsg        string
+	testResultMsg   string
+	submitResultMsg string
+	submitting      bool
+	spinnerFrame    int
 
 	manualSolveMode  bool
 	manualSolveInput string
@@ -180,6 +181,16 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			case "q", "ctrl+c":
 				return s, tea.Quit
 			}
+		}
+		if s.submitResultMsg != "" {
+			switch msg.String() {
+			case "esc", "backspace":
+				s.submitResultMsg = ""
+				return s, nil
+			case "q", "ctrl+c":
+				return s, tea.Quit
+			}
+			return s, nil
 		}
 		if s.submitAnywayMode {
 			return s.handleSubmitAnywayKey(msg)
@@ -364,6 +375,11 @@ func (s *ProblemDetailScreen) handleRunTests() (Screen, tea.Cmd) {
 		s.errorMsg = "Problem files not generated. Start the problem first."
 		return s, nil
 	}
+	_, canVerify, _, reason := generator.AutomationSupport(s.problem)
+	if !canVerify {
+		s.errorMsg = reason + ". Submit to LeetCode directly when ready."
+		return s, nil
+	}
 
 	difficulty := s.problem.Difficulty
 	problemID := s.problem.ID
@@ -394,6 +410,17 @@ func (s *ProblemDetailScreen) handleSubmit() (Screen, tea.Cmd) {
 func (s *ProblemDetailScreen) handleSubmitWithLocalTests(runLocalTests bool) (Screen, tea.Cmd) {
 	if s.status != roadmap.StatusInProgress && s.status != roadmap.StatusVerified && s.status != roadmap.StatusSolved {
 		s.errorMsg = "Start the problem first."
+		return s, nil
+	}
+	_, canVerify, canSubmit, reason := generator.AutomationSupport(s.problem)
+	if !canSubmit {
+		s.errorMsg = reason
+		return s, nil
+	}
+	if runLocalTests && !canVerify {
+		s.errorMsg = reason + ". Type SUBMIT to submit without local verification."
+		s.submitAnywayMode = true
+		s.submitAnywayInput = ""
 		return s, nil
 	}
 
@@ -502,12 +529,14 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 		}
 		if err := s.markVerifiedFromSubmitPrecheck(msg); err != nil {
 			s.errorMsg = err.Error()
+			s.submitResultMsg = s.errorMsg
 			return s, nil
 		}
 	}
 
 	if msg.err != nil {
 		s.errorMsg = fmt.Sprintf("Submit failed: %v", msg.err)
+		s.submitResultMsg = s.errorMsg
 		return s, nil
 	}
 
@@ -518,11 +547,16 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 		if s.errorMsg == "" {
 			s.errorMsg = acceptedMessage(msg.result)
 		}
+		s.submitResultMsg = acceptedMessage(msg.result)
+		if strings.Contains(strings.ToLower(s.errorMsg), "already claimed") {
+			s.submitResultMsg += "\n" + s.errorMsg
+		}
 	} else {
 		s.errorMsg = fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests)
 		if msg.result.Error != "" {
 			s.errorMsg += ": " + msg.result.Error
 		}
+		s.submitResultMsg = s.errorMsg
 	}
 
 	return s, nil
@@ -1057,6 +1091,9 @@ func (s *ProblemDetailScreen) View() string {
 	if s.testResultMsg != "" {
 		return s.renderTestResult()
 	}
+	if s.submitResultMsg != "" {
+		return s.renderSubmitResult()
+	}
 	if s.submitting {
 		return s.renderSubmitProgress()
 	}
@@ -1151,6 +1188,38 @@ func (s *ProblemDetailScreen) View() string {
 	}
 	body := strings.Join(bodySections, "\n\n")
 	return renderScreenShell(s.theme, s.width, s.height, header, body, footer)
+}
+
+func (s *ProblemDetailScreen) renderSubmitResult() string {
+	width := responsiveShellContentWidth(s.width)
+	if width <= 0 {
+		width = 86
+	}
+	panelWidth := minProblemDetailInt(width-4, 86)
+	if panelWidth < 40 {
+		panelWidth = 40
+	}
+
+	title := "Submission Result"
+	lower := strings.ToLower(s.submitResultMsg)
+	if strings.Contains(lower, "accepted") {
+		title = "Submission Accepted"
+	} else if strings.Contains(lower, "failed") {
+		title = "Submission Failed"
+	} else if strings.Contains(lower, "wrong answer") || strings.Contains(lower, "runtime error") || strings.Contains(lower, "time limit") {
+		title = "Submission Rejected"
+	}
+
+	body := renderProblemDetailPreformattedPanel(s.theme, title, strings.TrimSpace(s.submitResultMsg), true, panelWidth)
+	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
+		s.theme.Key.Render("esc") + " details",
+		s.theme.Key.Render("q") + " quit",
+	}, "  "))
+	content := body + "\n\n" + footer
+	if s.width <= 0 || s.height <= 0 {
+		return content
+	}
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (s *ProblemDetailScreen) renderSubmitProgress() string {
