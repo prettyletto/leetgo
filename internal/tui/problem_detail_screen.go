@@ -210,8 +210,11 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "enter":
 			return s.handlePrimaryAction()
 
-		case "o":
-			return s.handleOpenEditor()
+		case "e":
+			return s.handleOpenEditor(editorLaunchAttached)
+
+		case "E", "o":
+			return s.handleOpenEditor(editorLaunchDetached)
 
 		case "x":
 			return s.handleRunTests()
@@ -278,7 +281,7 @@ func (s *ProblemDetailScreen) handlePrimaryAction() (Screen, tea.Cmd) {
 	case roadmap.StatusVerified:
 		return s.handleSubmit()
 	default:
-		return s.handleOpenEditor()
+		return s.handleOpenEditor(editorLaunchAttached)
 	}
 }
 
@@ -313,7 +316,7 @@ func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 		func() tea.Msg {
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Started %s — files generated", s.problem.Title)}
 		},
-		s.openEditorCmd(stubPath, testPath),
+		s.openEditorCmd(stubPath, editorLaunchAttached),
 	)
 }
 
@@ -335,19 +338,19 @@ func (s *ProblemDetailScreen) writeManifest(stubPath, testPath string) error {
 	return workspace.WriteManifest(dir, m)
 }
 
-func (s *ProblemDetailScreen) handleOpenEditor() (Screen, tea.Cmd) {
-	stubPath, testPath := s.stubPaths()
+func (s *ProblemDetailScreen) handleOpenEditor(mode editorLaunchMode) (Screen, tea.Cmd) {
+	stubPath, _ := s.stubPaths()
 	if s.status == roadmap.StatusLocked {
 		s.errorMsg = "Problem is locked."
 		return s, nil
 	}
 
-	cmd := s.openEditorCmd(stubPath, testPath)
+	cmd := s.openEditorCmd(stubPath, mode)
 	s.errorMsg = ""
 	return s, cmd
 }
 
-func (s *ProblemDetailScreen) openEditorCmd(stubPath, testPath string) tea.Cmd {
+func (s *ProblemDetailScreen) openEditorCmd(stubPath string, mode editorLaunchMode) tea.Cmd {
 	editor := s.cfg.Editor
 	if editor == "" {
 		editor = os.Getenv("VISUAL")
@@ -355,9 +358,18 @@ func (s *ProblemDetailScreen) openEditorCmd(stubPath, testPath string) tea.Cmd {
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
 	}
+	effectiveMode := editorEffectiveLaunchMode(editor, mode)
+	cmd := editorCommand(editor, []string{stubPath}, s.problemDir(), effectiveMode)
+	if effectiveMode == editorLaunchAttached {
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open editor: %v", err)}
+			}
+			return nil
+		})
+	}
 	return func() tea.Msg {
-		cmd := editorCommand(editor, []string{stubPath, testPath}, s.problemDir())
-		if err := cmd.Start(); err != nil {
+		if err := startEditorCommand(cmd); err != nil {
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open editor: %v", err)}
 		}
 		return nil
@@ -1766,7 +1778,8 @@ func (s *ProblemDetailScreen) renderFooter() string {
 
 	items := []string{
 		s.theme.Key.Render("enter") + " " + primaryLabel,
-		s.theme.Key.Render("o") + " open",
+		s.theme.Key.Render("e") + " edit",
+		s.theme.Key.Render("E") + " open window",
 		s.theme.Key.Render("x") + " test",
 		s.theme.Key.Render("s") + " submit",
 		s.theme.Key.Render("m") + " solve",
