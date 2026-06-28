@@ -832,7 +832,7 @@ func TestProblemDetail_SubmittingIgnoresProblemActions(t *testing.T) {
 	pd.submitting = true
 	pd.status = roadmap.StatusAvailable
 
-	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("E")})
 
 	assert.Nil(t, cmd)
 	assert.True(t, pd.submitting)
