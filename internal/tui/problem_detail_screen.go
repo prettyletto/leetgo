@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -47,6 +48,10 @@ type ProblemDetailScreen struct {
 
 	submitAnywayMode  bool
 	submitAnywayInput string
+
+	debugPickerMode bool
+	debugCaseIndex  int
+	debugLaunchMode editorLaunchMode
 
 	width  int
 	height int
@@ -195,6 +200,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		if s.submitAnywayMode {
 			return s.handleSubmitAnywayKey(msg)
 		}
+		if s.debugPickerMode {
+			return s.handleDebugPickerKey(msg)
+		}
 		if s.manualSolveMode {
 			return s.handleManualSolveKey(msg)
 		}
@@ -210,8 +218,17 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "enter":
 			return s.handlePrimaryAction()
 
-		case "o":
-			return s.handleOpenEditor()
+		case "e":
+			return s.handleOpenEditor(editorLaunchAttached)
+
+		case "E", "o":
+			return s.handleOpenEditor(editorLaunchDetached)
+
+		case "d":
+			return s.handleDebug(editorLaunchAttached)
+
+		case "D":
+			return s.handleDebug(editorLaunchDetached)
 
 		case "x":
 			return s.handleRunTests()
@@ -278,7 +295,7 @@ func (s *ProblemDetailScreen) handlePrimaryAction() (Screen, tea.Cmd) {
 	case roadmap.StatusVerified:
 		return s.handleSubmit()
 	default:
-		return s.handleOpenEditor()
+		return s.handleOpenEditor(editorLaunchAttached)
 	}
 }
 
@@ -313,7 +330,7 @@ func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 		func() tea.Msg {
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Started %s — files generated", s.problem.Title)}
 		},
-		s.openEditorCmd(stubPath, testPath),
+		s.openEditorCmd(stubPath, editorLaunchAttached),
 	)
 }
 
@@ -335,19 +352,19 @@ func (s *ProblemDetailScreen) writeManifest(stubPath, testPath string) error {
 	return workspace.WriteManifest(dir, m)
 }
 
-func (s *ProblemDetailScreen) handleOpenEditor() (Screen, tea.Cmd) {
-	stubPath, testPath := s.stubPaths()
+func (s *ProblemDetailScreen) handleOpenEditor(mode editorLaunchMode) (Screen, tea.Cmd) {
+	stubPath, _ := s.stubPaths()
 	if s.status == roadmap.StatusLocked {
 		s.errorMsg = "Problem is locked."
 		return s, nil
 	}
 
-	cmd := s.openEditorCmd(stubPath, testPath)
+	cmd := s.openEditorCmd(stubPath, mode)
 	s.errorMsg = ""
 	return s, cmd
 }
 
-func (s *ProblemDetailScreen) openEditorCmd(stubPath, testPath string) tea.Cmd {
+func (s *ProblemDetailScreen) openEditorCmd(stubPath string, mode editorLaunchMode) tea.Cmd {
 	editor := s.cfg.Editor
 	if editor == "" {
 		editor = os.Getenv("VISUAL")
@@ -355,13 +372,173 @@ func (s *ProblemDetailScreen) openEditorCmd(stubPath, testPath string) tea.Cmd {
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
 	}
+	effectiveMode := editorEffectiveLaunchMode(editor, mode)
+	cmd := editorCommand(editor, []string{stubPath}, s.problemDir(), effectiveMode)
+	if effectiveMode == editorLaunchAttached {
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open editor: %v", err)}
+			}
+			return nil
+		})
+	}
 	return func() tea.Msg {
-		cmd := editorCommand(editor, []string{stubPath, testPath}, s.problemDir())
-		if err := cmd.Start(); err != nil {
+		if err := startEditorCommand(cmd); err != nil {
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open editor: %v", err)}
 		}
 		return nil
 	}
+}
+
+func (s *ProblemDetailScreen) handleDebug(mode editorLaunchMode) (Screen, tea.Cmd) {
+	if s.status == roadmap.StatusLocked {
+		s.errorMsg = "Problem is locked."
+		return s, nil
+	}
+	editor := s.configuredEditor()
+	if !isNeovimEditor(editor) {
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: "Debug is only available for Neovim for now."}
+		}
+	}
+	if s.cfg.Language != "go" {
+		return s, func() tea.Msg {
+			return GlobalNotificationMsg{Message: "Debug is only available for Go Problems in Neovim for now."}
+		}
+	}
+	spec, ok := generator.SpecForProblem(s.problem)
+	if !ok || len(spec.Examples) == 0 || spec.IsDesign {
+		s.errorMsg = "No debuggable test cases are available for this Problem."
+		return s, nil
+	}
+	s.debugPickerMode = true
+	s.debugCaseIndex = 0
+	s.debugLaunchMode = mode
+	s.errorMsg = ""
+	return s, nil
+}
+
+func (s *ProblemDetailScreen) handleDebugPickerKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	spec, ok := generator.SpecForProblem(s.problem)
+	if !ok || len(spec.Examples) == 0 {
+		s.debugPickerMode = false
+		return s, nil
+	}
+	switch msg.String() {
+	case "esc", "backspace":
+		s.debugPickerMode = false
+		return s, nil
+	case "q", "ctrl+c":
+		return s, tea.Quit
+	case "up", "k":
+		if s.debugCaseIndex > 0 {
+			s.debugCaseIndex--
+		}
+		return s, nil
+	case "down", "j":
+		if s.debugCaseIndex < len(spec.Examples)-1 {
+			s.debugCaseIndex++
+		}
+		return s, nil
+	case "enter":
+		idx := s.debugCaseIndex
+		mode := s.debugLaunchMode
+		s.debugPickerMode = false
+		return s, s.openDebugCmd(spec, idx, mode)
+	default:
+		return s, nil
+	}
+}
+
+func (s *ProblemDetailScreen) openDebugCmd(spec *generator.ProblemSpec, exampleIndex int, mode editorLaunchMode) tea.Cmd {
+	editor := s.configuredEditor()
+	caseFile, err := s.writeDebugCase(spec, exampleIndex)
+	if err != nil {
+		return func() tea.Msg {
+			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to prepare debug case: %v", err)}
+		}
+	}
+	debugTestPath, err := writeGoDebugTestFile(s.problemDir(), spec, exampleIndex)
+	if err != nil {
+		return func() tea.Msg {
+			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to prepare Go debug test: %v", err)}
+		}
+	}
+	cmd := debugEditorCommand(editor, debugTestPath, s.problemDir(), mode)
+	cmd.Env = append(os.Environ(),
+		"LEETGO_DEBUG_CASE_FILE="+caseFile,
+		"LEETGO_DEBUG_TEST_FILE="+debugTestPath,
+		fmt.Sprintf("LEETGO_DEBUG_CASE_INDEX=%d", exampleIndex),
+		"LEETGO_DEBUG_PROBLEM_SLUG="+s.problem.Slug,
+	)
+	if mode == editorLaunchAttached {
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open Neovim debugger: %v", err)}
+			}
+			return nil
+		})
+	}
+	return func() tea.Msg {
+		if err := startEditorCommand(cmd); err != nil {
+			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to open Neovim debugger: %v", err)}
+		}
+		return nil
+	}
+}
+
+type debugCaseFile struct {
+	ProblemID int               `json:"problem_id"`
+	Slug      string            `json:"slug"`
+	Title     string            `json:"title"`
+	Index     int               `json:"index"`
+	Name      string            `json:"name"`
+	Inputs    map[string]string `json:"inputs"`
+	Expect    string            `json:"expect"`
+}
+
+func (s *ProblemDetailScreen) writeDebugCase(spec *generator.ProblemSpec, exampleIndex int) (string, error) {
+	if exampleIndex < 0 || exampleIndex >= len(spec.Examples) {
+		return "", fmt.Errorf("debug case index out of range")
+	}
+	ex := spec.Examples[exampleIndex]
+	inputs := make(map[string]string, len(spec.Params))
+	for _, p := range spec.Params {
+		inputs[p.Name] = ex.Input[p.Name]
+	}
+	data := debugCaseFile{
+		ProblemID: s.problem.ID,
+		Slug:      s.problem.Slug,
+		Title:     s.problem.Title,
+		Index:     exampleIndex,
+		Name:      debugExampleName(ex, exampleIndex),
+		Inputs:    inputs,
+		Expect:    ex.Expect,
+	}
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	dir := s.problemDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, ".leetgo-debug.json")
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (s *ProblemDetailScreen) configuredEditor() string {
+	editor := s.cfg.Editor
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+	}
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	return editor
 }
 
 func (s *ProblemDetailScreen) handleRunTests() (Screen, tea.Cmd) {
@@ -555,6 +732,14 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 		s.errorMsg = fmt.Sprintf("%s (%d/%d tests passed)", msg.result.Status, msg.result.PassedTests, msg.result.TotalTests)
 		if msg.result.Error != "" {
 			s.errorMsg += ": " + msg.result.Error
+		}
+		_, testPath := s.stubPaths()
+		importMsg, err := appendFailedLeetCodeCase(s.problem, s.cfg.Language, testPath, msg.result)
+		if err != nil {
+			importMsg = fmt.Sprintf("Failed to add remote testcase locally: %v", err)
+		}
+		if importMsg != "" {
+			s.errorMsg += "\n" + importMsg
 		}
 		s.submitResultMsg = s.errorMsg
 	}
@@ -1097,6 +1282,9 @@ func (s *ProblemDetailScreen) View() string {
 	if s.submitting {
 		return s.renderSubmitProgress()
 	}
+	if s.debugPickerMode {
+		return s.renderDebugPicker()
+	}
 	if s.manualSolveMode {
 		return s.renderManualSolveConfirmation()
 	}
@@ -1568,6 +1756,55 @@ func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
 	return strings.Join(lines, "\n")
 }
 
+func (s *ProblemDetailScreen) renderDebugPicker() string {
+	spec, ok := generator.SpecForProblem(s.problem)
+	if !ok || len(spec.Examples) == 0 {
+		return renderThemedPanel(s.theme, "Debug", "No debuggable test cases are available.", true)
+	}
+	var lines []string
+	lines = append(lines, s.theme.Title.Render("Debug with Neovim DAP"))
+	lines = append(lines, fmt.Sprintf("Problem: #%d %s", s.problem.ID, s.problem.Title))
+	lines = append(lines, "")
+	lines = append(lines, "Choose a test case. Leetgo writes a focused Go debug test and starts Neovim DAP directly.")
+	lines = append(lines, "")
+	muted := lipgloss.NewStyle().Foreground(s.theme.Muted)
+	selected := lipgloss.NewStyle().Foreground(s.theme.SelectionFg).Background(s.theme.SelectionBg).Bold(true)
+	for i, ex := range spec.Examples {
+		label := fmt.Sprintf("%d. %s", i+1, debugExampleName(ex, i))
+		preview := debugExamplePreview(spec, ex)
+		row := label + "  " + muted.Render(preview)
+		if i == s.debugCaseIndex {
+			row = selected.Render("> " + row)
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row)
+	}
+	lines = append(lines, "")
+	lines = append(lines, s.theme.Footer.Render(s.theme.Key.Render("j/k")+" choose  "+s.theme.Key.Render("enter")+" debug  "+s.theme.Key.Render("esc")+" cancel"))
+	return strings.Join(lines, "\n")
+}
+
+func debugExampleName(ex generator.ExampleSpec, index int) string {
+	if name := strings.TrimSpace(ex.Input["_name"]); name != "" {
+		return name
+	}
+	return fmt.Sprintf("case %d", index+1)
+}
+
+func debugExamplePreview(spec *generator.ProblemSpec, ex generator.ExampleSpec) string {
+	parts := make([]string, 0, len(spec.Params)+1)
+	for _, p := range spec.Params {
+		parts = append(parts, fmt.Sprintf("%s=%s", p.Name, ex.Input[p.Name]))
+	}
+	parts = append(parts, "expect="+ex.Expect)
+	preview := strings.Join(parts, ", ")
+	if len(preview) > 96 {
+		return preview[:93] + "..."
+	}
+	return preview
+}
+
 func (s *ProblemDetailScreen) renderProblemBriefBlock(label string, width int) string {
 	if s.problem.Summary == "" && s.problem.PracticeFocus == "" {
 		return renderProblemDetailPanel(s.theme, label, "No brief available yet.", false, width)
@@ -1766,7 +2003,10 @@ func (s *ProblemDetailScreen) renderFooter() string {
 
 	items := []string{
 		s.theme.Key.Render("enter") + " " + primaryLabel,
-		s.theme.Key.Render("o") + " open",
+		s.theme.Key.Render("e") + " edit",
+		s.theme.Key.Render("E") + " open window",
+		s.theme.Key.Render("d") + " debug",
+		s.theme.Key.Render("D") + " debug window",
 		s.theme.Key.Render("x") + " test",
 		s.theme.Key.Render("s") + " submit",
 		s.theme.Key.Render("m") + " solve",

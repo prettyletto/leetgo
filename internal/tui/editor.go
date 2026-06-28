@@ -5,12 +5,24 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
-func editorCommand(editor string, paths []string, workingDir string) *exec.Cmd {
+type editorLaunchMode int
+
+const (
+	editorLaunchAttached editorLaunchMode = iota
+	editorLaunchDetached
+)
+
+func editorCommand(editor string, paths []string, workingDir string, mode editorLaunchMode) *exec.Cmd {
+	mode = editorEffectiveLaunchMode(editor, mode)
 	if strings.TrimSpace(editor) == "" {
 		cmd := exec.Command("xdg-open", workingDir)
 		cmd.Dir = workingDir
+		if mode == editorLaunchDetached {
+			detachEditorCommand(cmd)
+		}
 		return cmd
 	}
 
@@ -18,7 +30,7 @@ func editorCommand(editor string, paths []string, workingDir string) *exec.Cmd {
 	args := append([]string{}, parts[1:]...)
 	args = append(args, paths...)
 
-	if shouldWrapInTerminal(parts[0]) {
+	if mode == editorLaunchDetached && shouldWrapInTerminal(parts[0]) {
 		if cmd := xdgTerminalExecCmd(parts[0], args); cmd != nil {
 			cmd.Dir = workingDir
 			return cmd
@@ -31,7 +43,55 @@ func editorCommand(editor string, paths []string, workingDir string) *exec.Cmd {
 
 	cmd := exec.Command(parts[0], args...)
 	cmd.Dir = workingDir
+	if mode == editorLaunchDetached {
+		detachEditorCommand(cmd)
+	}
 	return cmd
+}
+
+func editorEffectiveLaunchMode(editor string, mode editorLaunchMode) editorLaunchMode {
+	if mode != editorLaunchAttached {
+		return mode
+	}
+	parts := strings.Fields(editor)
+	if len(parts) == 0 || !shouldWrapInTerminal(parts[0]) {
+		return editorLaunchDetached
+	}
+	return editorLaunchAttached
+}
+
+func debugEditorCommand(editor string, debugTestPath string, workingDir string, mode editorLaunchMode) *exec.Cmd {
+	parts := strings.Fields(editor)
+	args := append([]string{}, parts[1:]...)
+	args = append(args, debugTestPath, "+/func "+leetgoDebugTestName, "+lua "+neovimDAPRunCommand())
+	if mode == editorLaunchDetached {
+		if cmd := xdgTerminalExecCmd(parts[0], args); cmd != nil {
+			cmd.Dir = workingDir
+			return cmd
+		}
+		if cmd := fallbackTerminalCmd(parts[0], args); cmd != nil {
+			cmd.Dir = workingDir
+			return cmd
+		}
+	}
+	cmd := exec.Command(parts[0], args...)
+	cmd.Dir = workingDir
+	if mode == editorLaunchDetached {
+		detachEditorCommand(cmd)
+	}
+	return cmd
+}
+
+func neovimDAPRunCommand() string {
+	return "vim.defer_fn(function() local ok,dapgo=pcall(require,'dap-go'); if ok and dapgo.debug_test then dapgo.debug_test(); else require('dap').run({type='go', name='Leetgo Debug Case', request='launch', mode='test', program='.', args={'-test.run', '^TestLeetgoDebugCase$'}}); end end, 300)"
+}
+
+func isNeovimEditor(editor string) bool {
+	parts := strings.Fields(editor)
+	if len(parts) == 0 {
+		return false
+	}
+	return filepath.Base(parts[0]) == "nvim"
 }
 
 func xdgTerminalExecCmd(editor string, editorArgs []string) *exec.Cmd {
@@ -40,7 +100,9 @@ func xdgTerminalExecCmd(editor string, editorArgs []string) *exec.Cmd {
 		return nil
 	}
 	shellArgs := buildShellEditorCmd(editor, editorArgs)
-	return exec.Command(path, shellArgs...)
+	cmd := exec.Command(path, shellArgs...)
+	detachEditorCommand(cmd)
+	return cmd
 }
 
 func fallbackTerminalCmd(editor string, editorArgs []string) *exec.Cmd {
@@ -51,7 +113,20 @@ func fallbackTerminalCmd(editor string, editorArgs []string) *exec.Cmd {
 	shellArgs := buildShellEditorCmd(editor, editorArgs)
 	allArgs := append([]string{}, terminal[1:]...)
 	allArgs = append(allArgs, shellArgs...)
-	return exec.Command(terminal[0], allArgs...)
+	cmd := exec.Command(terminal[0], allArgs...)
+	detachEditorCommand(cmd)
+	return cmd
+}
+
+func detachEditorCommand(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+}
+
+func startEditorCommand(cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 func buildShellEditorCmd(editor string, editorArgs []string) []string {

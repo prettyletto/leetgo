@@ -547,7 +547,7 @@ func (m *Model) handleSelect() (tea.Model, tea.Cmd) {
 	}
 
 	m.notifications.Add(fmt.Sprintf("Started %s — files generated", item.problem.Title))
-	m.openEditor(stubPath, testPath)
+	m.openEditor(stubPath)
 
 	return m, nil
 }
@@ -832,7 +832,7 @@ func leetcodeLang(lang string) string {
 	}
 }
 
-func (m *Model) openEditor(stubPath, testPath string) {
+func (m *Model) openEditor(stubPath string) {
 	editor := m.config.Editor
 	if editor == "" {
 		editor = os.Getenv("VISUAL")
@@ -840,8 +840,8 @@ func (m *Model) openEditor(stubPath, testPath string) {
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
 	}
-	cmd := editorCommand(editor, []string{stubPath, testPath}, filepath.Dir(stubPath))
-	if err := cmd.Start(); err != nil {
+	cmd := editorCommand(editor, []string{stubPath}, filepath.Dir(stubPath), editorLaunchDetached)
+	if err := startEditorCommand(cmd); err != nil {
 		m.notifications.Add(fmt.Sprintf("Failed to open editor: %v", err))
 	}
 }

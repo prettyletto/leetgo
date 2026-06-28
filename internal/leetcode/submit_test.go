@@ -63,3 +63,18 @@ func TestCheckResponseErrorDetail(t *testing.T) {
 
 	assert.Equal(t, "full compile error", resp.errorDetail())
 }
+
+func TestCheckResponseKeepsFailedCaseFields(t *testing.T) {
+	var resp checkResponse
+	err := json.Unmarshal([]byte(`{
+		"state":"SUCCESS",
+		"status_code":11,
+		"status_msg":"Wrong Answer",
+		"last_testcase":"[3,2,4]\n6",
+		"expected_output":"[1,2]"
+	}`), &resp)
+
+	require.NoError(t, err)
+	assert.Equal(t, "[3,2,4]\n6", resp.LastTestcase)
+	assert.Equal(t, "[1,2]", resp.ExpectedOutput)
+}

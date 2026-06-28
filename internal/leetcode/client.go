@@ -115,11 +115,13 @@ func (c *Client) invalidateSession() {
 }
 
 type SubmissionResult struct {
-	Status      string `json:"status"`
-	StatusCode  int    `json:"status_code"`
-	Runtime     string `json:"runtime"`
-	Memory      string `json:"memory"`
-	TotalTests  int    `json:"total_tests"`
-	PassedTests int    `json:"passed_tests"`
-	Error       string `json:"error,omitempty"`
+	Status         string `json:"status"`
+	StatusCode     int    `json:"status_code"`
+	Runtime        string `json:"runtime"`
+	Memory         string `json:"memory"`
+	TotalTests     int    `json:"total_tests"`
+	PassedTests    int    `json:"passed_tests"`
+	Error          string `json:"error,omitempty"`
+	LastTestcase   string `json:"last_testcase,omitempty"`
+	ExpectedOutput string `json:"expected_output,omitempty"`
 }

@@ -40,6 +40,7 @@ type checkResponse struct {
 	FullCompileError string        `json:"full_compile_error"`
 	RuntimeError     string        `json:"runtime_error"`
 	LastTestcase     string        `json:"last_testcase"`
+	ExpectedOutput   string        `json:"expected_output"`
 }
 
 type runtimeMetric string
@@ -188,13 +189,15 @@ func (c *Client) pollResult(ctx context.Context, submissionID int) (*SubmissionR
 
 		if checkResp.State == "SUCCESS" {
 			return &SubmissionResult{
-				Status:      checkResp.StatusMsg,
-				StatusCode:  checkResp.StatusCode,
-				Runtime:     checkResp.runtime(),
-				Memory:      checkResp.memory(),
-				TotalTests:  checkResp.TotalTestcases,
-				PassedTests: checkResp.TotalCorrect,
-				Error:       checkResp.errorDetail(),
+				Status:         checkResp.StatusMsg,
+				StatusCode:     checkResp.StatusCode,
+				Runtime:        checkResp.runtime(),
+				Memory:         checkResp.memory(),
+				TotalTests:     checkResp.TotalTestcases,
+				PassedTests:    checkResp.TotalCorrect,
+				Error:          checkResp.errorDetail(),
+				LastTestcase:   checkResp.LastTestcase,
+				ExpectedOutput: checkResp.ExpectedOutput,
 			}, nil
 		}
 	}

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -466,7 +467,7 @@ func TestProblemDetail_OpenEditorNoEditor(t *testing.T) {
 	t.Setenv("VISUAL", "")
 	t.Setenv("EDITOR", "")
 
-	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	require.NotNil(t, cmd)
 }
 
@@ -1014,8 +1015,57 @@ func TestProblemDetail_OpenEditorDetached(t *testing.T) {
 	t.Setenv("VISUAL", "")
 	t.Setenv("EDITOR", "")
 
-	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("E")})
 	require.NotNil(t, cmd)
+}
+
+func TestProblemDetail_DebugNonNeovimShowsNotification(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Editor = "code"
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	require.NotNil(t, cmd)
+	msg := cmd()
+	notification, ok := msg.(GlobalNotificationMsg)
+	require.True(t, ok)
+	assert.Contains(t, notification.Message, "Neovim")
+	assert.False(t, pd.debugPickerMode)
+}
+
+func TestProblemDetail_DebugNeovimOpensCasePicker(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Editor = "nvim"
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+
+	assert.Nil(t, cmd)
+	assert.True(t, pd.debugPickerMode)
+	assert.Equal(t, editorLaunchAttached, pd.debugLaunchMode)
+	assert.Contains(t, pd.View(), "Debug with Neovim DAP")
+	assert.Contains(t, pd.View(), "example 1")
+}
+
+func TestProblemDetail_WriteDebugCase(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	spec, ok := generator.SpecForProblem(pd.problem)
+	require.True(t, ok)
+
+	path, err := pd.writeDebugCase(spec, 1)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var payload debugCaseFile
+	require.NoError(t, json.Unmarshal(data, &payload))
+	assert.Equal(t, 1, payload.ProblemID)
+	assert.Equal(t, "two-sum", payload.Slug)
+	assert.Equal(t, 1, payload.Index)
+	assert.Equal(t, "example 2", payload.Name)
+	assert.Equal(t, "[]int{3,2,4}", payload.Inputs["nums"])
+	assert.Equal(t, "6", payload.Inputs["target"])
+	assert.Equal(t, "[]int{1,2}", payload.Expect)
 }
 
 func TestProblemDetail_TestRunResultAlreadyVerified(t *testing.T) {
