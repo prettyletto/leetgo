@@ -228,7 +228,7 @@ func (m *RootModel) handleNavigation(msg NavigateMsg) (tea.Model, tea.Cmd) {
 			pd.returnScreen, pd.returnStage = problemDetailReturnTarget(msg, currentScreen)
 		}
 		m.applyCurrentSize()
-		return m, nil
+		return m, m.screen.Init()
 	case ScreenSolveLog:
 		m.refreshTheme()
 		m.screen = NewSolveLogScreen(m.cfg, m.theme, m.db)

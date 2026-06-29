@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -967,11 +968,19 @@ func doStartProblem(cfg *config.Config, problemID int) error {
 		args := append(parts[1:], stubPath, testPath)
 		cmd := exec.Command(parts[0], args...)
 		cmd.Dir = problemDir
-		if err := cmd.Start(); err != nil {
+		if err := startDetachedProcess(cmd); err != nil {
 			return fmt.Errorf("open editor: %w", err)
 		}
 	}
 	return nil
+}
+
+func startDetachedProcess(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 func runInfo(cfg *config.Config, args []string) error {
@@ -1609,8 +1618,11 @@ func authenticate() error {
 	}
 
 	if client.IsAuthenticated() {
-		fmt.Println("Already authenticated with LeetCode")
-		return nil
+		if err := client.ValidateSession(context.Background()); err == nil {
+			fmt.Println("Already authenticated with LeetCode")
+			return nil
+		}
+		fmt.Println("Saved LeetCode Session is no longer valid; reconnecting...")
 	}
 
 	fmt.Println("Starting LeetCode authentication...")

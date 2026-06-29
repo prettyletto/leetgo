@@ -60,10 +60,10 @@ func editorEffectiveLaunchMode(editor string, mode editorLaunchMode) editorLaunc
 	return editorLaunchAttached
 }
 
-func debugEditorCommand(editor string, debugTestPath string, workingDir string, mode editorLaunchMode) *exec.Cmd {
+func debugEditorCommand(editor string, solutionPath string, bootstrapPath string, searchCommand string, workingDir string, mode editorLaunchMode) *exec.Cmd {
 	parts := strings.Fields(editor)
 	args := append([]string{}, parts[1:]...)
-	args = append(args, debugTestPath, "+/func "+leetgoDebugTestName, "+lua "+neovimDAPRunCommand())
+	args = append(args, solutionPath, searchCommand, "-c", "luafile "+bootstrapPath)
 	if mode == editorLaunchDetached {
 		if cmd := xdgTerminalExecCmd(parts[0], args); cmd != nil {
 			cmd.Dir = workingDir
@@ -80,10 +80,6 @@ func debugEditorCommand(editor string, debugTestPath string, workingDir string, 
 		detachEditorCommand(cmd)
 	}
 	return cmd
-}
-
-func neovimDAPRunCommand() string {
-	return "vim.defer_fn(function() local ok,dapgo=pcall(require,'dap-go'); if ok and dapgo.debug_test then dapgo.debug_test(); else require('dap').run({type='go', name='Leetgo Debug Case', request='launch', mode='test', program='.', args={'-test.run', '^TestLeetgoDebugCase$'}}); end end, 300)"
 }
 
 func isNeovimEditor(editor string) bool {

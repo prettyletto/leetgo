@@ -69,15 +69,14 @@ func TestEditorCommand_AttachedGraphicalEditorFallsBackToDetached(t *testing.T) 
 }
 
 func TestDebugEditorCommand_AttachedNeovimStartsDAP(t *testing.T) {
-	cmd := debugEditorCommand("nvim", "leetgo_debug_test.go", "/tmp/problem", editorLaunchAttached)
+	cmd := debugEditorCommand("nvim", "character_replacement.go", "leetgo_debug.lua", "+/func characterReplacement", "/tmp/problem", editorLaunchAttached)
 
 	assert.Equal(t, "nvim", filepath.Base(cmd.Path))
 	assert.Equal(t, "nvim", cmd.Args[0])
-	assert.Equal(t, "leetgo_debug_test.go", cmd.Args[1])
-	assert.Equal(t, "+/func TestLeetgoDebugCase", cmd.Args[2])
-	assert.Contains(t, cmd.Args[3], "dap-go")
-	assert.Contains(t, cmd.Args[3], "debug_test")
-	assert.Contains(t, cmd.Args[3], "^TestLeetgoDebugCase$")
+	assert.Equal(t, "character_replacement.go", cmd.Args[1])
+	assert.Equal(t, "+/func characterReplacement", cmd.Args[2])
+	assert.Equal(t, "-c", cmd.Args[3])
+	assert.Equal(t, "luafile leetgo_debug.lua", cmd.Args[4])
 	assert.Equal(t, "/tmp/problem", cmd.Dir)
 	assert.Nil(t, cmd.SysProcAttr)
 }

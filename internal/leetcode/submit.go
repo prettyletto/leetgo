@@ -100,10 +100,14 @@ func (c *Client) submitSolution(ctx context.Context, problemID int, problemSlug 
 	if err := c.ValidateSession(ctx); err != nil {
 		return nil, err
 	}
+	metadata, err := c.questionMetadata(ctx, problemSlug)
+	if err != nil {
+		return nil, err
+	}
 	problemURL := fmt.Sprintf(leetcodeBaseURL+"/problems/%s/", problemSlug)
 
 	reqBody := submitRequest{
-		QuestionID: problemID,
+		QuestionID: metadata.QuestionID,
 		Lang:       lang,
 		TypedCode:  adaptSubmissionCode(lang, problemSlug, code),
 	}
@@ -134,6 +138,7 @@ func (c *Client) submitSolution(ctx context.Context, problemID int, problemSlug 
 		return nil, ErrSessionExpired
 	}
 	if resp.StatusCode == http.StatusForbidden {
+		c.invalidateSession()
 		return nil, fmt.Errorf("submit forbidden (403): %s", string(respBody))
 	}
 
@@ -177,6 +182,7 @@ func (c *Client) pollResult(ctx context.Context, submissionID int) (*SubmissionR
 		if resp.StatusCode == http.StatusForbidden {
 			respBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
+			c.invalidateSession()
 			return nil, fmt.Errorf("submission check forbidden (403): %s", string(respBody))
 		}
 

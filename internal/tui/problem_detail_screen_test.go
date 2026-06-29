@@ -55,6 +55,106 @@ func TestProblemDetail_ViewShowsTitle(t *testing.T) {
 	assert.Contains(t, view, "#1 Two Sum")
 }
 
+func TestProblemDetail_UsesFetchedLeetCodeDescription(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.width = 80
+	pd.height = 32
+
+	screen, cmd := pd.Update(problemDescriptionMsg{
+		problemID:   1,
+		description: "Full LeetCode description\n\nExample 1:\nInput: nums = [2,7,11,15], target = 9\nOutput: [0,1]",
+	})
+	require.Nil(t, cmd)
+	pd2, ok := screen.(*ProblemDetailScreen)
+	require.True(t, ok)
+
+	view := pd2.View()
+	assert.Contains(t, view, "Problem Description")
+	assert.Contains(t, view, "Source: LeetCode")
+	assert.Contains(t, view, "Full LeetCode description")
+	assert.NotContains(t, view, "Find two indices whose values sum")
+}
+
+func TestProblemDetail_FetchedDescriptionFeedsDebugPicker(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 424)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Editor = "nvim"
+	pd.cfg.Language = "go"
+
+	screen, cmd := pd.Update(problemDescriptionMsg{
+		problemID: 424,
+		description: `Example 1:
+Input: s = "AABABBA", k = 1
+Output: 4`,
+	})
+	require.Nil(t, cmd)
+	pd2, ok := screen.(*ProblemDetailScreen)
+	require.True(t, ok)
+	require.Len(t, pd2.scrapedExamples, 1)
+
+	_, cmd = pd2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	require.Nil(t, cmd)
+	assert.True(t, pd2.debugPickerMode)
+	view := pd2.View()
+	assert.Contains(t, view, "example 1")
+	assert.Contains(t, view, `s="ABAB"`)
+	assert.Contains(t, view, "leetcode example 1")
+	assert.Contains(t, view, `s="AABABBA"`)
+}
+
+func TestProblemDetail_LocalGoTestsFeedDebugPicker(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 567)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Editor = "nvim"
+	pd.cfg.Language = "go"
+	_, testPath := pd.stubPaths()
+	require.NoError(t, os.MkdirAll(filepath.Dir(testPath), 0o755))
+	require.NoError(t, os.WriteFile(testPath, []byte(`package solution
+
+import "testing"
+
+func TestCheckInclusion(t *testing.T) {
+	tests := []struct {
+		name string
+		s1 string
+		s2 string
+		expect bool
+	}{
+		{name: "example 1", s1: "ab", s2: "eidbaooo", expect: true},
+		{name: "leetcode example 2", s1: "ab", s2: "eidboaoo", expect: false},
+		{name: "leetcode failed", s1: "abcdxabcde", s2: "abcdeabcdx", expect: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {})
+	}
+}
+`), 0o644))
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	require.Nil(t, cmd)
+	assert.True(t, pd.debugPickerMode)
+
+	view := pd.View()
+	assert.Contains(t, view, "leetcode failed")
+	assert.Contains(t, view, `s1="abcdxabcde"`)
+	assert.Contains(t, view, `s2="abcdeabcdx"`)
+}
+
+func TestProblemDetail_FailedDescriptionFetchKeepsBundledBrief(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.width = 120
+
+	screen, cmd := pd.Update(problemDescriptionMsg{problemID: 1, err: assert.AnError})
+	require.Nil(t, cmd)
+	pd2, ok := screen.(*ProblemDetailScreen)
+	require.True(t, ok)
+
+	view := pd2.View()
+	assert.Contains(t, view, "Using bundled brief")
+	assert.Contains(t, view, "Find two indices whose values sum")
+}
+
 func TestProblemDetail_UsesAdaptiveLabels(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 	pd.width = 120
@@ -488,6 +588,21 @@ func TestProblemDetail_RunTestsNotGenerated(t *testing.T) {
 	assert.Contains(t, pd.errorMsg, "not generated")
 }
 
+func TestProblemDetail_XRunsLocalTestsWithoutLeetCodeSession(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.leetcode = nil
+	_, _, err := pd.workspace.Generate(pd.problem, generator.Language(pd.cfg.Language))
+	require.NoError(t, err)
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	require.NotNil(t, cmd)
+	msg := cmd()
+	_, ok := msg.(testRunResultMsg)
+	require.True(t, ok)
+	assert.NotContains(t, pd.errorMsg, "Session expired")
+}
+
 func TestProblemDetail_SubmitNotStarted(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 
@@ -756,6 +871,47 @@ func TestProblemDetail_SubmitResultRejected(t *testing.T) {
 	assert.Equal(t, roadmap.StatusInProgress, pd2.status)
 }
 
+func TestProblemDetail_SubmitResultRejectedAddsFailedCaseToDebugPicker(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Editor = "nvim"
+	pd.cfg.Language = "go"
+	_, testPath := pd.stubPaths()
+	_, _, err := pd.workspace.Generate(pd.problem, generator.Language(pd.cfg.Language))
+	require.NoError(t, err)
+
+	sd := submitResultMsg{
+		problemID: 1,
+		slug:      "two-sum",
+		language:  "golang",
+		result: &leetcode.SubmissionResult{
+			Status:         "Wrong Answer",
+			StatusCode:     11,
+			TotalTests:     63,
+			PassedTests:    50,
+			LastTestcase:   "[1,5,3]\n6",
+			ExpectedOutput: "[0,1]",
+		},
+	}
+
+	sc, _ := pd.Update(sd)
+	pd2, ok := sc.(*ProblemDetailScreen)
+	require.True(t, ok)
+	require.Len(t, pd2.scrapedExamples, 1)
+	assert.Equal(t, "leetcode failed", pd2.scrapedExamples[0].Input["_name"])
+
+	testData, err := os.ReadFile(testPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(testData), `{name: "leetcode failed", nums: []int{1,5,3}, target: 6, expect: []int{0,1}},`)
+	assert.Contains(t, pd2.View(), "d debug")
+
+	_, cmd := pd2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	require.Nil(t, cmd)
+	assert.True(t, pd2.debugPickerMode)
+	assert.Contains(t, pd2.View(), "example 1")
+	assert.Contains(t, pd2.View(), "leetcode failed")
+}
+
 func TestProblemDetail_SubmitResultError(t *testing.T) {
 	pd, _ := newTestProblemDetail(t, 1)
 
@@ -1017,6 +1173,60 @@ func TestProblemDetail_OpenEditorDetached(t *testing.T) {
 
 	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("E")})
 	require.NotNil(t, cmd)
+}
+
+func TestProblemDetail_RegenerateOpensConfirmation(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+
+	assert.Nil(t, cmd)
+	assert.True(t, pd.regenerateMode)
+	view := pd.View()
+	assert.Contains(t, view, "Regenerate Problem Files")
+	assert.Contains(t, view, "Type REGENERATE")
+}
+
+func TestProblemDetail_RegenerateCancel(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 1)
+	pd.status = roadmap.StatusInProgress
+	pd.regenerateMode = true
+	pd.regenerateInput = "REGEN"
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	assert.Nil(t, cmd)
+	assert.False(t, pd.regenerateMode)
+	assert.Empty(t, pd.regenerateInput)
+	assert.Contains(t, pd.errorMsg, "cancelled")
+}
+
+func TestProblemDetail_RegenerateFilesWithScrapedExamples(t *testing.T) {
+	pd, _ := newTestProblemDetail(t, 424)
+	pd.status = roadmap.StatusInProgress
+	pd.cfg.Language = "go"
+	pd.scrapedExamples = []generator.ExampleSpec{{
+		Input:  map[string]string{"_name": "leetcode example 2", "s": `"AABABBA"`, "k": "1"},
+		Expect: "4",
+	}}
+	stubPath, testPath := pd.stubPaths()
+	require.NoError(t, os.MkdirAll(filepath.Dir(stubPath), 0o755))
+	require.NoError(t, os.WriteFile(stubPath, []byte("custom solution"), 0o644))
+	pd.regenerateMode = true
+	pd.regenerateInput = "REGENERATE"
+
+	_, cmd := pd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	assert.Nil(t, cmd)
+	assert.False(t, pd.regenerateMode)
+	stub, err := os.ReadFile(stubPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(stub), "func characterReplacement")
+	testData, err := os.ReadFile(testPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(testData), `{name: "leetcode example 2", s: "AABABBA", k: 1, expect: 4},`)
+	assert.Contains(t, pd.errorMsg, "Regenerated")
 }
 
 func TestProblemDetail_DebugNonNeovimShowsNotification(t *testing.T) {

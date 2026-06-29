@@ -153,7 +153,7 @@ func TestRoadmapDetail_GroupTabsSwitchToSolved(t *testing.T) {
 	assert.Contains(t, view, "Solved")
 	assert.Contains(t, view, "Contains Duplicate")
 
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	rd.Update(tea.KeyMsg{Type: tea.KeyTab})
 	view = rd.View()
 	assert.Contains(t, view, "[Solved]")
 	assert.Contains(t, view, "Solved Problems")
@@ -179,22 +179,22 @@ func TestRoadmapDetail_CompactPanesSwitchWithHL(t *testing.T) {
 	assert.Contains(t, rd.View(), "Stage Progress")
 }
 
-func TestRoadmapDetail_CompactUsesAnglesForGroups(t *testing.T) {
+func TestRoadmapDetail_CompactUsesTabForGroups(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 	rd.width = 80
 
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")})
+	rd.Update(tea.KeyMsg{Type: tea.KeyTab})
 
 	assert.Equal(t, roadmapGroupSolved, rd.groupMode)
 }
 
-func TestRoadmapDetail_GroupTabsSwitchWithAngles(t *testing.T) {
+func TestRoadmapDetail_GroupTabsSwitchWithTab(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")})
+	rd.Update(tea.KeyMsg{Type: tea.KeyTab})
 	assert.Equal(t, roadmapGroupSolved, rd.groupMode)
 
-	rd.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("<")})
+	rd.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
 	assert.Equal(t, roadmapGroupStages, rd.groupMode)
 }
 
@@ -204,8 +204,11 @@ func TestRoadmapDetail_ViewHasFooter(t *testing.T) {
 
 	view := rd.View()
 	assert.Contains(t, view, "j/k")
-	assert.Contains(t, view, "h/l")
+	assert.Contains(t, view, "tab")
 	assert.Contains(t, view, "enter")
+	assert.Contains(t, view, "problem")
+	assert.Contains(t, view, "ctrl+n/p")
+	assert.Contains(t, view, "stage")
 	assert.NotContains(t, view, "graph")
 	assert.Contains(t, view, "esc")
 	assert.Contains(t, view, "quit")
@@ -310,7 +313,7 @@ func TestRoadmapDetail_FocusWalksRenderedStageOrder(t *testing.T) {
 	assert.NotEqual(t, "Valid Parentheses", rd.focusedProblem().Title)
 }
 
-func TestRoadmapDetail_EnterGoesToStageDetail(t *testing.T) {
+func TestRoadmapDetail_EnterGoesToProblemDetail(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 
 	if len(rd.problems) == 0 {
@@ -325,8 +328,43 @@ func TestRoadmapDetail_EnterGoesToStageDetail(t *testing.T) {
 	msg := cmd()
 	navigate, ok := msg.(NavigateMsg)
 	require.True(t, ok)
-	assert.Equal(t, ScreenStageDetail, navigate.ScreenID)
-	assert.NotEmpty(t, navigate.Stage)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+	assert.Equal(t, rd.problems[0].ID, navigate.ProblemID)
+	assert.Equal(t, ScreenRoadmapDetail, navigate.ReturnScreen)
+	assert.NotEmpty(t, navigate.ReturnStage)
+}
+
+func TestRoadmapDetail_CtrlNAndCtrlPChangeFocusedStage(t *testing.T) {
+	rd, _ := newTestRoadmapDetail(t)
+
+	stageIDs := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, p := range rd.activeProblems() {
+		stageID := rd.problemStageID(p)
+		if seen[stageID] {
+			continue
+		}
+		seen[stageID] = true
+		stageIDs = append(stageIDs, stageID)
+	}
+	require.GreaterOrEqual(t, len(stageIDs), 2)
+
+	rd.focusIndex = 0
+	firstStage := rd.problemStageID(rd.focusedProblem())
+
+	_, cmd := rd.Update(tea.KeyMsg{Type: tea.KeyCtrlN})
+	require.Nil(t, cmd)
+	secondStage := rd.problemStageID(rd.focusedProblem())
+	assert.NotEqual(t, firstStage, secondStage)
+	assert.Equal(t, stageIDs[1], secondStage)
+
+	_, cmd = rd.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	require.Nil(t, cmd)
+	assert.Equal(t, firstStage, rd.problemStageID(rd.focusedProblem()))
+
+	_, cmd = rd.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	require.Nil(t, cmd)
+	assert.Equal(t, stageIDs[len(stageIDs)-1], rd.problemStageID(rd.focusedProblem()))
 }
 
 func TestRoadmapDetail_WindowResize(t *testing.T) {
@@ -496,7 +534,7 @@ func TestRoadmapDetail_ListPaneWidthsFitNarrowTwoColumnLayout(t *testing.T) {
 	assert.LessOrEqual(t, left+right+2, rd.width-8)
 }
 
-func TestRoadmapDetail_EnterOnLockedProblemGoesToStage(t *testing.T) {
+func TestRoadmapDetail_EnterOnLockedProblemGoesToProblem(t *testing.T) {
 	rd, _ := newTestRoadmapDetail(t)
 
 	lockedIdx := -1
@@ -515,8 +553,10 @@ func TestRoadmapDetail_EnterOnLockedProblemGoesToStage(t *testing.T) {
 	msg := cmd()
 	navigate, ok := msg.(NavigateMsg)
 	require.True(t, ok)
-	assert.Equal(t, ScreenStageDetail, navigate.ScreenID)
-	assert.NotEmpty(t, navigate.Stage)
+	assert.Equal(t, ScreenProblemDetail, navigate.ScreenID)
+	assert.Equal(t, rd.problems[lockedIdx].ID, navigate.ProblemID)
+	assert.Equal(t, ScreenRoadmapDetail, navigate.ReturnScreen)
+	assert.NotEmpty(t, navigate.ReturnStage)
 }
 
 func TestRoadmapDetail_UnlockedProblemShowsOverview(t *testing.T) {

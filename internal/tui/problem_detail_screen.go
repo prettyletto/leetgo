@@ -41,6 +41,10 @@ type ProblemDetailScreen struct {
 	submitting      bool
 	spinnerFrame    int
 
+	problemDescription string
+	descriptionStatus  string
+	scrapedExamples    []generator.ExampleSpec
+
 	manualSolveMode  bool
 	manualSolveInput string
 	manualSolveNote  string
@@ -48,6 +52,9 @@ type ProblemDetailScreen struct {
 
 	submitAnywayMode  bool
 	submitAnywayInput string
+
+	regenerateMode  bool
+	regenerateInput string
 
 	debugPickerMode bool
 	debugCaseIndex  int
@@ -69,6 +76,12 @@ const (
 )
 
 type spinnerTickMsg time.Time
+
+type problemDescriptionMsg struct {
+	problemID   int
+	description string
+	err         error
+}
 
 func NewProblemDetailScreen(cfg *config.Config, theme *Theme, db store.Store, rm *roadmap.Roadmap, problemID int) *ProblemDetailScreen {
 	p, ok := rm.Graph.Problems[problemID]
@@ -143,7 +156,25 @@ func (s *ProblemDetailScreen) effectiveStatus() {
 }
 
 func (s *ProblemDetailScreen) Init() tea.Cmd {
-	return nil
+	return s.fetchProblemDescriptionCmd()
+}
+
+func (s *ProblemDetailScreen) fetchProblemDescriptionCmd() tea.Cmd {
+	problemID := s.problem.ID
+	slug := s.problem.Slug
+	client := s.leetcode
+	if client == nil || slug == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		desc, err := client.ProblemDescription(ctx, slug)
+		if err != nil {
+			return problemDescriptionMsg{problemID: problemID, err: err}
+		}
+		return problemDescriptionMsg{problemID: problemID, description: desc.ContentText}
+	}
 }
 
 func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
@@ -156,6 +187,26 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 	case testRunResultMsg:
 		return s.handleTestRunResult(msg)
+
+	case problemDescriptionMsg:
+		if msg.problemID != s.problem.ID {
+			return s, nil
+		}
+		if msg.err != nil {
+			s.descriptionStatus = "Using bundled brief; full LeetCode description unavailable."
+			return s, nil
+		}
+		s.problemDescription = msg.description
+		s.descriptionStatus = "Full LeetCode description loaded."
+		if spec, ok := generator.SpecForProblem(s.problem); ok {
+			if examples, err := scrapedExamplesFromDescription(spec, msg.description); err == nil {
+				s.mergeExternalExamples(examples)
+				_, testPath := s.stubPaths()
+				_, _ = appendScrapedLeetCodeExamples(s.problem, s.cfg.Language, testPath, examples)
+			}
+		}
+		s.detailScroll = 0
+		return s, nil
 
 	case spinnerTickMsg:
 		if s.submitting && s.allowsSpinnerMotion() {
@@ -192,6 +243,16 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			case "esc", "backspace":
 				s.submitResultMsg = ""
 				return s, nil
+			case "d":
+				if len(s.scrapedExamples) > 0 && !strings.Contains(strings.ToLower(s.submitResultMsg), "accepted") {
+					s.submitResultMsg = ""
+					return s.handleDebug(editorLaunchAttached)
+				}
+			case "D":
+				if len(s.scrapedExamples) > 0 && !strings.Contains(strings.ToLower(s.submitResultMsg), "accepted") {
+					s.submitResultMsg = ""
+					return s.handleDebug(editorLaunchDetached)
+				}
 			case "q", "ctrl+c":
 				return s, tea.Quit
 			}
@@ -199,6 +260,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		}
 		if s.submitAnywayMode {
 			return s.handleSubmitAnywayKey(msg)
+		}
+		if s.regenerateMode {
+			return s.handleRegenerateKey(msg)
 		}
 		if s.debugPickerMode {
 			return s.handleDebugPickerKey(msg)
@@ -238,6 +302,9 @@ func (s *ProblemDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "m":
 			return s.handleMarkSolved()
+
+		case "R":
+			return s.handleRegenerateFiles()
 
 		case "left", "h":
 			if s.canCycleContextProgression() {
@@ -321,6 +388,9 @@ func (s *ProblemDetailScreen) handleStart() (Screen, tea.Cmd) {
 	if err := s.writeManifest(stubPath, testPath); err != nil {
 		s.errorMsg = fmt.Sprintf("Failed to write manifest: %v", err)
 		return s, nil
+	}
+	if len(s.scrapedExamples) > 0 {
+		_, _ = appendScrapedLeetCodeExamples(s.problem, s.cfg.Language, testPath, s.scrapedExamples)
 	}
 
 	s.status = roadmap.StatusInProgress
@@ -406,7 +476,7 @@ func (s *ProblemDetailScreen) handleDebug(mode editorLaunchMode) (Screen, tea.Cm
 			return GlobalNotificationMsg{Message: "Debug is only available for Go Problems in Neovim for now."}
 		}
 	}
-	spec, ok := generator.SpecForProblem(s.problem)
+	spec, ok := s.debugProblemSpec()
 	if !ok || len(spec.Examples) == 0 || spec.IsDesign {
 		s.errorMsg = "No debuggable test cases are available for this Problem."
 		return s, nil
@@ -419,7 +489,7 @@ func (s *ProblemDetailScreen) handleDebug(mode editorLaunchMode) (Screen, tea.Cm
 }
 
 func (s *ProblemDetailScreen) handleDebugPickerKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
-	spec, ok := generator.SpecForProblem(s.problem)
+	spec, ok := s.debugProblemSpec()
 	if !ok || len(spec.Examples) == 0 {
 		s.debugPickerMode = false
 		return s, nil
@@ -450,7 +520,76 @@ func (s *ProblemDetailScreen) handleDebugPickerKey(msg tea.KeyMsg) (Screen, tea.
 	}
 }
 
+func (s *ProblemDetailScreen) debugProblemSpec() (*generator.ProblemSpec, bool) {
+	spec, ok := generator.SpecForProblem(s.problem)
+	if !ok {
+		return nil, false
+	}
+	examples := append([]generator.ExampleSpec{}, spec.Examples...)
+	if s.cfg.Language == "go" {
+		_, testPath := s.stubPaths()
+		if localExamples, err := localGoTestExamples(spec, testPath); err == nil {
+			examples = appendUniqueExamples(spec, examples, localExamples)
+		}
+	}
+	examples = appendUniqueExamples(spec, examples, s.scrapedExamples)
+	copySpec := *spec
+	copySpec.Examples = examples
+	return &copySpec, true
+}
+
+func appendUniqueExamples(spec *generator.ProblemSpec, examples []generator.ExampleSpec, candidates []generator.ExampleSpec) []generator.ExampleSpec {
+	if len(candidates) == 0 {
+		return examples
+	}
+	existing := make(map[string]bool)
+	for _, ex := range examples {
+		if sig, err := exampleValueSignature(spec, ex); err == nil {
+			existing[sig] = true
+		}
+	}
+	for _, ex := range candidates {
+		sig, err := exampleValueSignature(spec, ex)
+		if err != nil || existing[sig] {
+			continue
+		}
+		examples = append(examples, ex)
+		existing[sig] = true
+	}
+	return examples
+}
+
+func (s *ProblemDetailScreen) mergeExternalExamples(examples []generator.ExampleSpec) {
+	if len(examples) == 0 {
+		return
+	}
+	spec, ok := generator.SpecForProblem(s.problem)
+	if !ok {
+		return
+	}
+	existing := make(map[string]bool)
+	for _, ex := range spec.Examples {
+		if sig, err := exampleValueSignature(spec, ex); err == nil {
+			existing[sig] = true
+		}
+	}
+	for _, ex := range s.scrapedExamples {
+		if sig, err := exampleValueSignature(spec, ex); err == nil {
+			existing[sig] = true
+		}
+	}
+	for _, ex := range examples {
+		sig, err := exampleValueSignature(spec, ex)
+		if err != nil || existing[sig] {
+			continue
+		}
+		s.scrapedExamples = append(s.scrapedExamples, ex)
+		existing[sig] = true
+	}
+}
+
 func (s *ProblemDetailScreen) openDebugCmd(spec *generator.ProblemSpec, exampleIndex int, mode editorLaunchMode) tea.Cmd {
+	stubPath, _ := s.stubPaths()
 	editor := s.configuredEditor()
 	caseFile, err := s.writeDebugCase(spec, exampleIndex)
 	if err != nil {
@@ -464,10 +603,17 @@ func (s *ProblemDetailScreen) openDebugCmd(spec *generator.ProblemSpec, exampleI
 			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to prepare Go debug test: %v", err)}
 		}
 	}
-	cmd := debugEditorCommand(editor, debugTestPath, s.problemDir(), mode)
+	bootstrapPath, err := writeNeovimDebugBootstrap(s.problemDir(), spec)
+	if err != nil {
+		return func() tea.Msg {
+			return GlobalNotificationMsg{Message: fmt.Sprintf("Failed to prepare Neovim debug bootstrap: %v", err)}
+		}
+	}
+	cmd := debugEditorCommand(editor, stubPath, bootstrapPath, neovimFuncSearchCommand(spec), s.problemDir(), mode)
 	cmd.Env = append(os.Environ(),
 		"LEETGO_DEBUG_CASE_FILE="+caseFile,
 		"LEETGO_DEBUG_TEST_FILE="+debugTestPath,
+		"LEETGO_DEBUG_BOOTSTRAP="+bootstrapPath,
 		fmt.Sprintf("LEETGO_DEBUG_CASE_INDEX=%d", exampleIndex),
 		"LEETGO_DEBUG_PROBLEM_SLUG="+s.problem.Slug,
 	)
@@ -738,6 +884,9 @@ func (s *ProblemDetailScreen) handleSubmitResult(msg submitResultMsg) (Screen, t
 		if err != nil {
 			importMsg = fmt.Sprintf("Failed to add remote testcase locally: %v", err)
 		}
+		if ex, err := failedLeetCodeExample(s.problem, msg.result); err == nil {
+			s.mergeExternalExamples([]generator.ExampleSpec{ex})
+		}
 		if importMsg != "" {
 			s.errorMsg += "\n" + importMsg
 		}
@@ -770,6 +919,67 @@ func (s *ProblemDetailScreen) handleSubmitAnywayKey(msg tea.KeyMsg) (Screen, tea
 	default:
 		return s, nil
 	}
+}
+
+func (s *ProblemDetailScreen) handleRegenerateFiles() (Screen, tea.Cmd) {
+	if s.status == roadmap.StatusLocked {
+		s.errorMsg = "Problem is locked."
+		return s, nil
+	}
+	s.regenerateMode = true
+	s.regenerateInput = ""
+	s.errorMsg = ""
+	return s, nil
+}
+
+func (s *ProblemDetailScreen) handleRegenerateKey(msg tea.KeyMsg) (Screen, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		s.regenerateMode = false
+		s.regenerateInput = ""
+		s.errorMsg = "Regenerate cancelled."
+		return s, nil
+	case tea.KeyEnter:
+		if s.regenerateInput == "REGENERATE" {
+			s.regenerateMode = false
+			s.regenerateInput = ""
+			return s.regenerateFiles()
+		}
+		return s, nil
+	case tea.KeyBackspace:
+		if len(s.regenerateInput) > 0 {
+			s.regenerateInput = s.regenerateInput[:len(s.regenerateInput)-1]
+		}
+		return s, nil
+	case tea.KeyRunes:
+		s.regenerateInput += string(msg.Runes)
+		return s, nil
+	default:
+		return s, nil
+	}
+}
+
+func (s *ProblemDetailScreen) regenerateFiles() (Screen, tea.Cmd) {
+	stubPath, testPath, err := s.workspace.Generate(s.problem, generator.Language(s.cfg.Language))
+	if err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to regenerate files: %v", err)
+		return s, nil
+	}
+	if err := s.writeManifest(stubPath, testPath); err != nil {
+		s.errorMsg = fmt.Sprintf("Failed to write manifest: %v", err)
+		return s, nil
+	}
+	if len(s.scrapedExamples) > 0 {
+		if msg, err := appendScrapedLeetCodeExamples(s.problem, s.cfg.Language, testPath, s.scrapedExamples); err != nil {
+			s.errorMsg = fmt.Sprintf("Regenerated files, but failed to add scraped tests: %v", err)
+			return s, nil
+		} else if msg != "" {
+			s.errorMsg = "Regenerated files. " + msg
+			return s, nil
+		}
+	}
+	s.errorMsg = "Regenerated Stub and TestSuite files."
+	return s, nil
 }
 
 func (s *ProblemDetailScreen) recordSubmitLocalAttempt(msg submitResultMsg) {
@@ -1247,7 +1457,7 @@ func (s *ProblemDetailScreen) testCommand() *exec.Cmd {
 	var cmd *exec.Cmd
 	switch s.cfg.Language {
 	case "go":
-		cmd = exec.Command("go", "test", ".")
+		cmd = exec.Command("go", "test", ".", "-timeout", "5s")
 	case "python":
 		cmd = exec.Command("python", "-m", "pytest")
 	case "typescript":
@@ -1263,7 +1473,7 @@ func (s *ProblemDetailScreen) testCommand() *exec.Cmd {
 	case "csharp":
 		cmd = exec.Command("dotnet", "test")
 	default:
-		cmd = exec.Command("go", "test", ".")
+		cmd = exec.Command("go", "test", ".", "-timeout", "5s")
 	}
 	cmd.Dir = dir
 	return cmd
@@ -1272,6 +1482,9 @@ func (s *ProblemDetailScreen) testCommand() *exec.Cmd {
 func (s *ProblemDetailScreen) View() string {
 	if s.submitAnywayMode {
 		return s.renderSubmitAnywayConfirmation()
+	}
+	if s.regenerateMode {
+		return s.renderRegenerateConfirmation()
 	}
 	if s.testResultMsg != "" {
 		return s.renderTestResult()
@@ -1399,10 +1612,14 @@ func (s *ProblemDetailScreen) renderSubmitResult() string {
 	}
 
 	body := renderProblemDetailPreformattedPanel(s.theme, title, strings.TrimSpace(s.submitResultMsg), true, panelWidth)
-	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join([]string{
+	footerItems := []string{
 		s.theme.Key.Render("esc") + " details",
 		s.theme.Key.Render("q") + " quit",
-	}, "  "))
+	}
+	if title != "Submission Accepted" && len(s.scrapedExamples) > 0 {
+		footerItems = append([]string{s.theme.Key.Render("d") + " debug", s.theme.Key.Render("D") + " debug window"}, footerItems...)
+	}
+	footer := s.theme.Footer.PaddingTop(1).Render(strings.Join(footerItems, "  "))
 	content := body + "\n\n" + footer
 	if s.width <= 0 || s.height <= 0 {
 		return content
@@ -1519,7 +1736,7 @@ func (s *ProblemDetailScreen) renderContextProgressionRow(briefLabel string, con
 		progressionWidth := 40
 		contextWidth := bodyWidth - progressionWidth - 2
 		return lipgloss.JoinHorizontal(lipgloss.Top,
-			s.renderContextPanel(briefLabel, contextLines, contextWidth, 0, 0),
+			s.renderContextPanel(briefLabel, contextLines, contextWidth, activeHeight, s.detailScroll),
 			"  ",
 			renderProblemDetailPanel(s.theme, "Progression", progressionBody, false, progressionWidth),
 		)
@@ -1537,7 +1754,7 @@ func (s *ProblemDetailScreen) canCycleContextProgression() bool {
 }
 
 func (s *ProblemDetailScreen) canScrollContextProgression() bool {
-	return s.problemDetailBodyWidth() < 104
+	return s.problemDetailBodyWidth() < 104 || s.problemDescription != ""
 }
 
 func (s *ProblemDetailScreen) hasProgressionPanel() bool {
@@ -1555,7 +1772,7 @@ func (s *ProblemDetailScreen) renderContextPanel(briefLabel string, contextLines
 }
 
 func (s *ProblemDetailScreen) activeDetailPanelBodyLines() int {
-	if s.problemDetailBodyWidth() >= 104 || s.height <= 0 {
+	if (s.problemDetailBodyWidth() >= 104 && s.problemDescription == "") || s.height <= 0 {
 		return 0
 	}
 	lines := s.height - 22
@@ -1756,8 +1973,27 @@ func (s *ProblemDetailScreen) renderSubmitAnywayConfirmation() string {
 	return strings.Join(lines, "\n")
 }
 
+func (s *ProblemDetailScreen) renderRegenerateConfirmation() string {
+	var lines []string
+	lines = append(lines, s.theme.Title.Render("Regenerate Problem Files"))
+	lines = append(lines, fmt.Sprintf("Problem: #%d %s", s.problem.ID, s.problem.Title))
+	lines = append(lines, "")
+	warning := strings.Join([]string{
+		lipgloss.NewStyle().Foreground(s.theme.Danger).Bold(true).Render("This overwrites your current Stub and TestSuite files."),
+		"Use this when you want a fresh generated solution file and fresh local tests.",
+		"Scraped LeetCode examples will be added again when available.",
+	}, "\n")
+	lines = append(lines, renderThemedPanel(s.theme, "Confirm Regenerate", warning, false))
+	lines = append(lines, "")
+	lines = append(lines, "Type REGENERATE to confirm:")
+	lines = append(lines, s.theme.FocusedPanel.Render(s.regenerateInput))
+	lines = append(lines, "")
+	lines = append(lines, s.theme.Footer.Render(s.theme.Key.Render("enter")+" confirm  "+s.theme.Key.Render("esc")+" cancel"))
+	return strings.Join(lines, "\n")
+}
+
 func (s *ProblemDetailScreen) renderDebugPicker() string {
-	spec, ok := generator.SpecForProblem(s.problem)
+	spec, ok := s.debugProblemSpec()
 	if !ok || len(spec.Examples) == 0 {
 		return renderThemedPanel(s.theme, "Debug", "No debuggable test cases are available.", true)
 	}
@@ -1806,10 +2042,17 @@ func debugExamplePreview(spec *generator.ProblemSpec, ex generator.ExampleSpec) 
 }
 
 func (s *ProblemDetailScreen) renderProblemBriefBlock(label string, width int) string {
+	if s.problemDescription != "" {
+		body := s.theme.Subtitle.Render("Source: LeetCode") + "\n\n" + s.problemDescription
+		return renderProblemDetailPanel(s.theme, "Problem Description", body, false, width)
+	}
 	if s.problem.Summary == "" && s.problem.PracticeFocus == "" {
 		return renderProblemDetailPanel(s.theme, label, "No brief available yet.", false, width)
 	}
 	var lines []string
+	if s.descriptionStatus != "" {
+		lines = append(lines, s.theme.Subtitle.Render(s.descriptionStatus), "")
+	}
 	if s.problem.Summary != "" {
 		lines = append(lines, s.problem.Summary)
 	}
@@ -2007,6 +2250,7 @@ func (s *ProblemDetailScreen) renderFooter() string {
 		s.theme.Key.Render("E") + " open window",
 		s.theme.Key.Render("d") + " debug",
 		s.theme.Key.Render("D") + " debug window",
+		s.theme.Key.Render("R") + " regenerate",
 		s.theme.Key.Render("x") + " test",
 		s.theme.Key.Render("s") + " submit",
 		s.theme.Key.Render("m") + " solve",

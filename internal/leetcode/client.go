@@ -1,10 +1,12 @@
 package leetcode
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -68,6 +70,49 @@ func (c *Client) Submit(ctx context.Context, problemID int, problemSlug string, 
 
 func (c *Client) ValidateSession(ctx context.Context) error {
 	if !c.IsAuthenticated() {
+		return ErrSessionExpired
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"query": "query leetgoUserStatus { userStatus { isSignedIn username } }",
+	})
+	if err != nil {
+		return fmt.Errorf("marshal validation request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://leetcode.com/graphql", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create validation request: %w", err)
+	}
+	c.setHeaders(req, "https://leetcode.com/")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("validate Session: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		c.invalidateSession()
+		return ErrSessionExpired
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("validate Session failed (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var payload struct {
+		Data struct {
+			UserStatus struct {
+				IsSignedIn bool   `json:"isSignedIn"`
+				Username   string `json:"username"`
+			} `json:"userStatus"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &payload); err != nil {
+		return fmt.Errorf("decode validation response: %w", err)
+	}
+	if !payload.Data.UserStatus.IsSignedIn {
+		c.invalidateSession()
 		return ErrSessionExpired
 	}
 

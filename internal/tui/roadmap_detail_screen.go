@@ -95,21 +95,17 @@ func (s *RoadmapDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 		case "enter":
 			if p := s.focusedProblem(); p != nil {
-				if s.effectiveStatus(p) == roadmap.StatusLocked {
-					missing := s.missingPrerequisites(p)
-					if len(missing) > 0 {
-						stage := s.problemStageID(p)
-						return s, func() tea.Msg {
-							return NavigateMsg{ScreenID: ScreenStageDetail, Stage: stage}
-						}
-					}
-				}
-				stage := s.problemStageID(p)
 				return s, func() tea.Msg {
-					return NavigateMsg{ScreenID: ScreenStageDetail, Stage: stage}
+					return NavigateMsg{ScreenID: ScreenProblemDetail, ProblemID: p.ID, ReturnScreen: ScreenRoadmapDetail, ReturnStage: s.problemStageID(p)}
 				}
 			}
 			return s, nil
+
+		case "ctrl+p":
+			s.moveStage(-1)
+
+		case "ctrl+n":
+			s.moveStage(1)
 
 		case "j", "down":
 			s.moveFocus(1)
@@ -120,21 +116,17 @@ func (s *RoadmapDetailScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 		case "h", "left":
 			if s.usesCompactPanes() {
 				s.cyclePane(-1)
-			} else {
-				s.cycleGroup(-1)
 			}
 
 		case "l", "right":
 			if s.usesCompactPanes() {
 				s.cyclePane(1)
-			} else {
-				s.cycleGroup(1)
 			}
 
-		case "<":
+		case "shift+tab":
 			s.cycleGroup(-1)
 
-		case ">":
+		case "tab":
 			s.cycleGroup(1)
 
 		case "ctrl+d":
@@ -560,6 +552,50 @@ func (s *RoadmapDetailScreen) moveFocus(delta int) {
 	s.scrollToProblem(problems[s.focusIndex].ID)
 }
 
+func (s *RoadmapDetailScreen) moveStage(delta int) {
+	problems := s.activeProblems()
+	if len(problems) == 0 {
+		return
+	}
+	current := s.focusedProblem()
+	if current == nil {
+		s.focusIndex = 0
+		s.scrollToProblem(problems[0].ID)
+		return
+	}
+
+	stageStarts := make([]int, 0)
+	stageIDs := make([]string, 0)
+	seen := make(map[string]bool)
+	for i, p := range problems {
+		stageID := s.problemStageID(p)
+		if seen[stageID] {
+			continue
+		}
+		seen[stageID] = true
+		stageIDs = append(stageIDs, stageID)
+		stageStarts = append(stageStarts, i)
+	}
+	if len(stageStarts) == 0 {
+		return
+	}
+
+	currentStage := s.problemStageID(current)
+	stageIndex := 0
+	for i, stageID := range stageIDs {
+		if stageID == currentStage {
+			stageIndex = i
+			break
+		}
+	}
+	next := (stageIndex + delta) % len(stageStarts)
+	if next < 0 {
+		next += len(stageStarts)
+	}
+	s.focusIndex = stageStarts[next]
+	s.scrollToProblem(problems[s.focusIndex].ID)
+}
+
 func (s *RoadmapDetailScreen) focusedProblem() *roadmap.Problem {
 	problems := s.activeProblems()
 	if s.focusIndex < 0 || s.focusIndex >= len(problems) {
@@ -584,7 +620,7 @@ func (s *RoadmapDetailScreen) renderBlockedInfo(p *roadmap.Problem, panelWidth i
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, s.theme.Subtitle.Render("Press enter to open the stage."))
+	lines = append(lines, s.theme.Subtitle.Render("Press enter to open the problem."))
 
 	return renderRoadmapPanel(s.theme, "Blocked", strings.Join(lines, "\n"), true, panelWidth)
 }
@@ -968,9 +1004,10 @@ func (s *RoadmapDetailScreen) renderFooter() string {
 	if s.usesCompactPanes() {
 		items := []string{
 			s.theme.Key.Render("h/l") + " pane",
-			s.theme.Key.Render("< >") + " group",
+			s.theme.Key.Render("tab") + " group",
 			s.theme.Key.Render("j/k") + " navigate",
-			s.theme.Key.Render("enter") + " stage",
+			s.theme.Key.Render("enter") + " problem",
+			s.theme.Key.Render("ctrl+n/p") + " stage",
 			s.theme.Key.Render("esc") + " dashboard",
 			s.theme.Key.Render("q") + " quit",
 		}
@@ -979,8 +1016,9 @@ func (s *RoadmapDetailScreen) renderFooter() string {
 
 	items := []string{
 		s.theme.Key.Render("j/k") + " navigate",
-		s.theme.Key.Render("h/l") + " group",
+		s.theme.Key.Render("tab") + " group",
 		s.theme.Key.Render("enter") + " problem",
+		s.theme.Key.Render("ctrl+n/p") + " stage",
 		s.theme.Key.Render("esc") + " dashboard",
 		s.theme.Key.Render("q") + " quit",
 	}
